@@ -4,11 +4,12 @@ import { useTaskStore } from './store/taskStore'
 import { useProjectStore } from './store/projectStore'
 import { useTheme } from './contexts/ThemeContext'
 import Toolbar from './components/Toolbar'
-import TaskList from './components/TaskList'
+// import TaskList from './components/TaskList' // Hidden - Kanban replaces list view
 import TaskDetail from './components/TaskDetail'
 import FilterPanel from './components/FilterPanel'
 import StatusBar from './components/StatusBar'
 import GraphView from './components/GraphView'
+import KanbanBoard from './components/KanbanBoard'
 import Sidebar from './components/ProjectSidebar'
 import Header from './components/AppHeader'
 import HomePage from './pages/HomePage'
@@ -45,7 +46,7 @@ function App() {
     toggleSidebar,
   } = useProjectStore()
 
-  const [view, setView] = useState<'list' | 'graph'>('list')
+  const [view, setView] = useState<'list' | 'graph' | 'kanban'>('kanban')
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all')
   const [filterPriority, setFilterPriority] = useState<TaskPriority | 'all'>('all')
   const [searchInput, setSearchInput] = useState('')
@@ -139,7 +140,7 @@ function App() {
   }, [setQueryOptions])
 
   // Clear filters when switching to graph view - graph shows all tasks
-  const handleViewChange = useCallback((newView: 'list' | 'graph') => {
+  const handleViewChange = useCallback((newView: 'list' | 'graph' | 'kanban') => {
     if (newView === 'graph') {
       // Clear filters when switching to graph view
       setFilterStatus('all')
@@ -148,6 +149,7 @@ function App() {
       setSearchQuery('')
       setQueryOptions({})
     }
+    // Kanban view uses filters like list view
     setView(newView)
   }, [setQueryOptions])
 
@@ -178,12 +180,17 @@ function App() {
         searchInput?.focus()
       }
 
-      if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
-        handleViewChange('list')
-      }
+      // List view hidden - 'L' shortcut removed
+      // if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
+      //   handleViewChange('list')
+      // }
 
       if (e.key === 'g' && !e.ctrlKey && !e.metaKey) {
         handleViewChange('graph')
+      }
+
+      if (e.key === 'k' && !e.ctrlKey && !e.metaKey) {
+        handleViewChange('kanban')
       }
 
       if (e.key === 't' && !e.ctrlKey && !e.metaKey) {
@@ -198,14 +205,15 @@ function App() {
         toggleSidebar()
       }
 
-      if (view === 'list' && tasks.length > 0) {
+      // Arrow key navigation for kanban view
+      if (view === 'kanban' && tasks.length > 0) {
         if (e.key === 'ArrowDown' || e.key === 'j') {
           e.preventDefault()
           const currentIndex = selectedTaskId ? tasks.findIndex(t => t.id === selectedTaskId) : -1
           const nextIndex = Math.min(currentIndex + 1, tasks.length - 1)
           setSelectedTask(tasks[nextIndex]?.id || null)
         }
-        if (e.key === 'ArrowUp' || e.key === 'k') {
+        if (e.key === 'ArrowUp') {
           e.preventDefault()
           const currentIndex = selectedTaskId ? tasks.findIndex(t => t.id === selectedTaskId) : 0
           const prevIndex = Math.max(currentIndex - 1, 0)
@@ -306,7 +314,8 @@ function App() {
 
               {/* Content Area - Three-column layout */}
               <div className="flex-1 flex overflow-hidden min-w-0 min-h-0">
-                {/* Left Sidebar - Filters and Task List (List view only) */}
+                {/* LIST VIEW HIDDEN - Kanban replaces list view */}
+                {/*
                 {view === 'list' && (
                   <aside
                     className="w-80 flex-shrink-0 overflow-y-auto hidden md:flex md:flex-col"
@@ -315,7 +324,6 @@ function App() {
                       borderRight: '1px solid var(--border-default)',
                     }}
                   >
-                    {/* Filters */}
                     <div
                       className="p-4 flex-shrink-0"
                       style={{ borderBottom: '1px solid var(--border-muted)' }}
@@ -335,8 +343,6 @@ function App() {
                         onSearchChange={handleSearchChange}
                       />
                     </div>
-
-                    {/* Task List */}
                     <div className="flex-1 overflow-y-auto min-h-0">
                       <div className="p-4">
                         <h2
@@ -364,6 +370,7 @@ function App() {
                     </div>
                   </aside>
                 )}
+                */}
 
                 {/* Center Content - Graph View or Empty State */}
                 {view === 'graph' && (
@@ -377,10 +384,43 @@ function App() {
                   </div>
                 )}
 
+                {/* Center Content - Kanban View */}
+                {view === 'kanban' && (
+                  <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
+                    {/* Compact filter bar for kanban */}
+                    <div
+                      className="px-4 py-2 flex-shrink-0"
+                      style={{
+                        background: 'var(--surface-abyss)',
+                        borderBottom: '1px solid var(--border-default)',
+                      }}
+                    >
+                      <FilterPanel
+                        selectedStatus={filterStatus}
+                        selectedPriority={filterPriority}
+                        searchQuery={searchInput}
+                        onStatusChange={handleStatusChange}
+                        onPriorityChange={handlePriorityChange}
+                        onSearchChange={handleSearchChange}
+                        compact={true}
+                      />
+                    </div>
+                    {/* Kanban board */}
+                    <div className="flex-1 min-h-0">
+                      <KanbanBoard
+                        tasks={filteredTasks}
+                        selectedTaskId={selectedTaskId}
+                        onTaskClick={setSelectedTask}
+                        loading={loading}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Right Panel - Task Detail */}
                 <aside
                   className={`
-                    w-80 flex-shrink-0 overflow-hidden hidden md:flex md:flex-col
+                    w-[352px] flex-shrink-0 overflow-hidden hidden md:flex md:flex-col
                     ${selectedTaskId ? 'fixed inset-0 z-50 md:relative md:z-auto md:flex' : ''}
                   `}
                   style={{

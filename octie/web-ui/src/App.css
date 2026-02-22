@@ -118,3 +118,66 @@ body, main, aside, header, nav, section, div {
   border-radius: 8px;
 }
 
+/* Kanban Board Styles */
+.kanban-column {
+  transition: all 0.2s ease;
+}
+
+.kanban-column:hover {
+  transform: translateY(-2px);
+}
+
+/* Kanban card hover effects */
+.kanban-card {
+  transition: all 0.15s ease;
+}
+
+.kanban-card:hover {
+  transform: translateX(2px);
+}
+
+/* Smooth scrollbar for kanban columns */
+.kanban-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.kanban-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Kanban collapsed mode animations */
+@media (max-width: 767px) {
+  .kanban-collapsed-btn {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .kanban-collapsed-btn:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Kanban expanded detail panel animation */
+.kanban-detail-enter {
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

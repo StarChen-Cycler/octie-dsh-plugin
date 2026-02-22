@@ -4,8 +4,8 @@
  */
 
 interface ToolbarProps {
-  view: 'list' | 'graph';
-  onViewChange: (view: 'list' | 'graph') => void;
+  view: 'list' | 'graph' | 'kanban';
+  onViewChange: (view: 'list' | 'graph' | 'kanban') => void;
   onRefresh: () => void;
   loading?: boolean;
   onExportPNG?: () => void;
@@ -32,7 +32,8 @@ function Toolbar({
         {/* Left - View Toggle */}
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
-            <button
+            {/* List view hidden - Kanban replaces it */}
+            {/* <button
               type="button"
               onClick={() => onViewChange('list')}
               className="flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200"
@@ -62,6 +63,35 @@ function Toolbar({
                 }}
               >
                 L
+              </kbd>
+            </button> */}
+            <button
+              type="button"
+              onClick={() => onViewChange('kanban')}
+              className="flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200"
+              style={{
+                background: view === 'kanban'
+                  ? 'linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(167, 139, 250, 0.15))'
+                  : 'var(--surface-raised)',
+                color: view === 'kanban' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                borderRight: '1px solid var(--border-default)',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="5" height="18" rx="1" />
+                <rect x="10" y="3" width="5" height="18" rx="1" />
+                <rect x="17" y="3" width="5" height="14" rx="1" />
+              </svg>
+              Kanban
+              <kbd
+                className="text-[10px] px-1 rounded"
+                style={{
+                  background: view === 'kanban' ? 'var(--surface-elevated)' : 'var(--surface-base)',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                K
               </kbd>
             </button>
             <button
