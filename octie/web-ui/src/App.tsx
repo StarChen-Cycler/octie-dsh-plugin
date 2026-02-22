@@ -389,7 +389,7 @@ function App() {
                   <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
                     {/* Compact filter bar for kanban */}
                     <div
-                      className="px-4 py-2 flex-shrink-0"
+                      className="px-3 py-2 flex-shrink-0 min-w-0 overflow-hidden"
                       style={{
                         background: 'var(--surface-abyss)',
                         borderBottom: '1px solid var(--border-default)',
@@ -420,7 +420,7 @@ function App() {
                 {/* Right Panel - Task Detail */}
                 <aside
                   className={`
-                    w-[352px] flex-shrink-0 overflow-hidden hidden md:flex md:flex-col
+                    w-[400px] flex-shrink-0 overflow-hidden hidden md:flex md:flex-col
                     ${selectedTaskId ? 'fixed inset-0 z-50 md:relative md:z-auto md:flex' : ''}
                   `}
                   style={{

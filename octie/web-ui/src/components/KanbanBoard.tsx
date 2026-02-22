@@ -132,42 +132,9 @@ interface KanbanCardProps {
   task: Task;
   isSelected: boolean;
   onClick: () => void;
-  isCompact: boolean;
 }
 
-function KanbanCard({ task, isSelected, onClick, isCompact }: KanbanCardProps) {
-  const colors = statusColors[task.status];
-
-  if (isCompact) {
-    // Compact mode: just title and priority indicator
-    return (
-      <button
-        onClick={onClick}
-        className="w-full text-left px-2 py-1.5 rounded-md transition-all duration-200 mb-1.5"
-        style={{
-          background: isSelected ? colors.bg : 'var(--surface-raised)',
-          border: isSelected ? `1px solid ${colors.border}` : '1px solid var(--border-default)',
-          boxShadow: isSelected ? colors.glow : 'none',
-        }}
-      >
-        <div className="flex items-center gap-2">
-          {/* Priority dot */}
-          <div
-            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ background: priorityIndicator[task.priority] }}
-          />
-          <span
-            className="text-xs truncate"
-            style={{ color: isSelected ? colors.color : 'var(--text-primary)' }}
-          >
-            {task.title}
-          </span>
-        </div>
-      </button>
-    );
-  }
-
-  // Full mode: detailed card
+function KanbanCard({ task, isSelected, onClick }: KanbanCardProps) {
   return (
     <button
       onClick={onClick}
@@ -296,9 +263,8 @@ function KanbanBoard({ tasks, selectedTaskId, onTaskClick, loading }: KanbanBoar
   const viewportWidth = useViewportWidth();
   const [expandedStatus, setExpandedStatus] = useState<TaskStatus | null>(null);
 
-  // Responsive breakpoints
+  // Responsive breakpoint: collapsed view for small screens
   const isCollapsed = viewportWidth < 768;
-  const isCompact = viewportWidth >= 768 && viewportWidth < 1280;
 
   // Group tasks by status
   const tasksByStatus = useMemo(() => {
@@ -391,7 +357,6 @@ function KanbanBoard({ tasks, selectedTaskId, onTaskClick, loading }: KanbanBoar
                     task={task}
                     isSelected={selectedTaskId === task.id}
                     onClick={() => onTaskClick(task.id)}
-                    isCompact={true}
                   />
                 ))
               )}
@@ -484,7 +449,6 @@ function KanbanBoard({ tasks, selectedTaskId, onTaskClick, loading }: KanbanBoar
                       task={task}
                       isSelected={selectedTaskId === task.id}
                       onClick={() => onTaskClick(task.id)}
-                      isCompact={isCompact}
                     />
                   ))
                 )}

@@ -30,10 +30,10 @@ function FilterPanel({
   // Compact mode: horizontal layout with smaller controls
   if (compact) {
     return (
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap min-w-0 overflow-hidden">
         {/* Search */}
         <div
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg flex-1 min-w-[160px] max-w-[240px]"
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg flex-1 min-w-0 max-w-[200px]"
           style={{
             background: 'var(--surface-elevated)',
             border: '1px solid var(--border-default)',
@@ -57,17 +57,17 @@ function FilterPanel({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search..."
-            className="flex-1 bg-transparent border-none outline-none text-xs"
+            className="flex-1 min-w-0 bg-transparent border-none outline-none text-xs w-0"
             style={{ color: 'var(--text-primary)' }}
           />
         </div>
 
         {/* Status Filter */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <select
             value={selectedStatus}
             onChange={(e) => onStatusChange(e.target.value as TaskStatus | 'all')}
-            className="px-2.5 py-1.5 text-xs rounded-lg focus-ring appearance-none cursor-pointer pr-6"
+            className="px-2 py-1.5 text-xs rounded-lg focus-ring appearance-none cursor-pointer pr-5"
             style={{
               background: 'var(--surface-elevated)',
               border: '1px solid var(--border-default)',
@@ -76,12 +76,12 @@ function FilterPanel({
           >
             {statuses.map((status) => (
               <option key={status} value={status}>
-                {status === 'all' ? 'All Status' : status.replace('_', ' ').slice(0, 10)}
+                {status === 'all' ? 'All Status' : status.replace('_', ' ')}
               </option>
             ))}
           </select>
           <svg
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none"
             width="10"
             height="10"
             viewBox="0 0 24 24"
@@ -94,11 +94,11 @@ function FilterPanel({
         </div>
 
         {/* Priority Filter */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <select
             value={selectedPriority}
             onChange={(e) => onPriorityChange(e.target.value as TaskPriority | 'all')}
-            className="px-2.5 py-1.5 text-xs rounded-lg focus-ring appearance-none cursor-pointer pr-6"
+            className="px-2 py-1.5 text-xs rounded-lg focus-ring appearance-none cursor-pointer pr-5"
             style={{
               background: 'var(--surface-elevated)',
               border: '1px solid var(--border-default)',
@@ -112,7 +112,7 @@ function FilterPanel({
             ))}
           </select>
           <svg
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none"
             width="10"
             height="10"
             viewBox="0 0 24 24"
@@ -132,7 +132,7 @@ function FilterPanel({
               onPriorityChange('all');
               onSearchChange('');
             }}
-            className="px-2 py-1.5 text-xs rounded-lg transition-colors"
+            className="px-2 py-1.5 text-xs rounded-lg transition-colors flex-shrink-0"
             style={{
               background: 'transparent',
               border: '1px solid var(--border-default)',
