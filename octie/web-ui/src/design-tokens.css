@@ -184,12 +184,12 @@
  * ═══════════════════════════════════════════════════════════════ */
 
 [data-theme="light"] {
-  /* Invert surfaces for light mode */
-  --surface-void: #ffffff;
-  --surface-abyss: #fafbfc;
-  --surface-base: #f6f8fa;
+  /* Rice white theme - warm off-white */
+  --surface-void: #faf9f6;
+  --surface-abyss: #f8f7f4;
+  --surface-base: #faf9f6;
   --surface-raised: #ffffff;
-  --surface-overlay: #f3f4f6;
+  --surface-overlay: #f5f4f1;
   --surface-elevated: #ffffff;
   --surface-floating: #ffffff;
 
@@ -232,7 +232,7 @@
 }
 
 [data-theme="light"] .glass-card {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(250, 249, 246, 0.9);
 }
 
 /* Neon glow text */
