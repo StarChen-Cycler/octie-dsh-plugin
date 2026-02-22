@@ -95,12 +95,12 @@ function StatusBar({ stats, loading }: StatusBarProps) {
           <div className="flex items-center gap-1" title="Ready">
             <div
               className="w-2 h-2 rounded-full"
-              style={{ background: 'var(--text-muted)', boxShadow: '0 0 4px rgba(110, 118, 129, 0.4)' }}
+              style={{ background: 'var(--accent-amber)', boxShadow: '0 0 4px rgba(255, 159, 28, 0.4)' }}
             />
-            <span className="tabular-nums" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            <span className="tabular-nums" style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)' }}>
               {tasks.statusCounts.ready}
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>ready</span>
+            <span style={{ color: 'var(--accent-amber)', fontSize: '10px' }}>ready</span>
           </div>
           <div className="flex items-center gap-1" title="In Review">
             <div

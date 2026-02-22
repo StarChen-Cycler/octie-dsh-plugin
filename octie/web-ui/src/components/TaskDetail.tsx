@@ -14,7 +14,7 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   completed: { bg: 'rgba(16, 185, 129, 0.15)', color: 'var(--status-completed)' },
   in_progress: { bg: 'rgba(0, 212, 255, 0.15)', color: 'var(--status-in-progress)' },
   in_review: { bg: 'rgba(167, 139, 250, 0.15)', color: 'var(--accent-violet)' },
-  ready: { bg: 'rgba(0, 212, 255, 0.1)', color: 'var(--accent-cyan)' },
+  ready: { bg: 'rgba(255, 159, 28, 0.1)', color: 'var(--accent-amber)' },
   blocked: { bg: 'rgba(244, 63, 94, 0.15)', color: 'var(--status-blocked)' },
 };
 

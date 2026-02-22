@@ -74,10 +74,10 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string; icon: React.ReactNode
 // Status colors matching the project theme
 const statusColors: Record<TaskStatus, { bg: string; color: string; glow: string; border: string }> = {
   ready: {
-    bg: 'rgba(0, 212, 255, 0.08)',
-    color: 'var(--accent-cyan)',
-    glow: '0 0 20px rgba(0, 212, 255, 0.15)',
-    border: 'rgba(0, 212, 255, 0.25)',
+    bg: 'rgba(255, 159, 28, 0.1)',
+    color: 'var(--accent-amber)',
+    glow: '0 0 20px rgba(255, 159, 28, 0.2)',
+    border: 'rgba(255, 159, 28, 0.25)',
   },
   in_progress: {
     bg: 'rgba(0, 212, 255, 0.12)',
