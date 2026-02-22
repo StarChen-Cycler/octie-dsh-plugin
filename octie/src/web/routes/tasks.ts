@@ -158,24 +158,35 @@ export function registerTaskRoutes(
   const graphCache = new Map<string, TaskGraphStore>();
 
   /**
-   * Get graph for a specific project path, using cache when possible
+   * Clear graph cache for a project (or all if no path)
+   */
+  function clearCache(projectPath?: string): void {
+    console.log('[CACHE] clearCache called, projectPath:', projectPath);
+    if (projectPath) {
+      const deleted = graphCache.delete(projectPath);
+      console.log('[CACHE] Deleted from tasks cache:', deleted, 'Remaining:', graphCache.size);
+    } else {
+      graphCache.clear();
+      console.log('[CACHE] Cleared all tasks cache');
+    }
+  }
+
+  // Export for use by other routes and CLI
+  (globalThis as unknown as { __octieClearGraphCache: typeof clearCache }).__octieClearGraphCache = clearCache;
+
+  /**
+   * Get graph for a specific project path - always load fresh from file
+   * Disabled caching to ensure fresh data after CLI modifications
    */
   async function getProjectGraph(projectPath: string | undefined): Promise<TaskGraphStore | null> {
     if (!projectPath) {
       return getGraph();
     }
 
-    // Check cache first
-    const cached = graphCache.get(projectPath);
-    if (cached) {
-      return cached;
-    }
-
-    // Load the project
+    // Always load fresh from file - no caching
     try {
       const storage = new TaskStorage({ projectDir: projectPath });
       const graph = await storage.load();
-      graphCache.set(projectPath, graph);
       return graph;
     } catch {
       return null;
@@ -608,5 +619,15 @@ export function registerTaskRoutes(
       }
       throw err;
     }
+  }));
+
+  /**
+   * POST /api/cache/invalidate
+   * Invalidate graph cache for a project (called by CLI)
+   */
+  router.post('/api/cache/invalidate', asyncHandler(async (req: Request, res: Response) => {
+    const projectPath = getProjectPath(req);
+    clearCache(projectPath);
+    return sendSuccess(res, { invalidated: true, projectPath: projectPath || null });
   }));
 }

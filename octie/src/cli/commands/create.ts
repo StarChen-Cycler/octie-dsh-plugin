@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { TaskNode } from '../../core/models/task-node.js';
 import { getProjectPath, loadGraph, saveGraph, success, error, info, parseList } from '../utils/helpers.js';
 import { AtomicTaskViolationError } from '../../types/index.js';
+import { touchProject } from '../../core/registry/index.js';
 import chalk from 'chalk';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -322,6 +323,17 @@ export const createCommand = new Command('create')
 
       // Save
       await saveGraph(projectPath, graph);
+
+      // Update registry task count
+      touchProject(projectPath);
+
+      // Invalidate server graph cache via HTTP
+      try {
+        const serverUrl = process.env.OCTIE_SERVER_URL || 'http://localhost:3030';
+        await fetch(`${serverUrl}/api/cache/invalidate?project=${encodeURIComponent(projectPath)}`, { method: 'POST' });
+      } catch {
+        // Server may not be running, ignore
+      }
 
       // Success
       success(`Task created: ${chalk.cyan(taskId)}`);

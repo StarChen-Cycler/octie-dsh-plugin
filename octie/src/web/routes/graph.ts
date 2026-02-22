@@ -72,24 +72,40 @@ export function registerGraphRoutes(
   const graphCache = new Map<string, TaskGraphStore>();
 
   /**
-   * Get graph for a specific project path, using cache when possible
+   * Clear graph cache for a project
+   */
+  function clearCache(projectPath?: string): void {
+    console.log('[CACHE] graph.ts clearCache called, projectPath:', projectPath);
+    if (projectPath) {
+      const deleted = graphCache.delete(projectPath);
+      console.log('[CACHE] Deleted from graph cache:', deleted, 'Remaining:', graphCache.size);
+    } else {
+      graphCache.clear();
+      console.log('[CACHE] Cleared all graph cache');
+    }
+    // Also clear tasks.ts cache if available
+    const globalClear = (globalThis as unknown as { __octieClearGraphCache?: (path?: string) => void }).__octieClearGraphCache;
+    if (globalClear) {
+      globalClear(projectPath);
+    }
+  }
+
+  // Export for use by CLI
+  (globalThis as unknown as { __octieClearGraphCache: typeof clearCache }).__octieClearGraphCache = clearCache;
+
+  /**
+   * Get graph for a specific project path - always load fresh from file
+   * Disabled caching to ensure fresh data after CLI modifications
    */
   async function getProjectGraph(projectPath: string | undefined): Promise<TaskGraphStore | null> {
     if (!projectPath) {
       return getGraph();
     }
 
-    // Check cache first
-    const cached = graphCache.get(projectPath);
-    if (cached) {
-      return cached;
-    }
-
-    // Load the project
+    // Always load fresh from file - no caching
     try {
       const storage = new TaskStorage({ projectDir: projectPath });
       const graph = await storage.load();
-      graphCache.set(projectPath, graph);
       return graph;
     } catch {
       return null;

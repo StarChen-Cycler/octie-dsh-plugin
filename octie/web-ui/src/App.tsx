@@ -44,6 +44,7 @@ function App() {
     getProjectFromUrl,
     setCurrentProject,
     toggleSidebar,
+    fetchProjects,
   } = useProjectStore()
 
   const [view, setView] = useState<'list' | 'graph' | 'kanban'>('kanban')
@@ -93,7 +94,9 @@ function App() {
     if (projectFromUrl) {
       setCurrentProject(projectFromUrl)
     }
-  }, [getProjectFromUrl, setCurrentProject])
+    // Fetch project list on initial load
+    fetchProjects()
+  }, [getProjectFromUrl, setCurrentProject, fetchProjects])
 
   // Sync project path to task store when it changes
   useEffect(() => {
@@ -110,10 +113,11 @@ function App() {
   }, [currentProjectPath, fetchTasks, fetchGraph, fetchStats])
 
   const handleRefresh = useCallback(() => {
+    fetchProjects()
     fetchTasks()
     fetchGraph()
     fetchStats()
-  }, [fetchTasks, fetchGraph, fetchStats])
+  }, [fetchProjects, fetchTasks, fetchGraph, fetchStats])
 
   const handleStatusChange = useCallback((status: TaskStatus | 'all') => {
     setFilterStatus(status)

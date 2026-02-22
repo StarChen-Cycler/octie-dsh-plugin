@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import { getProjectPath, loadGraph, saveGraph, success, error, info, warning, confirmPrompt } from '../utils/helpers.js';
+import { touchProject } from '../../core/registry/index.js';
 import chalk from 'chalk';
 import { cutNode, cascadeDelete } from '../../core/graph/operations.js';
 
@@ -119,6 +120,15 @@ Examples:
         // Save
         await saveGraph(projectPath, graph);
 
+        // Update registry task count
+        touchProject(projectPath);
+
+        // Invalidate server graph cache via HTTP
+        try {
+          const serverUrl = process.env.OCTIE_SERVER_URL || 'http://localhost:3030';
+          await fetch(`${serverUrl}/api/cache/invalidate?project=${encodeURIComponent(projectPath)}`, { method: 'POST' });
+        } catch { /* ignore */ }
+
         success(`Deleted ${deletedIds.length} task(s): ${deletedIds.map(id => id.substring(0, 8)).join(', ')}`);
         process.exit(0);
       } else {
@@ -140,6 +150,15 @@ Examples:
 
       // Save
       await saveGraph(projectPath, graph);
+
+      // Update registry task count
+      touchProject(projectPath);
+
+      // Invalidate server graph cache via HTTP
+      try {
+        const serverUrl = process.env.OCTIE_SERVER_URL || 'http://localhost:3030';
+        await fetch(`${serverUrl}/api/cache/invalidate?project=${encodeURIComponent(projectPath)}`, { method: 'POST' });
+      } catch { /* ignore */ }
 
       success(`Task deleted: ${chalk.cyan(fullId.substring(0, 8))}`);
 

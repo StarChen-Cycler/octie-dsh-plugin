@@ -91,10 +91,15 @@ function ProjectItem({
           </div>
 
           <div className="flex items-center gap-2 mt-0.5">
-            {/* Task count badge */}
+            {/* Task count badge with smooth transition */}
             <span
-              className="text-xs tabular-nums"
-              style={{ color: priorityColor, fontFamily: 'var(--font-mono)' }}
+              className="text-xs tabular-nums transition-all duration-300 ease-out"
+              style={{
+                color: priorityColor,
+                fontFamily: 'var(--font-mono)',
+                minWidth: '1.5em',
+                textAlign: 'center',
+              }}
             >
               {project.taskCount}
             </span>
@@ -126,20 +131,23 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const {
     projects,
     currentProjectPath,
-    loading,
     fetchProjects,
     setCurrentProject,
   } = useProjectStore();
 
-  const { fetchTasks, fetchGraph, fetchStats } = useTaskStore();
+  const { fetchTasks, fetchGraph, fetchStats, setCurrentProjectPath } = useTaskStore();
 
+  // Fetch projects when current project changes or on mount
+  // This ensures sidebar task counts stay in sync with main panel
   useEffect(() => {
     fetchProjects();
-  }, [fetchProjects]);
+  }, [fetchProjects, currentProjectPath]);
 
   const handleProjectClick = (project: RegistryProject) => {
     if (!project.exists) return;
+    // Update BOTH stores before fetching to prevent race condition
     setCurrentProject(project.path);
+    setCurrentProjectPath(project.path);
     fetchTasks();
     fetchGraph();
     fetchStats();
@@ -147,6 +155,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   const handleHomeClick = () => {
     setCurrentProject(null);
+    setCurrentProjectPath(null);
   };
 
   const isHomeActive = !currentProjectPath;
@@ -275,17 +284,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
           {/* Project list */}
           <div className="flex-1 overflow-y-auto p-2">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div
-                  className="w-6 h-6 rounded-full animate-spin"
-                  style={{
-                    border: '2px solid var(--border-default)',
-                    borderTopColor: 'var(--accent-cyan)',
-                  }}
-                />
-              </div>
-            ) : projects.length === 0 ? (
+            {projects.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <div
                   className="w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center"
