@@ -40,7 +40,7 @@ const TaskCreateSchema = z.object({
     completed: z.boolean().default(false),
     file_path: z.string().optional(),
   })).min(1, 'At least one deliverable is required')
-    .max(5, 'Cannot have more than 5 deliverables'),
+    .max(10, 'Cannot have more than 10 deliverables'),
   priority: z.enum(['top', 'second', 'later']).optional().default('second'),
   // Status is now derived from task state, but we allow it for backward compatibility
   status: z.enum(['ready', 'in_progress', 'in_review', 'completed', 'blocked']).optional(),

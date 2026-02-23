@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { getProjectPath, loadGraph, success, error } from '../utils/helpers.js';
+import { getProjectPath, loadGraph, saveGraph, success, error, info } from '../utils/helpers.js';
 import chalk from 'chalk';
 import { detectCycle, validateReferences } from '../../core/graph/cycle.js';
 import { topologicalSort } from '../../core/graph/sort.js';
@@ -82,6 +82,7 @@ Examples:
 graphCommand
   .command('validate')
   .description('Validate graph structure (checks for cycles and orphan references)')
+  .option('--fix', 'Automatically fix invalid blocker references by removing them')
   .addHelpText('after', `
 Validation Checks:
   1. Cycle Detection - Ensures graph is a valid DAG (no circular dependencies)
@@ -94,8 +95,10 @@ Exit Codes:
 Example:
   $ octie graph validate
   ✓ Graph validation passed: No cycles detected, all blocker references valid
+  $ octie graph validate --fix
+  ✓ Removed 3 invalid blocker references, graph is now valid
 `)
-  .action(async (_options, command) => {
+  .action(async (options, command) => {
     try {
       // Get global options - traverse up to main program (parent.parent)
       const globalOpts = command.parent?.parent?.opts() || {};
@@ -114,10 +117,30 @@ Example:
       const refResult = validateReferences(graph);
 
       if (refResult.hasInvalidReferences) {
+        // If --fix is provided, automatically remove invalid blockers
+        if (options.fix) {
+          let fixedCount = 0;
+          for (const ref of refResult.invalidReferences) {
+            const task = graph.getNode(ref.taskId);
+            if (task && task.blockers.includes(ref.invalidBlockerId)) {
+              task.removeBlocker(ref.invalidBlockerId);
+              graph.updateNode(task);
+              fixedCount++;
+            }
+          }
+          // Save the graph after fixing
+          await saveGraph(projectPath, graph);
+          success(`Removed ${fixedCount} invalid blocker reference(s), graph is now valid`);
+          process.exit(0);
+        }
+
+        // Without --fix, show errors and exit
         console.error(chalk.red(`Graph validation failed: ${refResult.invalidReferences.length} missing blocker reference(s)`));
         for (const ref of refResult.invalidReferences) {
           console.error(chalk.red(`  Task ${ref.taskId.substring(0, 8)} references non-existent blocker: ${ref.invalidBlockerId.substring(0, 8)}`));
         }
+        console.log('');
+        info('Run with --fix to automatically remove invalid blockers');
         process.exit(1);
       }
 

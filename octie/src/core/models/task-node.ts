@@ -617,9 +617,9 @@ export class TaskNode implements TaskNodeType {
       );
     }
 
-    if (data.deliverables.length > 5) {
+    if (data.deliverables.length > 10) {
       throw new ValidationError(
-        'Too many deliverables (max 5). Split into smaller tasks.',
+        'Too many deliverables (max 10). Split into smaller tasks.',
         'deliverables'
       );
     }
@@ -803,9 +803,9 @@ export class TaskNode implements TaskNodeType {
    * @param deliverable - Deliverable to add
    */
   addDeliverable(deliverable: Deliverable): void {
-    if (this.deliverables.length >= 5) {
+    if (this.deliverables.length >= 10) {
       throw new ValidationError(
-        'Too many deliverables (max 5). Split into smaller tasks.',
+        'Too many deliverables (max 10). Split into smaller tasks.',
         'deliverables'
       );
     }

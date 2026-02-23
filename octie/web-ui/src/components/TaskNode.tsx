@@ -1,28 +1,63 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { Task } from '../types';
+import type { Task, TaskStatus } from '../types';
+
+/**
+ * Get the status color for styling
+ */
+function getStatusColor(status: TaskStatus | string): string {
+  switch (status) {
+    case 'ready':
+      return 'var(--status-pending)';
+    case 'in_progress':
+      return 'var(--status-in-progress)';
+    case 'in_review':
+      return 'var(--accent-violet)';
+    case 'completed':
+      return 'var(--status-completed)';
+    case 'blocked':
+      return 'var(--status-blocked)';
+    default:
+      return 'var(--border-default)';
+  }
+}
+
+/**
+ * Get the glow color (with opacity) for box-shadow
+ */
+function getStatusGlowColor(status: TaskStatus | string): string {
+  switch (status) {
+    case 'ready':
+      return 'rgba(255, 159, 28, 0.4)';
+    case 'in_progress':
+      return 'rgba(0, 212, 255, 0.4)';
+    case 'in_review':
+      return 'rgba(167, 139, 250, 0.4)';
+    case 'completed':
+      return 'rgba(16, 185, 129, 0.4)';
+    case 'blocked':
+      return 'rgba(244, 63, 94, 0.4)';
+    default:
+      return 'rgba(110, 118, 129, 0.2)';
+  }
+}
 
 function TaskNode({ data, selected }: NodeProps) {
   const task = data as Task;
+  const statusColor = getStatusColor(task.status);
+  const glowColor = getStatusGlowColor(task.status);
 
   return (
     <div
       className={`px-4 py-2 rounded-lg border-2 min-w-[200px] max-w-[300px] ${
-        selected
-          ? 'border-blue-500 shadow-lg'
-          : 'border-gray-300 shadow-md'
-      } ${
-        task.status === 'completed'
-          ? 'bg-green-50 border-green-300'
-          : task.status === 'in_progress'
-            ? 'bg-blue-50 border-blue-300'
-            : task.status === 'blocked'
-              ? 'bg-red-50 border-red-300'
-              : 'bg-white'
+        selected ? 'shadow-lg' : 'shadow-md'
       }`}
       style={{
         background: 'var(--surface-elevated)',
-        borderColor: selected ? 'var(--accent-cyan)' : 'var(--border-default)',
+        borderColor: statusColor,
+        boxShadow: selected
+          ? `0 0 15px ${glowColor}, 0 0 30px ${glowColor}`
+          : `0 0 8px ${glowColor}`,
       }}
     >
       {/* Target Handle - connects FROM other nodes TO this node */}

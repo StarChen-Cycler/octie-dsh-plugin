@@ -43,7 +43,7 @@ function displayAtomicTaskPolicy(): void {
   console.log('  • Title: 1-200 chars, must contain action verb');
   console.log('  • Description: 50-10000 chars, must be specific');
   console.log('  • Success Criteria: 1-10 items, must be quantitative');
-  console.log('  • Deliverables: 1-5 items, must be specific outputs');
+  console.log('  • Deliverables: 1-10 items, must be specific outputs');
   console.log('');
   console.log(chalk.yellow('If your task is rejected as non-atomic:'));
   console.log('  → Split it into smaller, focused tasks');

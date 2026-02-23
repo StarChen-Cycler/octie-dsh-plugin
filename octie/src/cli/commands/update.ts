@@ -108,22 +108,51 @@ export const updateCommand = new Command('update')
     new Option('--priority <priority>', 'Task priority')
       .choices(['top', 'second', 'later'])
   )
-  .option('--add-deliverable <text>', 'Add a deliverable')
+  .addOption(
+    new Option(
+      '--add-deliverable <text>',
+      'Add a deliverable (can be specified multiple times)'
+    )
+      .argParser((value: string, previous: string[]) => [...(previous || []), value])
+  )
   .option('--complete-deliverable <id>', 'Mark deliverable(s) as complete (supports: id, id1,id2, or "id1","id2")', parseMultipleIds, [])
   .option('--remove-deliverable <id>', 'Remove a deliverable by ID (NOTE: cannot remove completed items)')
-  .option('--add-success-criterion <text>', 'Add a success criterion')
+  .addOption(
+    new Option(
+      '--add-success-criterion <text>',
+      'Add a success criterion (can be specified multiple times)'
+    )
+      .argParser((value: string, previous: string[]) => [...(previous || []), value])
+  )
   .option('--complete-criterion <id>', 'Mark success criterion(s) as complete (supports: id, id1,id2, or "id1","id2")', parseMultipleIds, [])
   .option('--remove-criterion <id>', 'Remove a success criterion by ID (NOTE: cannot remove completed items)')
-  .option('--block <ids>', 'Add blocker(s) - supports comma-separated IDs (requires --dependency-explanation)')
-  .option('--blockers <ids>', 'Add blocker(s) - alias for --block (requires --dependency-explanation)')
+  .option('--blockers <ids>', 'Add blocker(s) (requires --dependency-explanation)')
   .option('--unblock <id>', 'Remove a blocker (removes graph edge)')
-  .option('--dependency-explanation <text>', 'Set/update dependencies explanation (required with --block)')
+  .option('--dependency-explanation <text>', 'Set/update dependencies explanation (required with --blockers)')
   .option('--clear-dependencies', 'Clear dependencies explanation (for removing last blocker)')
-  .option('--add-related-file <path>', 'Add a related file path')
+  .addOption(
+    new Option(
+      '--add-related-file <path>',
+      'Add a related file path (can be specified multiple times)'
+    )
+      .argParser((value: string, previous: string[]) => [...(previous || []), value])
+  )
   .option('--remove-related-file <path>', 'Remove a related file path')
-  .option('--verify-c7 <library:notes>', 'Add C7 library verification (format: library-id or library-id:notes)')
+  .addOption(
+    new Option(
+      '--verify-c7 <library:notes>',
+      'Add C7 library verification (can be specified multiple times, format: library-id or library-id:notes)'
+    )
+      .argParser((value: string, previous: string[]) => [...(previous || []), value])
+  )
   .option('--remove-c7-verified <library>', 'Remove a C7 verification by library ID')
-  .option('--add-need-fix <text>', 'Add a need_fix item (blocking issue). Use --need-fix-source to specify source.')
+  .addOption(
+    new Option(
+      '--add-need-fix <text>',
+      'Add a need_fix item (blocking issue, can be specified multiple times). Use --need-fix-source to specify source.'
+    )
+      .argParser((value: string, previous: string[]) => [...(previous || []), value])
+  )
   .addOption(
     new Option('--need-fix-source <source>', 'Source of need_fix')
       .choices(['review', 'runtime', 'regression'])
@@ -161,11 +190,12 @@ export const updateCommand = new Command('update')
         updated = true;
       }
 
-      // Add deliverable
-      if (options.addDeliverable) {
+      // Add deliverable(s) - supports multiple values
+      const deliverables = options.addDeliverable || [];
+      for (const text of deliverables) {
         task.addDeliverable({
           id: randomUUID(),
-          text: options.addDeliverable,
+          text: text,
           completed: false,
         });
         updated = true;
@@ -187,11 +217,12 @@ export const updateCommand = new Command('update')
         updated = true;
       }
 
-      // Add success criterion
-      if (options.addSuccessCriterion) {
+      // Add success criterion(s) - supports multiple values
+      const successCriteria = options.addSuccessCriterion || [];
+      for (const text of successCriteria) {
         task.addSuccessCriterion({
           id: randomUUID(),
-          text: options.addSuccessCriterion,
+          text: text,
           completed: false,
         });
         updated = true;
@@ -213,17 +244,20 @@ export const updateCommand = new Command('update')
         updated = true;
       }
 
-      // Add need_fix item (blocking issue)
-      if (options.addNeedFix) {
+      // Add need_fix item(s) (blocking issue) - supports multiple values
+      const needFixItems = options.addNeedFix || [];
+      if (needFixItems.length > 0) {
         const source = options.needFixSource || 'review';
         if (!['review', 'runtime', 'regression'].includes(source)) {
           error(`Invalid --need-fix-source: '${source}'. Must be one of: review, runtime, regression`);
           process.exit(1);
         }
-        task.addNeedFix(options.addNeedFix, {
-          file_path: options.needFixFile,
-          source: source as 'review' | 'runtime' | 'regression',
-        });
+        for (const text of needFixItems) {
+          task.addNeedFix(text, {
+            file_path: options.needFixFile,
+            source: source as 'review' | 'runtime' | 'regression',
+          });
+        }
         updated = true;
       }
 
@@ -235,13 +269,12 @@ export const updateCommand = new Command('update')
       }
 
       // Add blocker (twin validation: requires --dependency-explanation)
-      // Support both --block and --blockers
-      const blockerId = options.block || options.blockers;
+      const blockerId = options.blockers;
       if (blockerId) {
         if (!options.dependencyExplanation) {
-          error('When using --block/--blockers, --dependency-explanation is required (twin feature).');
+          error('When using --blockers, --dependency-explanation is required (twin feature).');
           info(`Current dependencies: "${task.dependencies || '(none)'}"`);
-          info('Example: --block abc123 --dependency-explanation "Needs API spec from abc123"');
+          info('Example: --blockers abc123 --dependency-explanation "Needs API spec from abc123"');
           process.exit(1);
         }
         // Resolve short UUID to full UUID
@@ -292,7 +325,7 @@ export const updateCommand = new Command('update')
         // Standalone dependency explanation update (must have blockers)
         if (task.blockers.length === 0) {
           error('Cannot set dependencies explanation without blockers.');
-          info('Use --block to add a blocker first, or provide both --block and --dependency-explanation together.');
+          info('Use --blockers to add a blocker first, or provide both --blockers and --dependency-explanation together.');
           process.exit(1);
         }
         task.setDependencies(options.dependencyExplanation);
@@ -305,9 +338,10 @@ export const updateCommand = new Command('update')
         updated = true;
       }
 
-      // Add related file
-      if (options.addRelatedFile) {
-        task.addRelatedFile(options.addRelatedFile);
+      // Add related file(s) - supports multiple values
+      const relatedFiles = options.addRelatedFile || [];
+      for (const file of relatedFiles) {
+        task.addRelatedFile(file);
         updated = true;
       }
 
@@ -317,9 +351,9 @@ export const updateCommand = new Command('update')
         updated = true;
       }
 
-      // Add C7 verification
-      if (options.verifyC7) {
-        const entry = options.verifyC7 as string;
+      // Add C7 verification(s) - supports multiple values
+      const c7Entries = options.verifyC7 || [];
+      for (const entry of c7Entries) {
         // Handle Windows Git Bash path conversion: "/path" becomes "C:/Program Files/Git/path"
         // Detect and strip the Git Bash prefix
         let cleanEntry = entry;
@@ -442,21 +476,21 @@ updateCommand.on('--help', () => {
   console.log('      --need-fix-source review --need-fix-file "src/auth.ts"');
   console.log('');
   console.log(chalk.bold('Blockers & Dependencies (Twin Feature):'));
-  console.log(chalk.cyan('  --block <id>') + ': Add a blocker (creates graph edge).');
-  console.log('                REQUIRES --dependency-explanation (twin validation).');
-  console.log('                Prevents self-blocking and cycle creation.');
+  console.log(chalk.cyan('  --blockers <id>') + ': Add a blocker (creates graph edge).');
+  console.log('                   REQUIRES --dependency-explanation (twin validation).');
+  console.log('                   Prevents self-blocking and cycle creation.');
   console.log('');
   console.log(chalk.cyan('  --unblock <id>') + ': Remove a blocker (removes graph edge).');
   console.log('                  If last blocker removed, dependencies auto-cleared.');
   console.log('');
   console.log(chalk.cyan('  --dependency-explanation <text>') + ': Set/update dependencies explanation.');
-  console.log('                                     Required with --block.');
+  console.log('                                     Required with --blockers.');
   console.log('');
   console.log(chalk.cyan('  --clear-dependencies') + ': Explicitly clear dependencies explanation.');
   console.log('');
   console.log(chalk.yellow('  Examples:'));
   console.log('    Add blocker with explanation:');
-  console.log('      octie update abc --block xyz --dependency-explanation "Needs xyz output"');
+  console.log('      octie update abc --blockers xyz --dependency-explanation "Needs xyz output"');
   console.log('');
   console.log('    Update existing dependencies text:');
   console.log('      octie update abc --dependency-explanation "Updated reason"');
@@ -465,7 +499,7 @@ updateCommand.on('--help', () => {
   console.log('      octie update abc --unblock xyz');
   console.log('');
   console.log(chalk.red('  Error Conditions:'));
-  console.log('    --block without --dependency-explanation → Error');
+  console.log('    --blockers without --dependency-explanation → Error');
   console.log('    Self-blocking (task blocks itself) → Error');
   console.log('    Would create cycle → Error');
   console.log('    Cannot uncomplete/remove completed items → Error');

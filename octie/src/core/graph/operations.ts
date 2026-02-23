@@ -322,9 +322,10 @@ export function mergeTasks(
     target.removeBlocker(sourceId);
   }
 
-  // Merge blockers (avoiding duplicates and self-references)
+  // Merge blockers (avoiding duplicates, self-references, and non-existent tasks)
   for (const blockerId of source.blockers) {
-    if (blockerId !== targetId && !target.blockers.includes(blockerId)) {
+    // Skip if: self-reference, already a blocker, or blocker task no longer exists
+    if (blockerId !== targetId && !target.blockers.includes(blockerId) && graph.hasNode(blockerId)) {
       target.addBlocker(blockerId);
     }
   }
