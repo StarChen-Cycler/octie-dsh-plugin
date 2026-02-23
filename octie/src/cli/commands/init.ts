@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import path from 'node:path';
 import { TaskStorage } from '../../core/storage/file-store.js';
+import { loadRegistry, registerProject } from '../../core/registry/index.js';
 import { success, error, info } from '../utils/helpers.js';
 import chalk from 'chalk';
 
@@ -12,17 +13,30 @@ import chalk from 'chalk';
  * Create the init command
  */
 export const initCommand = new Command('init')
-  .description('Initialize a new Octie project')
-  .option('-n, --name <name>', 'Project name', 'my-project')
+  .description('Initialize a new Octie project (requires unique project name)')
+  .option('-n, --name <name>', 'Project name (required, must be unique)')
   .action(async (options, command) => {
     try {
       // Get project path from parent's options (global --project option)
       const projectOption = command.parent?.opts().project;
       const projectPath = path.resolve(projectOption || process.cwd());
-      // Validate project name - use default if empty
-      let projectName = options.name?.trim() || 'my-project';
+
+      // Validate project name is provided
+      const projectName = options.name?.trim();
       if (!projectName) {
-        projectName = 'my-project';
+        error('Project name is required. Use --name <name> to specify a unique project name.');
+        info('Example: octie init --name my-project');
+        process.exit(1);
+      }
+
+      // Check global registry for duplicate name
+      const registry = loadRegistry();
+      if (registry.projects[projectName]) {
+        const existing = registry.projects[projectName];
+        error(`Project with name '${projectName}' already exists.`);
+        info(`Existing project: ${existing.path}`);
+        info('Choose a different name using --name <different-name>');
+        process.exit(1);
       }
 
       info(`Initializing Octie project at ${projectPath}`);
@@ -40,9 +54,13 @@ export const initCommand = new Command('init')
       // Create project
       await storage.createProject(projectName);
 
+      // Register in global registry
+      registerProject(projectPath);
+
       success(`Octie project initialized`);
       info(`Project: ${projectName}`);
       info(`Location: ${projectPath}`);
+      info(`Registered in global registry`);
 
       console.log('');
       console.log(chalk.gray('Next steps:'));

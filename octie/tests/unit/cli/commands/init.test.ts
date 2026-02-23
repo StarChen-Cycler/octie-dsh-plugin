@@ -21,10 +21,13 @@ import { TaskStorage } from '../../../../src/core/storage/file-store.js';
 describe('init command', () => {
   let tempDir: string;
   let cliPath: string;
+  let uniqueName: string; // Unique project name for this test run
 
   beforeEach(() => {
     // Create unique temp directory for each test
     tempDir = join(tmpdir(), `octie-test-${uuidv4()}`);
+    // Create unique project name for this test run
+    uniqueName = `test-project-${uuidv4().substring(0, 8)}`;
     // Path to compiled CLI
     cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
   });
@@ -41,7 +44,7 @@ describe('init command', () => {
   describe('project initialization', () => {
     it('should create .octie directory structure', () => {
       const output = execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
@@ -58,7 +61,7 @@ describe('init command', () => {
 
     it('should create project.json with metadata', () => {
       execSync(
-        `node ${cliPath} init --project "${tempDir}" --name "test-project"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
@@ -67,14 +70,14 @@ describe('init command', () => {
 
       const projectContent = JSON.parse(readFileSync(projectJsonPath, 'utf-8'));
       expect(projectContent.metadata).toBeDefined();
-      expect(projectContent.metadata.project_name).toBe('test-project');
+      expect(projectContent.metadata.project_name).toBe(uniqueName);
       expect(projectContent.tasks).toEqual({});
       // edges are not part of ProjectFile, they're in the graph structure
     });
 
     it('should not create config.json (config is managed via CLI options)', () => {
       execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
@@ -88,14 +91,14 @@ describe('init command', () => {
     it('should validate project does not already exist', () => {
       // First init should succeed
       execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
       // Second init should fail
       expect(() => {
         execSync(
-          `node ${cliPath} init --project "${tempDir}"`,
+          `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
       }).toThrow();
@@ -104,14 +107,14 @@ describe('init command', () => {
     it('should show helpful error when project exists', () => {
       // First init
       execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
       // Second init should show error
       try {
         execSync(
-          `node ${cliPath} init --project "${tempDir}"`,
+          `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
       } catch (error: unknown) {
@@ -128,7 +131,7 @@ describe('init command', () => {
 
       try {
         const output = execSync(
-          `node ${cliPath} init --project "${customDir}"`,
+          `node ${cliPath} init --project "${customDir}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
 
@@ -159,15 +162,50 @@ describe('init command', () => {
       expect(projectContent.metadata.project_name).toBe(projectName);
     });
 
-    it('should use default name when --name not provided', () => {
+    it('should error when name not provided', () => {
+      expect(() => {
+        execSync(
+          `node ${cliPath} init --project "${tempDir}"`,
+          { encoding: 'utf-8' }
+        );
+      }).toThrow();
+    });
+
+    it('should show error message when name not provided', () => {
+      try {
+        execSync(
+          `node ${cliPath} init --project "${tempDir}"`,
+          { encoding: 'utf-8' }
+        );
+      } catch (error: unknown) {
+        const err = error as { stdout: string; stderr: string };
+        expect(err.stderr).toContain('Project name is required');
+      }
+    });
+
+    it('should error when project name already exists in global registry', () => {
+      // First init
       execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "duplicate-test"`,
         { encoding: 'utf-8' }
       );
 
-      const projectJsonPath = join(tempDir, '.octie', 'project.json');
-      const projectContent = JSON.parse(readFileSync(projectJsonPath, 'utf-8'));
-      expect(projectContent.metadata.project_name).toBe('my-project');
+      // Second init with same name should fail
+      const tempDir2 = join(tmpdir(), `octie-test-${uuidv4()}`);
+      try {
+        expect(() => {
+          execSync(
+            `node ${cliPath} init --project "${tempDir2}" --name "duplicate-test"`,
+            { encoding: 'utf-8' }
+          );
+        }).toThrow();
+      } finally {
+        try {
+          rmSync(tempDir2, { recursive: true, force: true });
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
     });
   });
 
@@ -185,7 +223,7 @@ describe('init command', () => {
 
     it('should show next steps after initialization', () => {
       const output = execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
@@ -202,14 +240,14 @@ describe('init command', () => {
     it('should handle error when project already exists', () => {
       // First init should succeed
       execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
       // Second init should fail
       expect(() => {
         execSync(
-          `node ${cliPath} init --project "${tempDir}"`,
+          `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
       }).toThrow();
@@ -218,14 +256,14 @@ describe('init command', () => {
     it('should show appropriate error message on failure', () => {
       // First init
       execSync(
-        `node ${cliPath} init --project "${tempDir}"`,
+        `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
       // Second init should show error
       try {
         execSync(
-          `node ${cliPath} init --project "${tempDir}"`,
+          `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
       } catch (error: unknown) {
@@ -259,7 +297,7 @@ describe('init command', () => {
 
       try {
         const output = execSync(
-          `node ${cliPath} init --project "${tempDir}"`,
+          `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
 
@@ -275,7 +313,7 @@ describe('init command', () => {
 
       try {
         const output = execSync(
-          `node ${cliPath} init --project "${pathWithSpaces}"`,
+          `node ${cliPath} init --project "${pathWithSpaces}" --name "${uniqueName}"`,
           { encoding: 'utf-8' }
         );
 
