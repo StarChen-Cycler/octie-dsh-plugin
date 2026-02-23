@@ -15,7 +15,6 @@ interface KanbanBoardProps {
   tasks: Task[];
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
-  loading?: boolean;
 }
 
 // Status column configuration
@@ -259,7 +258,7 @@ function CollapsedColumn({ status, label, icon, count, onClick, isActive }: Coll
   );
 }
 
-function KanbanBoard({ tasks, selectedTaskId, onTaskClick, loading }: KanbanBoardProps) {
+function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardProps) {
   const viewportWidth = useViewportWidth();
   const [expandedStatus, setExpandedStatus] = useState<TaskStatus | null>(null);
 
@@ -284,20 +283,6 @@ function KanbanBoard({ tasks, selectedTaskId, onTaskClick, loading }: KanbanBoar
 
     return grouped;
   }, [tasks]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div
-          className="w-8 h-8 rounded-full animate-spin"
-          style={{
-            border: '2px solid var(--border-default)',
-            borderTopColor: 'var(--accent-cyan)',
-          }}
-        />
-      </div>
-    );
-  }
 
   // Collapsed view: show only counts in compact buttons
   if (isCollapsed) {

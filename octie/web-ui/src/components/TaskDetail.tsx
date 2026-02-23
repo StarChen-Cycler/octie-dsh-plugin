@@ -7,7 +7,6 @@ import type { Task } from '../types';
 
 interface TaskDetailProps {
   task: Task | null;
-  loading?: boolean;
 }
 
 const statusColors: Record<string, { bg: string; color: string }> = {
@@ -24,21 +23,7 @@ const priorityColors: Record<string, { bg: string; color: string }> = {
   later: { bg: 'var(--priority-later-glow)', color: 'var(--priority-later)' },
 };
 
-function TaskDetail({ task, loading }: TaskDetailProps) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div
-          className="w-8 h-8 rounded-full animate-spin"
-          style={{
-            border: '2px solid var(--border-default)',
-            borderTopColor: 'var(--accent-cyan)',
-          }}
-        />
-      </div>
-    );
-  }
-
+function TaskDetail({ task }: TaskDetailProps) {
   if (!task) {
     return (
       <div className="text-center py-8">

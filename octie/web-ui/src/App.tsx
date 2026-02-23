@@ -314,7 +314,7 @@ function App() {
               />
 
               {/* Status Bar - below toolbar, above content */}
-              <StatusBar stats={projectStats} loading={loading} />
+              <StatusBar stats={projectStats} />
 
               {/* Content Area - Three-column layout */}
               <div className="flex-1 flex overflow-hidden min-w-0 min-h-0">
@@ -415,7 +415,6 @@ function App() {
                         tasks={filteredTasks}
                         selectedTaskId={selectedTaskId}
                         onTaskClick={setSelectedTask}
-                        loading={loading}
                       />
                     </div>
                   </div>
@@ -452,7 +451,6 @@ function App() {
                   <div className="flex-1 overflow-y-auto p-4 min-h-0">
                     <TaskDetail
                       task={tasks.find(t => t.id === selectedTaskId) || null}
-                      loading={loading}
                     />
                   </div>
                 </aside>
