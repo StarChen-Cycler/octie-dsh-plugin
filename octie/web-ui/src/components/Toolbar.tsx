@@ -175,37 +175,32 @@ function Toolbar({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={loading}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors"
             style={{
-              background: loading ? 'var(--surface-base)' : 'var(--accent-cyan)',
+              background: 'var(--accent-cyan)',
               border: 'none',
-              color: loading ? 'var(--text-muted)' : 'white',
+              color: 'white',
               opacity: loading ? 0.7 : 1,
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
             title="Refresh (Ctrl+R)"
+            disabled={loading}
           >
             {loading ? (
-              <>
-                <div
-                  className="w-4 h-4 rounded-full animate-spin"
-                  style={{
-                    border: '2px solid var(--text-muted)',
-                    borderTopColor: 'transparent',
-                  }}
-                />
-                <span>Refreshing...</span>
-              </>
+              <div
+                className="w-4 h-4 rounded-full animate-spin"
+                style={{
+                  border: '2px solid white',
+                  borderTopColor: 'transparent',
+                }}
+              />
             ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="23 4 23 10 17 10" />
-                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                </svg>
-                Refresh
-              </>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
             )}
+            Refresh
           </button>
         </div>
       </div>
