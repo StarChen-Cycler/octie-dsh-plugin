@@ -70,6 +70,7 @@ octie/web-ui/public/
 octie/web-ui/src/assets/
 vendor/
 packages/
+docs/
 
 # Memo files
 .memo/
