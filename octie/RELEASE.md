@@ -32,7 +32,7 @@ npm publish --access public --ignore-scripts
 
 ```bash
 git add .
-git commit -m "release: v1.0.3"
+git commit -m "release: v1.0.4"
 git push
 ```
 
@@ -40,7 +40,7 @@ git push
 
 1. 打开 https://github.com/StarChen-Cycler/octie/releases
 2. 点击 "Draft a new release"
-3. 选择标签 (v1.0.2)
+3. 选择标签 (v1.0.4)
 4. 填写发布说明
 5. 发布
 
@@ -48,7 +48,7 @@ git push
 
 ## 下次发布
 
-下次发布版本号: 1.0.3
+下次发布版本号: 1.0.4
 
 ---
 
@@ -79,3 +79,4 @@ Token 需要在 https://www.npmjs.com/settings/tokens 创建，需启用 "Publis
 | 1.0.0 | 2026-02-22 | 首次发布 |
 | 1.0.1 | 2026-02-22 | 移除未使用依赖，53MB → 11MB |
 | 1.0.2 | 2026-02-20 | 修复 web UI 过滤器，CLI 优化 |
+| 1.0.3 | 2026-02-24 | 与 GitHub 同步 |
