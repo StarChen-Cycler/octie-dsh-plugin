@@ -19,7 +19,7 @@ npm test
 
 编辑 `package.json`，修改 version:
 ```json
-"version": "1.0.4"
+"version": "1.0.5"
 ```
 
 ### 3. 发布到 NPM
@@ -32,7 +32,7 @@ npm publish --access public --ignore-scripts
 
 ```bash
 git add .
-git commit -m "release: v1.0.4"
+git commit -m "release: v1.0.5"
 git push
 ```
 
@@ -48,7 +48,7 @@ git push
 
 ## 下次发布
 
-下次发布版本号: 1.0.4
+下次发布版本号: 1.0.5
 
 ---
 
@@ -80,3 +80,4 @@ Token 需要在 https://www.npmjs.com/settings/tokens 创建，需启用 "Publis
 | 1.0.1 | 2026-02-22 | 移除未使用依赖，53MB → 11MB |
 | 1.0.2 | 2026-02-20 | 修复 web UI 过滤器，CLI 优化 |
 | 1.0.3 | 2026-02-24 | 与 GitHub 同步 |
+| 1.0.4 | 2026-02-24 | 结构化 README，token-efficient md 格式，knowledge graph 模式 |

@@ -10,16 +10,17 @@ Octie is a project-oriented task management tool that uses directed graphs to re
 
 - **Graph-based task structure**: Tasks are nodes in a directed graph (DAG with optional loops)
 - **Atomic task definitions**: Each task has comprehensive context including:
-  - Success criteria (quantitative, measurable)
-  - Deliverables (specific outputs)
+  - Success criteria (quantitative, measurable, up to 10)
+  - Deliverables (specific outputs, up to 10)
   - Blockers and dependencies
   - Related files and notes
   - Auto-managed timestamps (created_at, updated_at, completed_at)
 - **Fast retrieval**: JSON-based storage with indexing for O(1) lookups
-- **Dual output formats**: Markdown for AI consumption, JSON for visualization
+- **Dual output formats**: Markdown (token-efficient for AI) and JSON for visualization
 - **CLI + Web UI**: Command-line tool with web-based visualization
 - **Graph operations**: Add, remove, reconnect edges; cut, insert, merge tasks
 - **Topological sorting**: Validated task ordering with cycle detection
+- **Knowledge graph support**: Can be used for mapping learning paths and research dependencies
 
 ## Installation
 
@@ -63,12 +64,90 @@ octie delete <task-id> --reconnect --force
 octie serve
 ```
 
+## Workflow by Development Phase
+
+Octie supports two use cases: **Task Management** (tracking work items) and **Knowledge Graph** (mapping learning paths and research dependencies).
+
+### Phase 1: Investigation & Search
+
+Explore the existing task graph to understand structure, dependencies, and current state.
+
+```bash
+# View all tasks with dependency graph
+octie list --graph
+
+# Find tasks ready to start
+octie find --without-blockers
+
+# Validate graph integrity
+octie graph validate
+
+# Find specific tasks
+octie find --title "keyword"
+octie find --status in_progress
+
+# Get task details (use md format for token efficiency)
+octie get <task-id> --format md
+```
+
+> **Tip**: Use `--format md` instead of `--format json` for AI/LLM contexts - it's more token-efficient.
+
+### Phase 2: Task Creation
+
+Create atomic tasks with as many quantitative success criteria and deliverables as possible (max 10 each).
+
+```bash
+octie create \
+  --title "<Action Verb> <Specific Object>" \
+  --description "<Detailed explanation>" \
+  --success-criterion "<Quantitative metric 1>" \
+  --success-criterion "<Quantitative metric 2>" \
+  --success-criterion "<Quantitative metric N>" \
+  --deliverable "<Specific output 1>" \
+  --deliverable "<Specific output N>" \
+  --notes "<Rationale and context>" \
+  --priority <top|second|later>
+```
+
+> **Core Principle**: Be specific and well-defined. Make each criterion **quantitative** (e.g., "Accuracy > 90%", "Response time < 100ms"). Use `--notes` field for rationale and explanations.
+
+### Phase 3: Task Execution
+
+Track progress by marking criteria/deliverables complete. **Always get task details first** to obtain correct IDs.
+
+```bash
+# Get task details BEFORE updating (to get criterion/deliverable IDs)
+octie get <task-id> --format md
+
+# Mark progress
+octie update <task-id> --complete-criterion <criterion-id>
+octie update <task-id> --complete-deliverable <deliverable-id>
+
+# Add blockers if dependencies discovered
+octie update <task-id> --blockers <blocker-id> --dependency-explanation "Reason"
+
+# Add notes for context
+octie update <task-id> --notes "Progress update or findings"
+```
+
+### Phase 4: Review & Approval
+
+Verify completion and approve tasks.
+
+```bash
+# Check task status
+octie get <task-id> --format md
+
+# Approve when all criteria/deliverables complete
+octie approve <task-id>
+```
+
 ## Development
 
 ```bash
 # Clone repository
-git clone <repo-url>
-cd task-driver/octie
+git clone https://github.com/StarChen-Cycler/octie.git
+cd octie
 
 # Install dependencies
 npm install
@@ -80,7 +159,7 @@ npm run build
 npm test
 
 # Run CLI in development mode
-node dist/cli/index.js --help
+node bin/octie.js --help
 
 # Start web UI server
 npm run serve
@@ -91,20 +170,21 @@ npm run serve
 ```
 octie/
 ├── src/                      # Source files
-│   ├── cli/                  # CLI interface
-│   │   ├── commands/         # CLI commands (init, create, list, get, update, delete, merge, export, import, graph, serve, approve, find, wire)
-│   │   └── utils/            # CLI helpers
-│   ├── core/                 # Core functionality
-│   │   ├── graph/            # Graph data structures and algorithms
-│   │   ├── models/           # Task node model
-│   │   └── storage/          # File I/O and atomic writes
-│   └── types/                # TypeScript type definitions
-├── tests/                    # Test files
-│   └── unit/cli/commands/    # CLI command tests
-├── web-ui/                   # Web UI (React + Vite)
-├── dist/                     # Compiled JavaScript
-├── cli.js                    # CLI entry point
-├── server.js                 # Web UI server
+│   ├── algorithms/           # Graph algorithms
+│   ├── cli/                 # CLI interface
+│   ├── commands/            # CLI commands (init, create, list, get, update, delete, merge, export, import, graph, serve, approve, find, wire)
+│   ├── core/                # Core functionality
+│   │   ├── graph/           # Graph data structures and algorithms
+│   │   ├── models/          # Task node model
+│   │   └── storage/         # File I/O and atomic writes
+│   ├── formatters/          # Output formatters (Markdown, JSON, Table)
+│   ├── types/               # TypeScript type definitions
+│   └── web/                 # Web server
+├── tests/                   # Test files
+├── web-ui/                  # Web UI (React + Vite)
+├── html/                    # Built web UI assets
+├── dist/                    # Compiled JavaScript
+├── bin/octie.js             # CLI entry point
 └── package.json
 ```
 
@@ -155,7 +235,7 @@ octie create \
   --deliverable "tests/auth/login.test.ts" \
   --priority top \
   --blockers abc123,def456 \
-  --dependencies "Needs API spec from abc123 and auth from def456"
+  --dependency-explanation "Needs API spec from abc123 and auth from def456"
 ```
 
 **Required Options:**
@@ -164,14 +244,16 @@ octie create \
 | `--title <string>` | Task title | 1-200 chars, must contain action verb |
 | `--description <string>` | Detailed description | 50-10000 chars |
 | `--success-criterion <text>` | Quantitative success criterion (repeatable) | Min 1, Max 10 |
-| `--deliverable <text>` | Expected output (repeatable) | Min 1, Max 5 |
+| `--deliverable <text>` | Expected output (repeatable) | Min 1, Max 10 |
+
+> **Best Practice**: Add as many quantitative success criteria and deliverables as possible (up to 10 each). Make criteria measurable (e.g., "Accuracy > 90%", "Response time < 100ms"). Use `--notes` field for rationale and explanations - keep criteria/deliverables specific and verifiable.
 
 **Optional Options:**
 | Flag | Description |
 |------|-------------|
 | `-p, --priority <level>` | `top`, `second`, or `later` (default: `second`) |
 | `-b, --blockers <ids>` | Comma-separated task IDs that block this task |
-| `-d, --dependencies <text>` | Explanatory text WHY task depends on blockers (required with --blockers) |
+| `--dependency-explanation <text>` | Explanatory text WHY task depends on blockers (required with --blockers) |
 | `-f, --related-files <paths>` | File paths relevant to task (comma-separated or multiple) |
 | `-c, --c7-verified <library:notes>` | C7 library verification (format: library-id or library-id:notes) |
 | `-n, --notes <text>` | Additional context (can be specified multiple times) |
@@ -187,7 +269,7 @@ Tasks MUST be atomic - small, specific, executable, and verifiable:
 
 **Blockers & Dependencies (Twin Feature):**
 - `--blockers`: Creates GRAPH EDGES affecting execution order. Task A blocks Task B → A must complete before B starts.
-- `--dependencies`: Explanatory text WHY this task depends on its blockers. REQUIRED when --blockers is set (twin validation).
+- `--dependency-explanation`: Explanatory text WHY this task depends on its blockers. REQUIRED when --blockers is set (twin validation).
 
 ### `octie approve`
 
@@ -228,7 +310,10 @@ octie list --priority top            # Filter by priority
 octie list --tree                    # Show as tree view
 octie list --graph                   # Show graph structure
 octie list --format json             # JSON output
+octie list --format md               # Markdown output (token-efficient for AI)
 ```
+
+> **Tip**: Use `--format md` for AI/LLM contexts - it's more token-efficient than JSON.
 
 **Options:**
 | Flag | Description |
@@ -253,9 +338,11 @@ Get detailed information about a specific task.
 
 ```bash
 octie get <task-id>                  # Table format (default)
-octie get <task-id> --format md      # Markdown format
+octie get <task-id> --format md      # Markdown format (token-efficient for AI)
 octie get <task-id> --format json    # JSON format
 ```
+
+> **Important**: Always use `octie get` to retrieve task details and obtain correct criterion/deliverable IDs before updating.
 
 **Task ID Format:**
 - Full UUID: `12345678-1234-1234-1234-123456789012`
@@ -265,12 +352,14 @@ octie get <task-id> --format json    # JSON format
 
 Update an existing task. Status is AUTOMATICALLY calculated from task state.
 
+> **Important**: Before updating/completing any items, always use `octie get <task-id> --format md` first to retrieve the task details and obtain the correct criterion/deliverable IDs.
+
 ```bash
 octie update <task-id> --priority top
 octie update <task-id> --complete-criterion <criterion-id>
 octie update <task-id> --complete-deliverable <deliverable-id>
 octie update <task-id> --add-need-fix "Bug found" --need-fix-source review
-octie update <task-id> --block xyz --dependency-explanation "Needs xyz output"
+octie update <task-id> --blockers xyz --dependency-explanation "Needs xyz output"
 ```
 
 **Options:**
@@ -283,9 +372,9 @@ octie update <task-id> --block xyz --dependency-explanation "Needs xyz output"
 | `--add-success-criterion <text>` | Add a new success criterion |
 | `--complete-criterion <id>` | Mark criterion(s) complete (supports: `id`, `id1,id2`, `"id1","id2"`) |
 | `--remove-criterion <id>` | Remove criterion by ID (cannot remove completed items) |
-| `--block <id>` | Add blocker (requires --dependency-explanation) |
+| `--blockers <ids>` | Add blocker(s) (requires --dependency-explanation) |
 | `--unblock <id>` | Remove blocker (removes graph edge) |
-| `--dependency-explanation <text>` | Set/update dependencies explanation (required with --block) |
+| `--dependency-explanation <text>` | Set/update dependencies explanation (required with --blockers) |
 | `--clear-dependencies` | Clear dependencies explanation (when removing last blocker) |
 | `--add-related-file <path>` | Add a related file path |
 | `--remove-related-file <path>` | Remove a related file path |
@@ -304,7 +393,7 @@ octie update <task-id> --block xyz --dependency-explanation "Needs xyz output"
 - `--complete-need-fix <id>`: Mark issue as resolved (supports short UUID)
 
 **Blockers & Dependencies (Twin Feature):**
-- `--block <id>`: Add blocker (creates graph edge). REQUIRES --dependency-explanation.
+- `--blockers <ids>`: Add blocker(s) (creates graph edge). REQUIRES --dependency-explanation.
 - `--unblock <id>`: Remove blocker (removes graph edge). Auto-clears dependencies if last one.
 - `--dependency-explanation <text>`: Set/update dependencies explanation.
 
@@ -381,10 +470,12 @@ octie merge <source-id> <target-id>  # Merge source into target
 Export project data to file.
 
 ```bash
-octie export                         # Export to stdout
+octie export                         # Export to stdout (JSON)
 octie export -o backup.json
-octie export --type md -o tasks.md
+octie export --type md -o tasks.md   # Token-efficient for AI contexts
 ```
+
+> **Tip**: Export as `--type md` for better token efficiency in LLM/agent contexts.
 
 **Options:**
 | Flag | Description |
@@ -414,7 +505,6 @@ Graph analysis and validation commands.
 ```bash
 octie graph validate                 # Check graph integrity (cycles, orphan references)
 octie graph cycles                   # Detect and display cycles
-octie graph stats                    # Display graph statistics
 ```
 
 **Subcommands:**
@@ -473,6 +563,68 @@ After:  A → B → C (A blocks B, B blocks C)
 | `--before <id>` | Target task ID - will block on inserted task instead |
 | `--dep-on-after <text>` | Why inserted task depends on --after task (twin validation) |
 | `--dep-on-before <text>` | Why --before task depends on inserted task |
+
+## Knowledge Graph Patterns
+
+Octie can be used as a knowledge graph tool for mapping learning paths, research dependencies, and concept relationships.
+
+### Pattern: Learning Path with Branches
+
+```bash
+# Root task (no blockers)
+octie create --title "Start Deep Learning" ...
+
+# Branch 1: CNN Path
+octie create --title "Learn CNN" --blockers <root-id> ...
+octie create --title "CNN Implementation" --blockers <cnn-id> ...
+
+# Branch 2: RNN Path
+octie create --title "Learn RNN" --blockers <root-id> ...
+octie create --title "RNN Implementation" --blockers <rnn-id> ...
+
+# Branch 3: Transformer Path
+octie create --title "Learn Transformers" --blockers <root-id> ...
+octie create --title "Transformer Implementation" --blockers <transformer-id> ...
+
+# Convergence: Comparison task
+octie create --title "Compare Architectures" \
+  --blockers <cnn-id> \
+  --dependency-explanation "Need CNN understanding" \
+  --blockers <rnn-id> \
+  --dependency-explanation "Need RNN understanding" \
+  --blockers <transformer-id> \
+  --dependency-explanation "Need Transformer understanding"
+```
+
+### Pattern: Prerequisite Chain
+
+```bash
+octie create --title "Foundation A" ...
+octie create --title "Foundation B" --blockers <a-id> ...
+octie create --title "Foundation C" --blockers <b-id> ...
+octie create --title "Advanced Topic" --blockers <c-id> ...
+```
+
+### Pattern: Parallel Research
+
+```bash
+# Start multiple research paths in parallel
+octie create --title "Research Topic A" --blockers <root-id> ...
+octie create --title "Research Topic B" --blockers <root-id> ...
+octie create --title "Research Topic C" --blockers <root-id> ...
+
+# Synthesize findings
+octie create --title "Synthesis Report" \
+  --blockers <topic-a-id>,<topic-b-id>,<topic-c-id> \
+  --dependency-explanation "Need all research completed"
+```
+
+### Best Practices for Knowledge Graphs
+
+1. **Phase Notes**: Add annotations like "Phase 1: Foundations" to clarify learning stages
+2. **Rationale Notes**: Explain why certain paths converge or diverge
+3. **Parallel Flows**: Independent concepts can be explored in parallel from a common parent
+4. **Convergence Points**: Use multiple blockers to require all paths to complete
 
 ## Web API Reference
 
@@ -563,13 +715,16 @@ Tasks are stored in `.octie/project.json` with the following structure:
 npm test
 
 # Run specific test file
-npx vitest run tests/unit/cli/commands/create.test.ts
+npx vitest run tests/create.test.ts
 
 # Run with coverage
 npm run test:coverage
 
 # Run benchmarks
 npm run bench
+
+# Run tests with UI
+npm run test:ui
 ```
 
 **Test Coverage**:
