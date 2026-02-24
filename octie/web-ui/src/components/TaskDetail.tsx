@@ -357,20 +357,42 @@ function TaskDetail({ task }: TaskDetailProps) {
               {' '}({task.c7_verified.length})
             </span>
           </SectionTitle>
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {task.c7_verified.map((lib, idx) => (
               <li key={idx}>
-                <code
-                  className="text-xs px-2 py-1 rounded inline-block"
+                <div
+                  className="p-2 rounded-lg"
                   style={{
                     background: 'rgba(0, 212, 255, 0.1)',
-                    color: 'var(--accent-cyan)',
-                    fontFamily: 'var(--font-mono)',
                     border: '1px solid rgba(0, 212, 255, 0.3)',
                   }}
                 >
-                  {lib}
-                </code>
+                  <code
+                    className="text-xs"
+                    style={{
+                      color: 'var(--accent-cyan)',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {lib.library_id}
+                  </code>
+                  {lib.notes && (
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {lib.notes}
+                    </p>
+                  )}
+                  {lib.verified_at && (
+                    <p
+                      className="text-[10px] mt-1"
+                      style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      Verified: {new Date(lib.verified_at).toLocaleString()}
+                    </p>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

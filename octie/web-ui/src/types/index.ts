@@ -48,7 +48,7 @@ export interface Task extends Record<string, unknown> {
   sub_items: string[];
   related_files: string[];
   notes: string;
-  c7_verified: string[];  // Array of library IDs (simplified)
+  c7_verified: C7Verification[];  // Array of C7 verification objects
   created_at: string;
   updated_at: string;
   completed_at: string | null;
