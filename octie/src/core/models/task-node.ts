@@ -1156,13 +1156,16 @@ export class TaskNode implements TaskNodeType {
    * Calculate the derived status based on task state
    *
    * Status is DERIVED from state, not set directly:
-   * Priority order: blocked > in_review > in_progress > ready
+   * Priority order: in_review > blocked > in_progress > ready
    *
    * Rules:
-   * 1. Has unresolved blockers → 'blocked'
-   * 2. All criteria + deliverables + need_fix complete → 'in_review'
+   * 1. All criteria + deliverables + need_fix complete → 'in_review' (highest priority)
+   * 2. Has blockers (and work NOT complete) → 'blocked'
    * 3. Any item checked OR need_fix exists → 'in_progress'
    * 4. Default → 'ready'
+   *
+   * NOTE: Blockers only prevent work from starting, not completion. When all
+   * items are complete, status is 'in_review' regardless of blockers.
    *
    * NOTE: This is a pure calculation function. It does NOT modify status.
    * Use recalculateStatus() to apply the calculated status.
@@ -1170,14 +1173,9 @@ export class TaskNode implements TaskNodeType {
    * @returns The calculated status based on current task state
    */
   calculateStatus(): TaskStatus {
-    // Rule 1: Check if blocked (highest priority)
-    // Note: This only checks if blockers exist, not if they're resolved
-    // The caller (graph) is responsible for checking blocker status
-    if (this.blockers.length > 0) {
-      return 'blocked';
-    }
-
-    // Rule 2: Check if ready for review (all items complete)
+    // Rule 1: Check if ready for review (all items complete) - HIGHEST PRIORITY
+    // When all work is done, status is in_review regardless of blockers
+    // Blockers prevent starting work, not completing it
     const allCriteriaComplete = this.success_criteria.every(c => c.completed);
     const allDeliverablesComplete = this.deliverables.every(d => d.completed);
     const allNeedFixComplete = this.need_fix.every(f => f.completed);
@@ -1185,6 +1183,12 @@ export class TaskNode implements TaskNodeType {
 
     if (allComplete) {
       return 'in_review';
+    }
+
+    // Rule 2: Check if blocked (only when work is NOT complete)
+    // Blockers prevent tasks from starting/resuming work
+    if (this.blockers.length > 0) {
+      return 'blocked';
     }
 
     // Rule 3: Check if work has started
