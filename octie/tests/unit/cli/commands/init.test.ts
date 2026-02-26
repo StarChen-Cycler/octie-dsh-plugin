@@ -12,23 +12,11 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { execSync } from 'node:child_process';
 import { TaskStorage } from '../../../../src/core/storage/file-store.js';
-
-// Helper to clean up global registry
-function cleanupGlobalRegistry() {
-  const globalRegistryPath = join(homedir(), '.octie', 'projects.json');
-  try {
-    if (existsSync(globalRegistryPath)) {
-      rmSync(globalRegistryPath);
-    }
-  } catch {
-    // Ignore cleanup errors
-  }
-}
 
 describe('init command', () => {
   let tempDir: string;
@@ -36,8 +24,6 @@ describe('init command', () => {
   let uniqueName: string; // Unique project name for this test run
 
   beforeEach(() => {
-    // Clean up global registry before each test to avoid conflicts
-    cleanupGlobalRegistry();
     // Create unique temp directory for each test
     tempDir = join(tmpdir(), `octie-test-${uuidv4()}`);
     // Create unique project name for this test run
@@ -53,8 +39,6 @@ describe('init command', () => {
     } catch {
       // Ignore cleanup errors
     }
-    // Clean up global registry after each test
-    cleanupGlobalRegistry();
   });
 
   describe('project initialization', () => {
