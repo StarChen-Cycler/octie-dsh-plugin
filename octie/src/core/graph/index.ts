@@ -12,7 +12,7 @@
  * @module core/graph
  */
 
-import type { TaskGraph, ProjectMetadata } from '../../types/index.js';
+import type { TaskGraph, ProjectMetadata, TaskStatus } from '../../types/index.js';
 import { TaskNotFoundError, ValidationError, AmbiguousIdError } from '../../types/index.js';
 import { TaskNode } from '../models/task-node.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -456,6 +456,248 @@ export class TaskGraphStore {
     this._outgoingEdges.clear();
     this._incomingEdges.clear();
     this._metadata.updated_at = new Date().toISOString();
+  }
+
+  /**
+   * Propagate status changes through the graph starting from a node
+   *
+   * Uses breadth-first traversal to update tasks based on:
+   * 1. Parent's status (CRITICAL: only completed parents allow children to proceed)
+   * 2. Task's own item completeness (criteria/deliverables/need_fix)
+   *
+   * RULE: Only COMPLETED parents can unblock children. If parent is ANY other state
+   * (ready, in_progress, in_review, blocked), the child is automatically BLOCKED.
+   *
+   * When parent is completed:
+   *   - No items complete → child becomes 'ready'
+   *   - Some items complete → child becomes 'in_progress'
+   *   - All items complete → child becomes 'in_review'
+   *
+   * Propagation stops when a task's status doesn't change.
+   *
+   * @param startNodeId - The node to start propagation from
+   * @returns Object containing updated task IDs and detailed changes
+   */
+  propagateStatus(startNodeId: string): {
+    updatedTasks: string[];
+    statusChanges: Array<{
+      taskId: string;
+      oldStatus: string;
+      newStatus: string;
+      reason: string;
+    }>;
+  } {
+    // Validate start node exists
+    const startNode = this.getNode(startNodeId);
+    if (!startNode) {
+      throw new TaskNotFoundError(`Task with ID '${startNodeId}' not found`);
+    }
+
+    const queue: string[] = [];
+    const visited = new Set<string>();
+    const updatedTasks: string[] = [];
+    const statusChanges: Array<{
+      taskId: string;
+      oldStatus: string;
+      newStatus: string;
+      reason: string;
+    }> = [];
+
+    // STEP 1: Check/update the starting node's own status based on its parents
+    // BUT skip if starting node is already completed (e.g., just approved)
+    // This prevents overwriting the 'completed' status set by approve()
+    if (startNode.status !== 'completed') {
+      const startNodeParents = this.getIncomingEdges(startNodeId);
+      let startNodeEffectiveParentStatus: string;
+
+      if (startNodeParents.length === 0) {
+        // Root node (no parents) - treat as having completed parent
+        startNodeEffectiveParentStatus = 'completed';
+      } else {
+        // Check if ALL parents are completed
+        const allParentsCompleted = startNodeParents.every(parentId => {
+          const parentTask = this.getNode(parentId);
+          return parentTask && parentTask.status === 'completed';
+        });
+        startNodeEffectiveParentStatus = allParentsCompleted ? 'completed' : 'blocked';
+      }
+
+      // Update start node's own status if needed
+      const startNodeOldStatus = startNode.status;
+      const startNodeNewStatus = this.calculateChildStatus(startNode, startNodeEffectiveParentStatus);
+
+      if (startNodeNewStatus !== startNodeOldStatus) {
+        startNode.status = startNodeNewStatus;
+        updatedTasks.push(startNodeId);
+        statusChanges.push({
+          taskId: startNodeId,
+          oldStatus: startNodeOldStatus,
+          newStatus: startNodeNewStatus,
+          reason: this.buildStatusChangeReason(startNode, startNodeEffectiveParentStatus)
+        });
+      }
+    }
+
+    // Enqueue start node to propagate to its children
+    queue.push(startNodeId);
+
+    // STEP 2: Propagate to children using BFS
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+
+      // Skip if already visited (cycle detection)
+      if (visited.has(currentId)) {
+        continue;
+      }
+      visited.add(currentId);
+
+      const currentTask = this.getNode(currentId);
+      if (!currentTask) {
+        continue;
+      }
+
+      // Get all direct children (outgoing edges)
+      const children = this.getOutgoingEdges(currentId);
+
+      for (const childId of children) {
+        const childTask = this.getNode(childId);
+        if (!childTask) {
+          continue;
+        }
+
+        // Get ALL parents of this child (not just current)
+        const childParents = this.getIncomingEdges(childId);
+
+        // Check if ALL parents are completed
+        // If ANY parent is not completed, child is blocked
+        const allParentsCompleted = childParents.every(parentId => {
+          const parentTask = this.getNode(parentId);
+          return parentTask && parentTask.status === 'completed';
+        });
+
+        const effectiveParentStatus = allParentsCompleted ? 'completed' : 'blocked';
+
+        const oldStatus = childTask.status;
+        const newStatus = this.calculateChildStatus(childTask, effectiveParentStatus);
+
+        if (newStatus !== oldStatus) {
+          childTask.status = newStatus;
+          updatedTasks.push(childId);
+          statusChanges.push({
+            taskId: childId,
+            oldStatus,
+            newStatus,
+            reason: this.buildStatusChangeReason(childTask, effectiveParentStatus)
+          });
+
+          // Only enqueue if status changed
+          queue.push(childId);
+        }
+      }
+    }
+
+    // Update metadata timestamp if any changes were made
+    if (updatedTasks.length > 0) {
+      this._metadata.updated_at = new Date().toISOString();
+    }
+
+    return { updatedTasks, statusChanges };
+  }
+
+  /**
+   * Calculate the status for a child task based on its parent's status and own items
+   *
+   * RULE: Only COMPLETED parents allow children to calculate status from items.
+   * If parent is ANY other state (ready, in_progress, in_review, blocked),
+   * child is automatically BLOCKED.
+   *
+   * @param task - The child task to calculate status for
+   * @param parentStatus - The status of the parent task
+   * @returns The calculated status
+   */
+  private calculateChildStatus(task: TaskNode, parentStatus: string): TaskStatus {
+    // Priority 1: Parent must be completed for child to proceed
+    // If parent is NOT completed, child is blocked regardless of its own items
+    if (parentStatus !== 'completed') {
+      return 'blocked';
+    }
+
+    // Priority 2: Parent is completed
+    // Calculate status based on task's own items
+    return this.calculateStatusFromItems(task);
+  }
+
+  /**
+   * Calculate status based on task's own items (criteria/deliverables/need_fix)
+   *
+   * @param task - The task to calculate status for
+   * @returns The calculated status
+   */
+  private calculateStatusFromItems(task: TaskNode): TaskStatus {
+    const allCriteriaComplete = task.success_criteria.every(c => c.completed);
+    const allDeliverablesComplete = task.deliverables.every(d => d.completed);
+    const allNeedFixComplete = task.need_fix.every(f => f.completed);
+
+    const anyCriteriaComplete = task.success_criteria.some(c => c.completed);
+    const anyDeliverablesComplete = task.deliverables.some(d => d.completed);
+    const hasNeedFix = task.need_fix.length > 0;
+
+    // Rule 1: All items complete → in_review
+    if (allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete) {
+      return 'in_review';
+    }
+
+    // Rule 2: Some items complete OR has need_fix → in_progress
+    if (anyCriteriaComplete || anyDeliverablesComplete || hasNeedFix) {
+      return 'in_progress';
+    }
+
+    // Rule 3: Nothing started → ready
+    return 'ready';
+  }
+
+  /**
+   * Build a human-readable reason for a status change
+   *
+   * @param task - The task that changed status
+   * @param parentStatus - The status of the parent task
+   * @param oldStatus - The previous status
+   * @param newStatus - The new status
+   * @returns A descriptive reason string
+   */
+  private buildStatusChangeReason(
+    task: TaskNode,
+    parentStatus: string
+  ): string {
+    // Priority: Check if blocked because parent is not completed
+    if (parentStatus !== 'completed') {
+      return `Parent not completed (status: ${parentStatus})`;
+    }
+
+    // Parent is completed - show item completion status
+    const completedCriteria = task.success_criteria.filter(c => c.completed).length;
+    const totalCriteria = task.success_criteria.length;
+    const completedDeliverables = task.deliverables.filter(d => d.completed).length;
+    const totalDeliverables = task.deliverables.length;
+    const completedNeedFix = task.need_fix.filter(f => f.completed).length;
+    const totalNeedFix = task.need_fix.length;
+
+    const items: string[] = [];
+    if (totalCriteria > 0) {
+      items.push(`${completedCriteria}/${totalCriteria} criteria`);
+    }
+    if (totalDeliverables > 0) {
+      items.push(`${completedDeliverables}/${totalDeliverables} deliverables`);
+    }
+    if (totalNeedFix > 0) {
+      items.push(`${completedNeedFix}/${totalNeedFix} need_fix`);
+    }
+
+    if (items.length > 0) {
+      return `Parent completed. Items: ${items.join(', ')}`;
+    }
+
+    return 'Parent completed. No items started';
   }
 
   /**

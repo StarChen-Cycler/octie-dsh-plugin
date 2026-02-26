@@ -125,7 +125,13 @@ export const wireCommand = new Command('wire')
       graph.updateNode(taskB);
       graph.updateNode(taskC);
 
-      // Step 4: Save
+      // Step 4: Propagate status changes from both affected tasks
+      // Task B may become blocked or ready based on A's status
+      graph.propagateStatus(taskB.id);
+      // Task C's status depends on B's new status
+      graph.propagateStatus(taskC.id);
+
+      // Step 5: Save
       await saveGraph(projectPath, graph);
 
       // Success message

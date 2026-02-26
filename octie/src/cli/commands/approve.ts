@@ -11,7 +11,6 @@
 import { Command } from 'commander';
 import { ValidationError } from '../../types/index.js';
 import { getProjectPath, loadGraph, saveGraph } from '../utils/helpers.js';
-import { recalculateDependentStatuses } from '../../core/utils/status-helpers.js';
 import chalk from 'chalk';
 
 /**
@@ -60,8 +59,10 @@ export async function approveCommand(
     // Approve the task
     task.approve();
 
-    // Recalculate status of all tasks that were blocked by this task
-    const updatedTaskIds = recalculateDependentStatuses(task.id, graph);
+    // Propagate status changes through the graph starting from this task
+    // This updates the starting node (if needed) and all descendants
+    const propagateResult = graph.propagateStatus(task.id);
+    const updatedTaskIds = propagateResult.updatedTasks;
 
     // Save the graph
     await saveGraph(projectPath, graph);
@@ -126,8 +127,9 @@ Prerequisites for Approval:
   • All need_fix items must be resolved
 
 Side Effects:
-  • Tasks blocked by this task will have their status recalculated
-  • Unblocked tasks transition based on their item state (not forced to ready)
+  • Status propagates through the dependency graph starting from this task
+  • Children of completed tasks calculate status from their own items
+  • Parent not completed → child is blocked (regardless of child's items)
 
 Examples:
   $ octie approve abc12345

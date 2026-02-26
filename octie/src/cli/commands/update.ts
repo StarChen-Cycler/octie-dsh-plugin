@@ -431,10 +431,19 @@ export const updateCommand = new Command('update')
       // Update in graph
       graph.updateNode(task);
 
+      // Propagate status changes through the graph starting from this task
+      // This handles blocker changes and their effects on dependent tasks
+      const propagateResult = graph.propagateStatus(task.id);
+
       // Save
       await saveGraph(projectPath, graph);
 
       success(`Task updated: ${chalk.cyan(id)}`);
+
+      // Report if any dependent tasks were affected by propagation
+      if (propagateResult.updatedTasks.length > 0) {
+        info(chalk.cyan(`  Propagated to ${propagateResult.updatedTasks.length} dependent task(s)`));
+      }
 
       process.exit(0);
     } catch (err) {

@@ -135,17 +135,24 @@ Examples:
         // Simple removal - clean up blocker references from dependent tasks
         // Get tasks that this task is blocking (outgoing edges)
         const dependentTasks = graph.getOutgoingEdges(fullId);
+        const affectedTaskIds: string[] = [];
+
         for (const depId of dependentTasks) {
           const depTask = graph.getNode(depId);
           if (depTask && depTask.blockers.includes(fullId)) {
             depTask.removeBlocker(fullId);
-            // Recalculate status since blocker was removed
-            depTask.recalculateStatus();
+            affectedTaskIds.push(depId);
           }
         }
 
         // Remove the node (this also removes graph edges)
         graph.removeNode(fullId);
+
+        // Propagate status changes from all affected tasks
+        // This handles the case where removing a blocker unblocks children
+        for (const affectedId of affectedTaskIds) {
+          graph.propagateStatus(affectedId);
+        }
       }
 
       // Save

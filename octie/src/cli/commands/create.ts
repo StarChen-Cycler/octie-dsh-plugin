@@ -321,6 +321,10 @@ export const createCommand = new Command('create')
         graph.addEdge(blockerId, taskId);
       }
 
+      // Propagate status to set initial status based on blockers
+      // If blockers exist and are not completed, task will become blocked
+      graph.propagateStatus(taskId);
+
       // Save
       await saveGraph(projectPath, graph);
 

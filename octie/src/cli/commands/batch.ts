@@ -348,6 +348,11 @@ async function batchAddBlocker(
     }
   }
 
+  // Propagate status changes from all affected tasks
+  for (const taskId of result.affectedTasks) {
+    graph.propagateStatus(taskId);
+  }
+
   return result;
 }
 
@@ -391,6 +396,11 @@ async function batchRemoveBlocker(
       }
       result.success = false;
     }
+  }
+
+  // Propagate status changes from all affected tasks
+  for (const taskId of result.affectedTasks) {
+    graph.propagateStatus(taskId);
   }
 
   return result;
