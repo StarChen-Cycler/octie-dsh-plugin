@@ -206,7 +206,7 @@ describe('update command', () => {
 
       // Add blocker with dependency explanation (twin validation)
       const output = execSync(
-        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --block "${blockerTaskId}" --dependency-explanation "Needs output from blocker task"`,
+        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --blockers "${blockerTaskId}" --dependency-explanation "Needs output from blocker task"`,
         { encoding: 'utf-8' }
       );
 
@@ -338,7 +338,7 @@ describe('update command', () => {
 
       // Add blocker with dependency explanation (twin validation)
       execSync(
-        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --block "${blockerTaskId}" --dependency-explanation "Needs output from blocker"`,
+        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --blockers "${blockerTaskId}" --dependency-explanation "Needs output from blocker"`,
         { encoding: 'utf-8' }
       );
 
@@ -712,7 +712,7 @@ describe('update command', () => {
     it('should add blocker with dependency-explanation (twin)', async () => {
       const output = execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-        `--block "${blockerTaskId}" ` +
+        `--blockers "${blockerTaskId}" ` +
         `--dependency-explanation "Needs blocker output to proceed"`,
         { encoding: 'utf-8' }
       );
@@ -725,12 +725,12 @@ describe('update command', () => {
       expect(task?.dependencies).toContain('Needs blocker output to proceed');
     });
 
-    it('should reject --block without --dependency-explanation', () => {
+    it('should reject --blockers without --dependency-explanation', () => {
       let errorMsg = '';
       try {
         execSync(
           `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-          `--block "${blockerTaskId}"`,
+          `--blockers "${blockerTaskId}"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );
       } catch (err: any) {
@@ -746,7 +746,7 @@ describe('update command', () => {
       // First add a blocker with dependency-explanation
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-        `--block "${blockerTaskId}" ` +
+        `--blockers "${blockerTaskId}" ` +
         `--dependency-explanation "Initial dependency explanation"`,
         { encoding: 'utf-8' }
       );
@@ -779,7 +779,7 @@ describe('update command', () => {
       // First set up blockers and dependencies
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-        `--block "${blockerTaskId}" ` +
+        `--blockers "${blockerTaskId}" ` +
         `--dependency-explanation "Current dependency reason"`,
         { encoding: 'utf-8' }
       );
@@ -801,7 +801,7 @@ describe('update command', () => {
 
         execSync(
           `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-          `--block "${blocker2Id}"`,
+          `--blockers "${blocker2Id}"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );
       } catch (err: any) {
@@ -819,7 +819,7 @@ describe('update command', () => {
 
       const output = execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-        `--block "${shortId}" ` +
+        `--blockers "${shortId}" ` +
         `--dependency-explanation "Needs blocker output to proceed"`,
         { encoding: 'utf-8' }
       );
@@ -837,7 +837,7 @@ describe('update command', () => {
       const shortId = blockerTaskId.substring(0, 8);
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-        `--block "${shortId}" ` +
+        `--blockers "${shortId}" ` +
         `--dependency-explanation "Initial dependency explanation"`,
         { encoding: 'utf-8' }
       );
@@ -863,12 +863,12 @@ describe('update command', () => {
       expect(task?.dependencies).toBe('');
     });
 
-    it('should reject --block with invalid short UUID', () => {
+    it('should reject --blockers with invalid short UUID', () => {
       let errorMsg = '';
       try {
         execSync(
           `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-          `--block "invalid1" ` +
+          `--blockers "invalid1" ` +
           `--dependency-explanation "Test"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );
@@ -901,7 +901,7 @@ describe('update command', () => {
       try {
         execSync(
           `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-          `--block "${testTaskId}" ` +
+          `--blockers "${testTaskId}" ` +
           `--dependency-explanation "Self block test"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );
@@ -958,7 +958,7 @@ describe('update command', () => {
       // Make B block A
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${taskAId} ` +
-        `--block "${taskBId}" ` +
+        `--blockers "${taskBId}" ` +
         `--dependency-explanation "B blocks A"`,
         { encoding: 'utf-8' }
       );
@@ -968,7 +968,7 @@ describe('update command', () => {
       try {
         execSync(
           `node ${cliPath} --project "${tempDir}" update ${taskBId} ` +
-          `--block "${taskAId}" ` +
+          `--blockers "${taskAId}" ` +
           `--dependency-explanation "A blocks B"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );

@@ -386,7 +386,7 @@ describe('Web API Integration Tests', () => {
           .expect(400);
 
         expect(response.body.success).toBe(false);
-        expect(response.body.error.code).toBe('VALIDATION_ERROR');
+        expect(response.body.error.code).toBe('ATOMIC_TASK_VIOLATION');
       });
 
       it('should validate blocker exists when creating task', async () => {

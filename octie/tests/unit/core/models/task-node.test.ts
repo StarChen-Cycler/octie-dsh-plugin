@@ -669,8 +669,8 @@ describe('TaskNode', () => {
       }).toThrow(ValidationError);
     });
 
-    it('should reject adding more than 5 deliverables', () => {
-      const deliverables = Array.from({ length: 5 }, (_, i) => ({
+    it('should reject adding more than 10 deliverables', () => {
+      const deliverables = Array.from({ length: 10 }, (_, i) => ({
         id: uuidv4(),
         text: `src/module/file${i}.ts`,
         completed: false,
@@ -683,6 +683,7 @@ describe('TaskNode', () => {
           { id: uuidv4(), text: 'Endpoint returns 200', completed: false },
         ],
         deliverables,
+        _skipAtomicValidation: true,
       });
 
       expect(() => {
