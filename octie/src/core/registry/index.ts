@@ -111,6 +111,52 @@ export function saveRegistry(registry: ProjectRegistry): void {
 }
 
 /**
+ * Find the registry key for a project path
+ * @param registry - Registry to search
+ * @param projectPath - Project path to match
+ * @returns Registry key or null if not found
+ */
+function findProjectKeyByPath(
+  registry: ProjectRegistry,
+  projectPath: string
+): string | null {
+  for (const [key, project] of Object.entries(registry.projects)) {
+    if (project.path === projectPath) {
+      return key;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Generate a unique registry key for a project name.
+ * Keeps the plain project name when available and falls back to
+ * deterministic numbered suffixes for legacy/manual duplicate names.
+ *
+ * @param registry - Registry to search
+ * @param projectName - Preferred project name
+ * @returns Unique registry key
+ */
+function getAvailableProjectKey(
+  registry: ProjectRegistry,
+  projectName: string
+): string {
+  if (!registry.projects[projectName]) {
+    return projectName;
+  }
+
+  let suffix = 2;
+  let candidate = `${projectName}#${suffix}`;
+  while (registry.projects[candidate]) {
+    suffix += 1;
+    candidate = `${projectName}#${suffix}`;
+  }
+
+  return candidate;
+}
+
+/**
  * Check if a path contains a valid Octie project
  * @param projectPath - Path to check
  * @returns True if .octie/project.json exists and is valid
@@ -204,15 +250,7 @@ export function registerProject(projectPath: string): RegistryProject | null {
   const now = new Date().toISOString();
 
   const registry = loadRegistry();
-
-  // Check if already registered (by path)
-  let existingKey: string | null = null;
-  for (const [key, project] of Object.entries(registry.projects)) {
-    if (project.path === projectPath) {
-      existingKey = key;
-      break;
-    }
-  }
+  const existingKey = findProjectKeyByPath(registry, projectPath);
 
   const entry: RegistryProject = {
     path: projectPath,
@@ -222,8 +260,9 @@ export function registerProject(projectPath: string): RegistryProject | null {
     taskCount,
   };
 
-  // Use existing key or create new one with project name
-  const key = existingKey || projectName;
+  // Preserve path-based registrations and never overwrite a different project
+  // just because it shares the same metadata name.
+  const key = existingKey ?? getAvailableProjectKey(registry, projectName);
   registry.projects[key] = entry;
 
   saveRegistry(registry);
@@ -252,28 +291,12 @@ export function unregisterProject(projectPath: string): boolean {
 
 /**
  * Get all registered projects
- * Automatically filters out stale projects (where .octie folder no longer exists)
- * @returns Array of valid registry projects
+ * Read-only access: missing projects stay in the registry so the UI can
+ * surface them with a warning instead of silently deleting user state.
+ * @returns Array of registered projects, including stale ones
  */
 export function getAllProjects(): RegistryProject[] {
   const registry = loadRegistry();
-  const validProjects: Record<string, RegistryProject> = {};
-  let hasStale = false;
-
-  for (const [key, project] of Object.entries(registry.projects)) {
-    if (isValidOctieProject(project.path)) {
-      validProjects[key] = project;
-    } else {
-      hasStale = true;
-    }
-  }
-
-  // Auto-cleanup: remove stale entries from registry
-  if (hasStale) {
-    registry.projects = validProjects;
-    saveRegistry(registry);
-  }
-
   return Object.values(registry.projects);
 }
 

@@ -31,8 +31,10 @@ export const initCommand = new Command('init')
 
       // Check global registry for duplicate name
       const registry = loadRegistry();
-      if (registry.projects[projectName]) {
-        const existing = registry.projects[projectName];
+      const existing = Object.values(registry.projects).find(
+        project => project.name === projectName
+      );
+      if (existing) {
         error(`Project with name '${projectName}' already exists.`);
         info(`Existing project: ${existing.path}`);
         info('Choose a different name using --name <different-name>');
