@@ -9,7 +9,17 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import type { ProjectMetadata } from '../../types/index.js';
 
 /**
@@ -40,6 +50,14 @@ export interface ProjectRegistry {
 
 /** Current registry version */
 const REGISTRY_VERSION = '1.0.0';
+const REGISTRY_LOCK_FILE = 'projects.lock';
+const REGISTRY_LOCK_STALE_MS = 10000;
+const REGISTRY_LOCK_TIMEOUT_MS = 2000;
+const REGISTRY_LOCK_RETRY_MS = 25;
+
+interface LoadRegistryOptions {
+  throwOnCorruption?: boolean;
+}
 
 /**
  * Get the path to the global registry file
@@ -49,6 +67,14 @@ export function getGlobalRegistryPath(): string {
   const home = homedir();
   const octieDir = join(home, '.octie');
   return join(octieDir, 'projects.json');
+}
+
+function getRegistryDirPath(): string {
+  return join(homedir(), '.octie');
+}
+
+function getRegistryLockPath(): string {
+  return join(getRegistryDirPath(), REGISTRY_LOCK_FILE);
 }
 
 /**
@@ -67,6 +93,10 @@ function ensureRegistryDir(): void {
  * @returns Project registry object
  */
 export function loadRegistry(): ProjectRegistry {
+  return loadRegistryInternal();
+}
+
+function loadRegistryInternal(options: LoadRegistryOptions = {}): ProjectRegistry {
   const registryPath = getGlobalRegistryPath();
 
   if (!existsSync(registryPath)) {
@@ -91,7 +121,12 @@ export function loadRegistry(): ProjectRegistry {
     }
 
     return registry;
-  } catch {
+  } catch (error) {
+    if (options.throwOnCorruption) {
+      throw error instanceof Error
+        ? error
+        : new Error('Failed to parse global Octie registry');
+    }
     // Corrupted registry, return empty
     return {
       version: REGISTRY_VERSION,
@@ -107,7 +142,56 @@ export function loadRegistry(): ProjectRegistry {
 export function saveRegistry(registry: ProjectRegistry): void {
   ensureRegistryDir();
   const registryPath = getGlobalRegistryPath();
-  writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8');
+  const tempPath = `${registryPath}.${process.pid}.${Date.now()}.tmp`;
+  writeFileSync(tempPath, JSON.stringify(registry, null, 2), 'utf-8');
+  renameSync(tempPath, registryPath);
+}
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function withRegistryLock<T>(fn: () => T): T {
+  ensureRegistryDir();
+
+  const lockPath = getRegistryLockPath();
+  const startedAt = Date.now();
+
+  while (true) {
+    try {
+      const fd = openSync(lockPath, 'wx');
+      try {
+        return fn();
+      } finally {
+        closeSync(fd);
+        if (existsSync(lockPath)) {
+          unlinkSync(lockPath);
+        }
+      }
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+
+      if (err.code !== 'EEXIST') {
+        throw err;
+      }
+
+      try {
+        const lockStats = statSync(lockPath);
+        if (Date.now() - lockStats.mtimeMs > REGISTRY_LOCK_STALE_MS) {
+          unlinkSync(lockPath);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      if (Date.now() - startedAt >= REGISTRY_LOCK_TIMEOUT_MS) {
+        throw new Error('Timed out waiting for Octie registry lock');
+      }
+
+      sleepSync(REGISTRY_LOCK_RETRY_MS);
+    }
+  }
 }
 
 /**
@@ -249,25 +333,31 @@ export function registerProject(projectPath: string): RegistryProject | null {
   const taskCount = getProjectTaskCount(projectPath);
   const now = new Date().toISOString();
 
-  const registry = loadRegistry();
-  const existingKey = findProjectKeyByPath(registry, projectPath);
+  try {
+    return withRegistryLock(() => {
+      const registry = loadRegistryInternal({ throwOnCorruption: true });
+      const existingKey = findProjectKeyByPath(registry, projectPath);
 
-  const entry: RegistryProject = {
-    path: projectPath,
-    name: projectName,
-    registeredAt: existingKey ? registry.projects[existingKey]!.registeredAt : now,
-    lastAccessed: now,
-    taskCount,
-  };
+      const entry: RegistryProject = {
+        path: projectPath,
+        name: projectName,
+        registeredAt: existingKey ? registry.projects[existingKey]!.registeredAt : now,
+        lastAccessed: now,
+        taskCount,
+      };
 
-  // Preserve path-based registrations and never overwrite a different project
-  // just because it shares the same metadata name.
-  const key = existingKey ?? getAvailableProjectKey(registry, projectName);
-  registry.projects[key] = entry;
+      // Preserve path-based registrations and never overwrite a different project
+      // just because it shares the same metadata name.
+      const key = existingKey ?? getAvailableProjectKey(registry, projectName);
+      registry.projects[key] = entry;
 
-  saveRegistry(registry);
+      saveRegistry(registry);
 
-  return entry;
+      return entry;
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -276,17 +366,23 @@ export function registerProject(projectPath: string): RegistryProject | null {
  * @returns True if project was removed
  */
 export function unregisterProject(projectPath: string): boolean {
-  const registry = loadRegistry();
+  try {
+    return withRegistryLock(() => {
+      const registry = loadRegistryInternal({ throwOnCorruption: true });
 
-  for (const [key, project] of Object.entries(registry.projects)) {
-    if (project.path === projectPath) {
-      delete registry.projects[key];
-      saveRegistry(registry);
-      return true;
-    }
+      for (const [key, project] of Object.entries(registry.projects)) {
+        if (project.path === projectPath) {
+          delete registry.projects[key];
+          saveRegistry(registry);
+          return true;
+        }
+      }
+
+      return false;
+    });
+  } catch {
+    return false;
   }
-
-  return false;
 }
 
 /**
@@ -323,14 +419,20 @@ export function verifyProjectExists(project: RegistryProject): boolean {
  * @param projectPath - Path to the project
  */
 export function touchProject(projectPath: string): void {
-  const registry = loadRegistry();
+  try {
+    withRegistryLock(() => {
+      const registry = loadRegistryInternal({ throwOnCorruption: true });
 
-  for (const project of Object.values(registry.projects)) {
-    if (project.path === projectPath) {
-      project.lastAccessed = new Date().toISOString();
-      project.taskCount = getProjectTaskCount(projectPath);
-      saveRegistry(registry);
-      return;
-    }
+      for (const project of Object.values(registry.projects)) {
+        if (project.path === projectPath) {
+          project.lastAccessed = new Date().toISOString();
+          project.taskCount = getProjectTaskCount(projectPath);
+          saveRegistry(registry);
+          return;
+        }
+      }
+    });
+  } catch {
+    // Preserve existing registry file on mutation errors.
   }
 }

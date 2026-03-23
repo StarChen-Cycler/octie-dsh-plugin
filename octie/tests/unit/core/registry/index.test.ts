@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -146,6 +146,28 @@ describe('global registry', () => {
     } finally {
       rmSync(projectDirA, { recursive: true, force: true });
       rmSync(projectDirB, { recursive: true, force: true });
+    }
+  });
+
+  it('does not overwrite a corrupt registry snapshot during auto-registration', async () => {
+    const projectDir = join(tmpdir(), `octie-corrupt-project-${uuidv4()}`);
+    const registryPath = join(tempHome, '.octie', 'projects.json');
+
+    try {
+      await new TaskStorage({ projectDir: projectDir }).createProject('safe-project');
+
+      const corruptContent = '{"version":"1.0.0","projects":';
+      writeFileSync(registryPath, corruptContent, 'utf-8');
+
+      const { registerProject } = await import('../../../../src/core/registry/index.js');
+
+      const result = registerProject(projectDir);
+      const registryAfterAttempt = readFileSync(registryPath, 'utf-8');
+
+      expect(result).toBeNull();
+      expect(registryAfterAttempt).toBe(corruptContent);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
     }
   });
 });

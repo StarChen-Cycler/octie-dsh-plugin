@@ -22,7 +22,10 @@ import { wireCommand } from './commands/wire.js';
 import { registerApproveCommand } from './commands/approve.js';
 // import { batchCommand } from './commands/batch.js';
 import { formatError } from './utils/helpers.js';
-import { verifyAndRegisterProject } from '../core/registry/root-guard.js';
+import {
+  extractProjectPathFromArgs,
+  verifyAndRegisterProject,
+} from '../core/registry/root-guard.js';
 
 // Version from package.json
 const VERSION = '1.0.0';
@@ -81,8 +84,9 @@ function createProgram(): Command {
  * Main entry point
  */
 function main(): void {
-  // Run root guard - auto-register current project if valid
-  verifyAndRegisterProject();
+  // Run root guard before Commander parses args, but respect explicit --project.
+  const explicitProjectPath = extractProjectPathFromArgs(process.argv.slice(2));
+  verifyAndRegisterProject(explicitProjectPath);
 
   const program = createProgram();
 

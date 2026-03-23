@@ -7,8 +7,58 @@
  * @module core/registry/root-guard
  */
 
+import { resolve } from 'node:path';
 import { cwd } from 'node:process';
 import { isValidOctieProject, registerProject } from './index.js';
+
+/**
+ * Extract explicit project path from raw CLI args before Commander parses them.
+ * Supports:
+ * - `--project path/to/project`
+ * - `--project=path/to/project`
+ * - `-p path/to/project`
+ * - `-p=path/to/project`
+ *
+ * @param args - Raw CLI args, usually process.argv.slice(2)
+ * @param basePath - Base path used to resolve relative project paths
+ * @returns Resolved explicit project path, or undefined when not provided
+ */
+export function extractProjectPathFromArgs(
+  args: string[],
+  basePath: string = cwd()
+): string | undefined {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (!arg) {
+      continue;
+    }
+
+    if (arg === '--project' || arg === '-p') {
+      const value = args[i + 1];
+      if (value && !value.startsWith('-')) {
+        return resolve(basePath, value);
+      }
+      continue;
+    }
+
+    if (arg.startsWith('--project=')) {
+      const value = arg.substring('--project='.length);
+      if (value) {
+        return resolve(basePath, value);
+      }
+    }
+
+    if (arg.startsWith('-p=')) {
+      const value = arg.substring(3);
+      if (value) {
+        return resolve(basePath, value);
+      }
+    }
+  }
+
+  return undefined;
+}
 
 /**
  * Verify and register the current project if valid
