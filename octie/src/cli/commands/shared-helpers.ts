@@ -8,6 +8,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
+import { Command, Option } from 'commander';
 import { loadRegistry, registerProject } from '../../core/registry/index.js';
 import type { ProjectRegistry } from '../../core/registry/index.js';
 import { touchProject } from '../../core/registry/index.js';
@@ -28,6 +29,74 @@ export class CliPreparationError extends Error {
     this.name = 'CliPreparationError';
     this.infoMessages = infoMessages;
   }
+}
+
+export function addTaskCreationOptions<T extends Command>(command: T): T {
+  return command
+    .addOption(
+      new Option('--title <string>', 'Task title (max 200 chars). Must contain action verb')
+        .env('OCTIE_TASK_TITLE')
+        .makeOptionMandatory(true),
+    )
+    .addOption(
+      new Option(
+        '--description <string>',
+        'Detailed task description (min 50 chars, max 10000)',
+      )
+        .env('OCTIE_TASK_DESCRIPTION')
+        .makeOptionMandatory(true),
+    )
+    .addOption(
+      new Option(
+        '--success-criterion <text>',
+        'Quantitative success criterion (can be specified multiple times)',
+      )
+        .argParser((value: string, previous: string[]) => [...(previous || []), value])
+        .env('OCTIE_SUCCESS_CRITERION')
+        .makeOptionMandatory(true),
+    )
+    .addOption(
+      new Option(
+        '--deliverable <text>',
+        'Specific output expected (can be specified multiple times)',
+      )
+        .argParser((value: string, previous: string[]) => [...(previous || []), value])
+        .env('OCTIE_DELIVERABLE')
+        .makeOptionMandatory(true),
+    )
+    .option('-p, --priority <level>', 'Task priority: top | second | later', 'second')
+    .option(
+      '-b, --blockers <ids>',
+      'Comma-separated task IDs that block this task (creates graph edges for execution order)',
+    )
+    .option(
+      '-d, --dependencies <text>',
+      'Explanatory text: WHY this task depends on its blockers (required if --blockers is set)',
+    )
+    .addOption(
+      new Option(
+        '-f, --related-files <paths>',
+        'File paths relevant to task (can be specified multiple times or comma-separated)',
+      ).argParser((value: string, previous: string[]) => {
+        const items = value.includes(',') ? value.split(',').map(item => item.trim()) : [value.trim()];
+        return [...(previous || []), ...items.filter(Boolean)];
+      }),
+    )
+    .addOption(
+      new Option(
+        '-c, --c7-verified <library:notes>',
+        'C7 library verification (format: library-id or library-id:notes, can be specified multiple times)',
+      ).argParser((value: string, previous: string[]) => [...(previous || []), value]),
+    )
+    .addOption(
+      new Option(
+        '-n, --notes <text>',
+        'Additional context or comments (can be specified multiple times)',
+      ).argParser((value: string, previous: string[]) => [...(previous || []), value]),
+    )
+    .option('--notes-file <path>', 'Read notes from file (multi-line notes support)')
+    .option('-i, --interactive', 'Interactive mode with prompts')
+    .option('--project <path>', 'Path to Octie project directory');
 }
 
 export interface InitCommandOptions {
