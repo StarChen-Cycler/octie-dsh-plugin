@@ -4,10 +4,13 @@
 
 import { Command } from 'commander';
 import path from 'node:path';
-import { TaskStorage } from '../../core/storage/file-store.js';
-import { loadRegistry, registerProject } from '../../core/registry/index.js';
 import { success, error, info } from '../utils/helpers.js';
 import chalk from 'chalk';
+import {
+  CliPreparationError,
+  executeProjectInit,
+  preflightProjectInit,
+} from './shared-helpers.js';
 
 /**
  * Create the init command
@@ -20,47 +23,13 @@ export const initCommand = new Command('init')
       // Get project path from parent's options (global --project option)
       const projectOption = command.parent?.opts().project;
       const projectPath = path.resolve(projectOption || process.cwd());
-
-      // Validate project name is provided
-      const projectName = options.name?.trim();
-      if (!projectName) {
-        error('Project name is required. Use --name <name> to specify a unique project name.');
-        info('Example: octie init --name my-project');
-        process.exit(1);
-      }
-
-      // Check global registry for duplicate name
-      const registry = loadRegistry();
-      const existing = Object.values(registry.projects).find(
-        project => project.name === projectName
-      );
-      if (existing) {
-        error(`Project with name '${projectName}' already exists.`);
-        info(`Existing project: ${existing.path}`);
-        info('Choose a different name using --name <different-name>');
-        process.exit(1);
-      }
+      const validated = await preflightProjectInit(projectPath, options);
 
       info(`Initializing Octie project at ${projectPath}`);
-
-      // Create storage instance
-      const storage = new TaskStorage({ projectDir: projectPath });
-
-      // Check if project already exists
-      if (await storage.exists()) {
-        error('Octie project already exists at this location');
-        info('Use --project <path> to specify a different location');
-        process.exit(1);
-      }
-
-      // Create project
-      await storage.createProject(projectName);
-
-      // Register in global registry
-      registerProject(projectPath);
+      await executeProjectInit(validated);
 
       success(`Octie project initialized`);
-      info(`Project: ${projectName}`);
+      info(`Project: ${validated.projectName}`);
       info(`Location: ${projectPath}`);
       info(`Registered in global registry`);
 
@@ -73,6 +42,13 @@ export const initCommand = new Command('init')
 
       process.exit(0);
     } catch (err) {
+      if (err instanceof CliPreparationError) {
+        error(err.message);
+        for (const message of err.infoMessages) {
+          info(message);
+        }
+        process.exit(1);
+      }
       if (err instanceof Error) {
         error(err.message);
       } else {
