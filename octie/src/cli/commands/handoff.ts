@@ -21,6 +21,28 @@ import {
 } from './shared-helpers.js';
 
 const SUBPROJECTS_DIR = '.octie/subprojects';
+export const CREATE_SUBTASK_HANDOFF_GUIDE_FLAG = '--right-way-to-create-subtask-handoff';
+export const CREATE_SUBTASK_HANDOFF_PLAYBOOK = `
+Right Way: Create Subtask Handoff
+
+Use a handoff when follow-on work needs its own Octie graph to keep the parent graph smaller and the active context narrower. Use normal task decomposition when the work can stay inside one project graph.
+
+Workflow:
+1. Run \`octie handoff create --subproject-name <name>\` with the normal parent-task creation flags.
+2. Octie creates the child project at \`.octie/subprojects/<name>/.octie/project.json\`.
+3. Octie creates the parent handoff task with a canonical note block pointing at that child path.
+4. Treat the link as loose context only. Do not add cross-project graph edges, \`sub_items\` links, or extra \`related_files\` just for the handoff.
+5. Switch into the child project and create the child closeout gate manually there.
+6. Approve the parent handoff task only after the child backlog is complete.
+
+Edge Cases:
+- If \`.octie/subprojects/<name>/\` already exists, the command aborts before creating new state.
+- If parent task persistence fails after child init, the child folder is rolled back.
+- If the child folder is deleted later, the parent task record still remains valid because the connection is only contextual.
+
+Example:
+  octie handoff create --subproject-name robust-tests --title "Create robust-tests handoff gate" --description "Create a loose root handoff that points to a dedicated robust-tests subproject for follow-on work." --success-criterion "Child subproject exists at the expected path" --deliverable "root handoff gate record"
+`.trim();
 
 function getSubprojectRelativePath(subprojectName: string): string {
   return `${SUBPROJECTS_DIR}/${subprojectName}/`;
@@ -65,6 +87,19 @@ function rollbackChildProject(childProjectPath: string): void {
   rmSync(childProjectPath, { recursive: true, force: true });
 }
 
+export function printCreateSubtaskHandoffGuide(): void {
+  console.log(CREATE_SUBTASK_HANDOFF_PLAYBOOK);
+}
+
+export function tryHandleGuideFlags(rawArgs: string[]): boolean {
+  if (rawArgs.includes(CREATE_SUBTASK_HANDOFF_GUIDE_FLAG)) {
+    printCreateSubtaskHandoffGuide();
+    return true;
+  }
+
+  return false;
+}
+
 const handoffCreateCommand = addTaskCreationOptions(
   new Command('create')
     .description('Create a loose subproject handoff and initialize the child Octie project')
@@ -96,6 +131,9 @@ Notes:
   • Use --name to override the child project name stored in the child .octie/project.json
   • The child closeout gate is created manually inside the child project
   • Existing target folders fail fast before new state is created
+
+Guide Flag:
+  • ${CREATE_SUBTASK_HANDOFF_GUIDE_FLAG}
 `,
   )
   .action(async (options, command) => {
