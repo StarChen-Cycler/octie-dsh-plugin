@@ -232,6 +232,43 @@ export interface ProjectIndexes {
 }
 
 /**
+ * Snapshot graph health summary
+ * Stored alongside immutable history entries for audit/debug visibility.
+ */
+export interface SnapshotGraphHealth {
+  /** Total tasks in the graph */
+  task_count: number;
+  /** Total edges in the graph */
+  edge_count: number;
+  /** Tasks with no edges */
+  orphan_count: number;
+  /** Tasks with no incoming edges */
+  root_count: number;
+  /** Whether the graph contains a cycle */
+  has_cycle: boolean;
+}
+
+/**
+ * Immutable snapshot metadata entry recorded in history.ndjson.
+ */
+export interface SnapshotHistoryEntry extends SnapshotGraphHealth {
+  /** Immutable snapshot ID */
+  snapshot_id: string;
+  /** ISO 8601 creation timestamp */
+  created_at: string;
+  /** Why the snapshot was created */
+  reason: string;
+  /** Command or subsystem that triggered the snapshot */
+  source_command: string;
+  /** SHA-256 hash of the live project.json contents */
+  live_file_hash: string;
+  /** Relative path to the immutable snapshot file */
+  snapshot_file: string;
+  /** Target snapshot if this snapshot was created before a restore */
+  restored_from_snapshot_id?: string;
+}
+
+/**
  * Error code to HTTP status code mapping
  * Used by API error handler to return appropriate status codes
  */

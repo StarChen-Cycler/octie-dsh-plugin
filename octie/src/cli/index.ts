@@ -14,6 +14,7 @@ import { updateCommand } from './commands/update.js';
 import { deleteCommand } from './commands/delete.js';
 import { mergeCommand } from './commands/merge.js';
 import { graphCommand } from './commands/graph.js';
+import { historyCommand } from './commands/history.js';
 import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { serveCommand } from './commands/serve.js';
@@ -99,6 +100,7 @@ function main(): void {
   program.addCommand(deleteCommand);
   program.addCommand(mergeCommand);
   program.addCommand(graphCommand);
+  program.addCommand(historyCommand);
   program.addCommand(exportCommand);
   program.addCommand(importCommand);
   program.addCommand(serveCommand);
