@@ -21,6 +21,9 @@ import { TaskStorage } from '../../core/storage/file-store.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import { parseList, saveGraph } from '../utils/helpers.js';
 
+const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3030';
+const DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS = 750;
+
 export class CliPreparationError extends Error {
   readonly infoMessages: string[];
 
@@ -379,14 +382,34 @@ export function preflightTaskCreation(
 }
 
 async function invalidateProjectCache(projectPath: string): Promise<void> {
+  const serverUrl = process.env.OCTIE_SERVER_URL || DEFAULT_OCTIE_SERVER_URL;
+  const rawTimeoutMs = Number(process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(rawTimeoutMs) && rawTimeoutMs > 0
+    ? rawTimeoutMs
+    : DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS;
+
   try {
-    const serverUrl = process.env.OCTIE_SERVER_URL || 'http://localhost:3030';
-    await fetch(
+    const response = await fetch(
       `${serverUrl}/api/cache/invalidate?project=${encodeURIComponent(projectPath)}`,
-      { method: 'POST' },
+      {
+        method: 'POST',
+        signal: AbortSignal.timeout(timeoutMs),
+      },
     );
-  } catch {
-    // Server may not be running, ignore.
+    if (!response.ok) {
+      console.warn(`Cache invalidation skipped: ${response.status} ${response.statusText || 'response error'}`);
+    }
+  } catch (error) {
+    const isTimeoutError = error instanceof Error
+      && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    if (isTimeoutError || serverUrl !== DEFAULT_OCTIE_SERVER_URL) {
+      const detail = isTimeoutError
+        ? `timed out after ${timeoutMs}ms`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+      console.warn(`Cache invalidation skipped: ${detail}`);
+    }
   }
 }
 

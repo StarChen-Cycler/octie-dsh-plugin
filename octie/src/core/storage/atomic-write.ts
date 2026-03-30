@@ -12,8 +12,8 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { join, sep, normalize, isAbsolute } from 'node:path';
-import { tmpdir } from 'node:os';
+import { join, sep, normalize, isAbsolute, relative } from 'node:path';
+import { tmpdir, homedir } from 'node:os';
 import { FileOperationError } from '../../types/index.js';
 
 /**
@@ -402,8 +402,6 @@ export class PathUtils {
    * @returns Relative path
    */
   static relative(from: string, to: string): string {
-    // Use relative from path module
-    const { relative } = require('node:path');
     return relative(from, to);
   }
 
@@ -415,15 +413,15 @@ export class PathUtils {
    */
   static getConfigPath(projectName: string): string {
     const platform = process.platform;
-    const homedir = require('node:os').homedir();
+    const homeDir = homedir();
 
     switch (platform) {
       case 'win32':
-        return join(process.env.APPDATA || homedir, projectName);
+        return join(process.env.APPDATA || homeDir, projectName);
       case 'darwin':
-        return join(homedir, 'Library', 'Application Support', projectName);
+        return join(homeDir, 'Library', 'Application Support', projectName);
       default: // linux and others
-        return join(homedir, '.config', projectName);
+        return join(homeDir, '.config', projectName);
     }
   }
 
@@ -435,15 +433,15 @@ export class PathUtils {
    */
   static getDataPath(projectName: string): string {
     const platform = process.platform;
-    const homedir = require('node:os').homedir();
+    const homeDir = homedir();
 
     switch (platform) {
       case 'win32':
-        return join(process.env.LOCALAPPDATA || join(homedir, 'AppData', 'Local'), projectName);
+        return join(process.env.LOCALAPPDATA || join(homeDir, 'AppData', 'Local'), projectName);
       case 'darwin':
-        return join(homedir, 'Library', 'Application Support', projectName);
+        return join(homeDir, 'Library', 'Application Support', projectName);
       default: // linux and others
-        return join(homedir, '.local', 'share', projectName);
+        return join(homeDir, '.local', 'share', projectName);
     }
   }
 

@@ -8,7 +8,7 @@
  * - Blockers and dependencies handling
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,6 +17,7 @@ import { TaskStorage } from '../../../../src/core/storage/file-store.js';
 import { TaskNode } from '../../../../src/core/models/task-node.js';
 import { TaskGraphStore } from '../../../../src/core/graph/index.js';
 import { execSync } from 'node:child_process';
+import { executeTaskCreation, preflightTaskCreation } from '../../../../src/cli/commands/shared-helpers.js';
 
 describe('create command', () => {
   let tempDir: string;
@@ -925,6 +926,56 @@ describe('create command', () => {
       expect(errorMsg).toContain('dependencies');
       expect(errorMsg).toContain('blockers');
       expect(errorMsg).toContain('required');
+    });
+  });
+
+  describe('cache invalidation behavior', () => {
+    it('should bound cache invalidation latency and warn when a timeout occurs', async () => {
+      const originalFetch = global.fetch;
+      const originalTimeout = process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS;
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS = '25';
+
+      global.fetch = vi.fn(async (_input, init) => {
+        const signal = init?.signal as AbortSignal | undefined;
+        if (!signal) {
+          throw new Error('Missing abort signal');
+        }
+
+        return await new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(signal.reason ?? new Error('aborted')),
+            { once: true },
+          );
+        });
+      }) as typeof fetch;
+
+      try {
+        const prepared = preflightTaskCreation(graph, {
+          title: 'Implement cache timeout regression module',
+          description: 'Create a task so post-save cache invalidation can be tested under a deterministic hanging fetch without blocking task creation indefinitely.',
+          successCriterion: ['Task creation returns within the configured timeout window'],
+          deliverable: ['src/cache/timeout.ts'],
+        });
+
+        const startedAt = Date.now();
+        await executeTaskCreation(tempDir, graph, prepared);
+        const elapsedMs = Date.now() - startedAt;
+
+        expect(elapsedMs).toBeLessThan(1000);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Cache invalidation skipped'),
+        );
+      } finally {
+        global.fetch = originalFetch;
+        if (originalTimeout === undefined) {
+          delete process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS;
+        } else {
+          process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS = originalTimeout;
+        }
+        warnSpy.mockRestore();
+      }
     });
   });
 });

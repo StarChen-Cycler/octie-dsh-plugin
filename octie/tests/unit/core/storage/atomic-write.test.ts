@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, existsSync, mkdirSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -201,6 +201,20 @@ describe('AtomicFileWriter', () => {
       const normalized = PathUtils.normalizePath('path/to\\file.json');
 
       expect(normalized).toBeDefined();
+    });
+
+    it('should execute PathUtils helpers in ESM without require', async () => {
+      const { PathUtils } = await import('../../../../src/core/storage/atomic-write.js');
+      const source = readFileSync(
+        join(process.cwd(), 'src', 'core', 'storage', 'atomic-write.ts'),
+        'utf-8',
+      );
+
+      expect(source).not.toContain("require('node:path')");
+      expect(source).not.toContain("require('node:os')");
+      expect(PathUtils.relative('a', 'b')).toBeDefined();
+      expect(PathUtils.getConfigPath('octie-test')).toBeDefined();
+      expect(PathUtils.getDataPath('octie-test')).toBeDefined();
     });
   });
 
