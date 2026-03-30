@@ -112,7 +112,10 @@ Examples:
       // Perform deletion
       if (options.reconnect) {
         info('Reconnecting edges...');
-        cutNode(graph, fullId);
+        const affectedTaskIds = cutNode(graph, fullId);
+        for (const affectedId of affectedTaskIds) {
+          graph.propagateStatus(affectedId);
+        }
       } else if (options.cascade) {
         info('Cascading deletion to dependents...');
         const deletedIds = cascadeDelete(graph, fullId);

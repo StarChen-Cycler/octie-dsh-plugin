@@ -541,19 +541,15 @@ export function registerTaskRoutes(
       const outgoing = graph.getOutgoingEdges(fullId);
 
       // Remove the task
-      graph.removeNode(fullId);
-
-      // Reconnect edges if requested
+      let affectedTaskIds: string[] = [];
       if (reconnect) {
-        for (const fromId of incoming) {
-          for (const toId of outgoing) {
-            try {
-              graph.addEdge(fromId, toId);
-            } catch {
-              // Ignore if edge already exists
-            }
-          }
+        const { cutNode } = await import('../../core/graph/operations.js');
+        affectedTaskIds = cutNode(graph, fullId);
+        for (const affectedId of affectedTaskIds) {
+          graph.propagateStatus(affectedId);
         }
+      } else {
+        graph.removeNode(fullId);
       }
 
       // Return success with deleted task info
@@ -562,6 +558,7 @@ export function registerTaskRoutes(
         reconnected: reconnect,
         incomingBeforeDelete: incoming,
         outgoingBeforeDelete: outgoing,
+        updatedTasks: affectedTaskIds,
       });
     } catch (err) {
       if (err instanceof AmbiguousIdError) {

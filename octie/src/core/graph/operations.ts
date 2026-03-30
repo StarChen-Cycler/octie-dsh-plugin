@@ -34,15 +34,17 @@ import { TaskNotFoundError, ValidationError } from '../../types/index.js';
  * @param nodeId - Task ID to cut
  * @throws {TaskNotFoundError} If task not found
  *
+ * @returns Array of directly affected target task IDs whose status should be recalculated
+ *
  * @example
  * ```ts
  * // Graph: A -> B -> C
- * cutNode(graph, 'B');
+ * const affected = cutNode(graph, 'B');
  * // Result: A -> C (B removed, A now points directly to C)
  * // Also: C.blockers updated from [B] to [A]
  * ```
  */
-export function cutNode(graph: TaskGraphStore, nodeId: string): void {
+export function cutNode(graph: TaskGraphStore, nodeId: string): string[] {
   if (!graph.hasNode(nodeId)) {
     throw new TaskNotFoundError(nodeId);
   }
@@ -76,6 +78,8 @@ export function cutNode(graph: TaskGraphStore, nodeId: string): void {
 
   // Remove the node (this also removes all its edges)
   graph.removeNode(nodeId);
+
+  return outgoingTargets;
 }
 
 /**
@@ -370,11 +374,14 @@ export function mergeTasks(
   // Remove the source task
   graph.removeNode(sourceId);
 
+  const propagationResult = graph.propagateStatus(targetId);
+
   // Collect all affected task IDs
   const allAffected = new Set([
     ...reconnectSources,
     ...reconnectTargets,
-    targetId
+    targetId,
+    ...propagationResult.updatedTasks,
   ]);
 
   return {

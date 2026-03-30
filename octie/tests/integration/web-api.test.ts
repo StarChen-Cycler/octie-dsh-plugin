@@ -584,15 +584,73 @@ describe('Web API Integration Tests', () => {
       });
 
       it('should reconnect edges when reconnect=true', async () => {
-        const taskA = createTestTask({ title: 'Implement task A feature' });
-        const taskB = createTestTask({ title: 'Create task B feature' });
-        const taskC = createTestTask({ title: 'Write task C feature' });
+        const taskA = new TaskNode({
+          id: uuidv4(),
+          title: 'Implement reconnect parent feature',
+          description: 'Create a completed parent task so web delete reconnect can immediately unblock the downstream task after the intermediate blocker is removed.',
+          status: 'completed',
+          priority: 'top',
+          success_criteria: [
+            { id: uuidv4(), text: 'Parent work is complete', completed: true },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/reconnect-parent.ts', completed: true },
+          ],
+          blockers: [],
+          dependencies: '',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        });
+        const taskB = new TaskNode({
+          id: uuidv4(),
+          title: 'Implement reconnect blocker feature',
+          description: 'Create an in-review blocker task so the child starts blocked until web delete reconnect removes this parent from the graph chain.',
+          status: 'in_review',
+          priority: 'second',
+          success_criteria: [
+            { id: uuidv4(), text: 'Blocker work is complete but unapproved', completed: true },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/reconnect-blocker.ts', completed: true },
+          ],
+          blockers: [],
+          dependencies: '',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        });
+        const taskC = new TaskNode({
+          id: uuidv4(),
+          title: 'Implement reconnect child feature',
+          description: 'Create a blocked child task that should become ready after web delete reconnect rewires its parent to the completed upstream task.',
+          status: 'blocked',
+          priority: 'later',
+          success_criteria: [
+            { id: uuidv4(), text: 'Child becomes ready after reconnect delete', completed: false },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/reconnect-child.ts', completed: false },
+          ],
+          blockers: [],
+          dependencies: 'Waiting on blocker completion',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        });
 
         graph.addNode(taskA);
         graph.addNode(taskB);
         graph.addNode(taskC);
         graph.addEdge(taskA.id, taskB.id);
         graph.addEdge(taskB.id, taskC.id);
+        taskC.addBlocker(taskB.id);
         await storage.save(graph);
 
         const response = await request(app)
@@ -609,6 +667,11 @@ describe('Web API Integration Tests', () => {
 
         const edges = graphResponse.body.data.outgoingEdges[taskA.id];
         expect(edges).toContain(taskC.id);
+
+        const childResponse = await request(app)
+          .get(`/api/tasks/${taskC.id}`)
+          .expect(200);
+        expect(childResponse.body.data.status).toBe('ready');
       });
 
       it('should return 404 for non-existent task', async () => {
@@ -625,11 +688,72 @@ describe('Web API Integration Tests', () => {
 
     describe('POST /api/tasks/:id/merge', () => {
       it('should merge two tasks', async () => {
-        const sourceTask = createTestTask({ title: 'Implement source feature' });
-        const targetTask = createTestTask({ title: 'Create target feature' });
+        const sourceTask = new TaskNode({
+          id: uuidv4(),
+          title: 'Implement source feature',
+          description: 'Create a source task that is complete but not approved so its child remains blocked until the merge rewires the blocker chain to a completed target.',
+          status: 'in_review',
+          priority: 'second',
+          success_criteria: [
+            { id: uuidv4(), text: 'Source work is complete', completed: true },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/source-feature.ts', completed: true },
+          ],
+          blockers: [],
+          dependencies: '',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        });
+        const targetTask = new TaskNode({
+          id: uuidv4(),
+          title: 'Create target feature',
+          description: 'Create a completed target task so merging the source into it should immediately unblock the downstream child task in the web API graph.',
+          status: 'completed',
+          priority: 'top',
+          success_criteria: [
+            { id: uuidv4(), text: 'Target work is complete', completed: true },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/target-feature.ts', completed: true },
+          ],
+          blockers: [],
+          dependencies: '',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        });
+        const childTask = new TaskNode({
+          id: uuidv4(),
+          title: 'Write merged child feature',
+          description: 'Create a blocked child task that should become ready immediately after merge rewires its only parent to the completed target task.',
+          status: 'blocked',
+          priority: 'later',
+          success_criteria: [
+            { id: uuidv4(), text: 'Child becomes ready after merge', completed: false },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/merged-child.ts', completed: false },
+          ],
+          blockers: [],
+          dependencies: 'Waiting on source completion',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        });
 
         graph.addNode(sourceTask);
         graph.addNode(targetTask);
+        graph.addNode(childTask);
+        graph.addEdge(sourceTask.id, childTask.id);
+        childTask.addBlocker(sourceTask.id);
         await storage.save(graph);
 
         const response = await request(app)
@@ -642,11 +766,17 @@ describe('Web API Integration Tests', () => {
         expect(response.body.data.task.title).toBe('Create target feature');
         expect(response.body.data.task.description).toContain('Merged from');
         expect(response.body.data.removedTasks).toContain(sourceTask.id);
+        expect(response.body.data.updatedTasks).toContain(childTask.id);
 
         // Verify source task is gone
         const getResponse = await request(app)
           .get(`/api/tasks/${sourceTask.id}`)
           .expect(404);
+
+        const childResponse = await request(app)
+          .get(`/api/tasks/${childTask.id}`)
+          .expect(200);
+        expect(childResponse.body.data.status).toBe('ready');
       });
 
       it('should return 404 if source task does not exist', async () => {

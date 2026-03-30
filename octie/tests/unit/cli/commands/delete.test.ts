@@ -179,6 +179,76 @@ describe('delete command', () => {
       const task1Outgoing = graph.getOutgoingEdges(taskId1);
       expect(task1Outgoing.length).toBe(0);
     });
+
+    it('should recalculate downstream blocked status when reconnecting around a non-completed blocker', async () => {
+      const graph = await storage.load();
+      graph.clear();
+
+      const parentId = uuidv4();
+      const blockerId = uuidv4();
+      const childId = uuidv4();
+
+      graph.addNode(new TaskNode({
+        id: parentId,
+        title: 'Implement reconnect parent completion gate',
+        description: 'Create a completed parent task so reconnect-delete can transfer child ownership to a completed node and unblock the downstream task immediately.',
+        status: 'completed',
+        priority: 'top',
+        success_criteria: [{ id: uuidv4(), text: 'Parent work is complete', completed: true }],
+        deliverables: [{ id: uuidv4(), text: 'src/parent.ts', completed: true }],
+        blockers: [],
+        dependencies: '',
+        related_files: [],
+        notes: '',
+        c7_verified: [],
+        sub_items: [],
+        edges: [blockerId],
+      }));
+
+      graph.addNode(new TaskNode({
+        id: blockerId,
+        title: 'Implement reconnect blocker gate',
+        description: 'Create an in-review blocker task so the downstream child starts blocked until delete --reconnect removes this non-completed parent from the chain.',
+        status: 'in_review',
+        priority: 'second',
+        success_criteria: [{ id: uuidv4(), text: 'Blocker work is complete but not approved', completed: true }],
+        deliverables: [{ id: uuidv4(), text: 'src/blocker.ts', completed: true }],
+        blockers: [],
+        dependencies: '',
+        related_files: [],
+        notes: '',
+        c7_verified: [],
+        sub_items: [],
+        edges: [childId],
+      }));
+
+      graph.addNode(new TaskNode({
+        id: childId,
+        title: 'Implement reconnect child readiness task',
+        description: 'Create a blocked downstream child task that should become ready as soon as delete --reconnect rewires its parent to the completed upstream task.',
+        status: 'blocked',
+        priority: 'later',
+        success_criteria: [{ id: uuidv4(), text: 'Child becomes ready after reconnect delete', completed: false }],
+        deliverables: [{ id: uuidv4(), text: 'src/reconnect-child.ts', completed: false }],
+        blockers: [blockerId],
+        dependencies: 'Waiting on blocker completion',
+        related_files: [],
+        notes: '',
+        c7_verified: [],
+        sub_items: [],
+        edges: [],
+      }));
+
+      await storage.save(graph);
+
+      execSync(
+        `node ${cliPath} --project "${tempDir}" delete ${blockerId} --reconnect --force`,
+        { encoding: 'utf-8' }
+      );
+
+      const updatedGraph = await storage.load();
+      expect(updatedGraph.getNode(childId)?.status).toBe('ready');
+    });
   });
 
   describe('cascade deletion', () => {

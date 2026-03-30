@@ -104,8 +104,8 @@ Warning:
         }
       }
 
-      // Perform merge (ignore return value for now)
-      mergeTasks(graph, fullSourceId, fullTargetId);
+      // Perform merge and capture affected tasks for user feedback
+      const mergeResult = mergeTasks(graph, fullSourceId, fullTargetId);
 
       // Save
       await saveGraph(projectPath, graph);
@@ -113,6 +113,9 @@ Warning:
       success(`Tasks merged`);
       info(`Source deleted: ${chalk.cyan(fullSourceId.substring(0, 8))}`);
       info(`Target updated: ${chalk.cyan(fullTargetId.substring(0, 8))}`);
+      if (mergeResult.updatedTasks.length > 1) {
+        info(`Statuses recalculated: ${mergeResult.updatedTasks.length - 1} affected task(s)`);
+      }
 
       process.exit(0);
     } catch (err) {

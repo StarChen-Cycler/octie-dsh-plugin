@@ -167,6 +167,76 @@ describe('merge command', () => {
       expect(task?.notes).toContain('session management');
       expect(task?.notes).toContain('bcrypt');
     });
+
+    it('should recalculate downstream blocked status after merge rewires blockers', async () => {
+      const graph = await storage.load();
+      graph.clear();
+
+      const sourceId = uuidv4();
+      const targetId = uuidv4();
+      const childId = uuidv4();
+
+      graph.addNode(new TaskNode({
+        id: sourceId,
+        title: 'Implement merge source status gate',
+        description: 'Create a source task whose children stay blocked until merge rewires the blocker chain to a completed target task for status propagation testing.',
+        status: 'in_review',
+        priority: 'top',
+        success_criteria: [{ id: uuidv4(), text: 'Source work is complete', completed: true }],
+        deliverables: [{ id: uuidv4(), text: 'src/source.ts', completed: true }],
+        blockers: [],
+        dependencies: '',
+        related_files: [],
+        notes: '',
+        c7_verified: [],
+        sub_items: [],
+        edges: [childId],
+      }));
+
+      graph.addNode(new TaskNode({
+        id: targetId,
+        title: 'Implement merge target completion gate',
+        description: 'Create a completed target task so merging the source into it should immediately unblock children whose only remaining parent becomes completed.',
+        status: 'completed',
+        priority: 'top',
+        success_criteria: [{ id: uuidv4(), text: 'Target work is complete', completed: true }],
+        deliverables: [{ id: uuidv4(), text: 'src/target.ts', completed: true }],
+        blockers: [],
+        dependencies: '',
+        related_files: [],
+        notes: '',
+        c7_verified: [],
+        sub_items: [],
+        edges: [],
+      }));
+
+      graph.addNode(new TaskNode({
+        id: childId,
+        title: 'Implement downstream merge child task',
+        description: 'Create a downstream child task that should transition from blocked to ready as soon as merge rewires its parent to the completed target task.',
+        status: 'blocked',
+        priority: 'second',
+        success_criteria: [{ id: uuidv4(), text: 'Child is ready after merge', completed: false }],
+        deliverables: [{ id: uuidv4(), text: 'src/child.ts', completed: false }],
+        blockers: [sourceId],
+        dependencies: 'Waiting on merge source completion',
+        related_files: [],
+        notes: '',
+        c7_verified: [],
+        sub_items: [],
+        edges: [],
+      }));
+
+      await storage.save(graph);
+
+      execSync(
+        `node ${cliPath} --project "${tempDir}" merge ${sourceId} ${targetId}`,
+        { encoding: 'utf-8', input: 'y\n' }
+      );
+
+      const updatedGraph = await storage.load();
+      expect(updatedGraph.getNode(childId)?.status).toBe('ready');
+    });
   });
 
   describe('preview', () => {
