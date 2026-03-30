@@ -139,5 +139,10 @@ Error Cases:
   • Task not found → Error
   • Task not in 'in_review' status → Error with guidance
 `)
-    .action(approveCommand);
+    .action(async (taskId, options, command) => {
+      const globalOpts = command.parent?.opts() || {};
+      await approveCommand(taskId, {
+        project: options.project ?? globalOpts.project,
+      });
+    });
 }
