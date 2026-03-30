@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, chmodSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -134,6 +134,67 @@ describe('handoff command', () => {
       }).toThrow();
 
       expect(existsSync(join(tempDir, '.octie', 'subprojects', subprojectName))).toBe(false);
+    } finally {
+      chmodSync(parentProjectFile, 0o666);
+    }
+  });
+
+  it('reports rollback cleanup as incomplete when unregisterProject cannot clear the child registry entry', () => {
+    const parentName = `parent-${uuidv4().substring(0, 8)}`;
+    const subprojectName = `child-${uuidv4().substring(0, 8)}`;
+    runCli(`init --project "${tempDir}" --name "${parentName}"`);
+
+    const parentProjectFile = join(tempDir, '.octie', 'project.json');
+    const registryDir = join(tempHome, '.octie');
+    const registryLockPath = join(registryDir, 'projects.lock');
+    mkdirSync(registryDir, { recursive: true });
+    writeFileSync(registryLockPath, 'locked');
+    chmodSync(parentProjectFile, 0o444);
+
+    try {
+      expect(() => {
+        runCli(
+          `--project "${tempDir}" handoff create ` +
+          `--subproject-name "${subprojectName}" ` +
+          `--title "Create registry rollback handoff gate" ` +
+          `--description "Create a loose handoff that should fail while saving the parent project so rollback can report an incomplete registry cleanup path." ` +
+          `--success-criterion "CLI exits with code 1 when parent save fails" ` +
+          `--deliverable "registry rollback handoff attempt record"`,
+        );
+      }).toThrow(/rollback cleanup incomplete/i);
+    } finally {
+      chmodSync(parentProjectFile, 0o666);
+      rmSync(registryLockPath, { force: true });
+    }
+  });
+
+  it('reports both original and rollback failures when directory removal also fails', () => {
+    const parentName = `parent-${uuidv4().substring(0, 8)}`;
+    const subprojectName = `child-${uuidv4().substring(0, 8)}`;
+    runCli(`init --project "${tempDir}" --name "${parentName}"`);
+
+    const parentProjectFile = join(tempDir, '.octie', 'project.json');
+    chmodSync(parentProjectFile, 0o444);
+
+    try {
+      expect(() => {
+        execSync(
+          `node ${cliPath} --project "${tempDir}" handoff create ` +
+          `--subproject-name "${subprojectName}" ` +
+          `--title "Create dual failure handoff gate" ` +
+          `--description "Create a loose handoff that should fail while saving the parent project and also fail during rollback directory removal so both failure details are surfaced." ` +
+          `--success-criterion "CLI stderr contains rollback diagnostics when parent save fails" ` +
+          `--deliverable "dual failure handoff attempt record"`,
+          {
+            encoding: 'utf-8',
+            env: {
+              ...env,
+              OCTIE_TEST_FORCE_HANDOFF_RM_SYNC_FAILURE: '1',
+            },
+            stdio: 'pipe',
+          },
+        );
+      }).toThrow(/Original failure:[\s\S]*Rollback failure:/);
     } finally {
       chmodSync(parentProjectFile, 0o666);
     }

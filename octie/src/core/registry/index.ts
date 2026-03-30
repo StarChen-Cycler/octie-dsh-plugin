@@ -48,6 +48,11 @@ export interface ProjectRegistry {
   projects: Record<string, RegistryProject>;
 }
 
+export interface UnregisterProjectResult {
+  removed: boolean;
+  error?: Error;
+}
+
 /** Current registry version */
 const REGISTRY_VERSION = '1.0.0';
 const REGISTRY_LOCK_FILE = 'projects.lock';
@@ -366,6 +371,10 @@ export function registerProject(projectPath: string): RegistryProject | null {
  * @returns True if project was removed
  */
 export function unregisterProject(projectPath: string): boolean {
+  return unregisterProjectDetailed(projectPath).removed;
+}
+
+export function unregisterProjectDetailed(projectPath: string): UnregisterProjectResult {
   try {
     return withRegistryLock(() => {
       const registry = loadRegistryInternal({ throwOnCorruption: true });
@@ -374,14 +383,17 @@ export function unregisterProject(projectPath: string): boolean {
         if (project.path === projectPath) {
           delete registry.projects[key];
           saveRegistry(registry);
-          return true;
+          return { removed: true };
         }
       }
 
-      return false;
+      return { removed: false };
     });
-  } catch {
-    return false;
+  } catch (error) {
+    return {
+      removed: false,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
   }
 }
 

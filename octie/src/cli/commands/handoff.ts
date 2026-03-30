@@ -7,7 +7,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 import { AtomicTaskViolationError } from '../../types/index.js';
-import { unregisterProject } from '../../core/registry/index.js';
+import { unregisterProjectDetailed } from '../../core/registry/index.js';
 import { getProjectPath, loadGraph, success, error, info } from '../utils/helpers.js';
 import {
   addTaskCreationOptions,
@@ -82,9 +82,47 @@ function appendHandoffNotes(
   };
 }
 
-function rollbackChildProject(childProjectPath: string): void {
-  unregisterProject(childProjectPath);
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function removeChildProjectDir(childProjectPath: string): void {
+  if (process.env.OCTIE_TEST_FORCE_HANDOFF_RM_SYNC_FAILURE === '1') {
+    throw new Error('Injected rollback rmSync failure');
+  }
+
   rmSync(childProjectPath, { recursive: true, force: true });
+}
+
+function rollbackChildProject(childProjectPath: string): void {
+  const rollbackFailures: string[] = [];
+  const unregisterResult = unregisterProjectDetailed(childProjectPath);
+  if (!unregisterResult.removed) {
+    const detail = unregisterResult.error?.message || 'registry entry was not removed';
+    rollbackFailures.push(`registry cleanup failed for ${childProjectPath}: ${detail}`);
+  }
+
+  try {
+    removeChildProjectDir(childProjectPath);
+  } catch (error) {
+    rollbackFailures.push(`directory cleanup failed for ${childProjectPath}: ${toError(error).message}`);
+  }
+
+  if (rollbackFailures.length > 0) {
+    throw new Error(
+      `rollback cleanup incomplete\n${rollbackFailures.map(message => `- ${message}`).join('\n')}`,
+    );
+  }
+}
+
+function combineHandoffFailure(originalError: unknown, rollbackError: unknown): Error {
+  const original = toError(originalError);
+  const rollback = toError(rollbackError);
+
+  return new Error(
+    `Original failure: ${original.message}\nRollback failure: ${rollback.message}`,
+    { cause: original },
+  );
 }
 
 export function printCreateSubtaskHandoffGuide(): void {
@@ -166,7 +204,11 @@ Guide Flag:
       try {
         await executeProjectInit(validatedChildProject);
       } catch (err) {
-        rollbackChildProject(childProjectPath);
+        try {
+          rollbackChildProject(childProjectPath);
+        } catch (rollbackError) {
+          throw combineHandoffFailure(err, rollbackError);
+        }
         throw err;
       }
 
@@ -184,7 +226,11 @@ Guide Flag:
         );
         process.exit(0);
       } catch (err) {
-        rollbackChildProject(childProjectPath);
+        try {
+          rollbackChildProject(childProjectPath);
+        } catch (rollbackError) {
+          throw combineHandoffFailure(err, rollbackError);
+        }
         throw err;
       }
     } catch (err) {
