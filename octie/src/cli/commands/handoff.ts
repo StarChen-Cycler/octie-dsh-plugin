@@ -115,14 +115,25 @@ function rollbackChildProject(childProjectPath: string): void {
   }
 }
 
-function combineHandoffFailure(originalError: unknown, rollbackError: unknown): Error {
-  const original = toError(originalError);
-  const rollback = toError(rollbackError);
+export class HandoffRollbackError extends Error {
+  readonly originalError: Error;
+  readonly rollbackError: Error;
 
-  return new Error(
-    `Original failure: ${original.message}\nRollback failure: ${rollback.message}`,
-    { cause: original },
-  );
+  constructor(originalError: unknown, rollbackError: unknown) {
+    const original = toError(originalError);
+    const rollback = toError(rollbackError);
+    super(
+      `Original failure: ${original.message}\nRollback failure: ${rollback.message}`,
+      { cause: rollback },
+    );
+    this.name = 'HandoffRollbackError';
+    this.originalError = original;
+    this.rollbackError = rollback;
+  }
+}
+
+export function combineHandoffFailure(originalError: unknown, rollbackError: unknown): HandoffRollbackError {
+  return new HandoffRollbackError(originalError, rollbackError);
 }
 
 export function printCreateSubtaskHandoffGuide(): void {

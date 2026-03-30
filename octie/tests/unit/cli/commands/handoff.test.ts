@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { TaskStorage } from '../../../../src/core/storage/file-store.js';
+import { combineHandoffFailure, HandoffRollbackError } from '../../../../src/cli/commands/handoff.js';
 
 describe('handoff command', () => {
   let tempDir: string;
@@ -53,6 +54,14 @@ describe('handoff command', () => {
       encoding: 'utf-8',
       env,
     });
+  }
+
+  function getExecErrorText(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return String(error);
   }
 
   it('creates a child subproject, appends handoff notes, and keeps linkage note-only', async () => {
@@ -177,7 +186,8 @@ describe('handoff command', () => {
     chmodSync(parentProjectFile, 0o444);
 
     try {
-      expect(() => {
+      let errorText = '';
+      try {
         execSync(
           `node ${cliPath} --project "${tempDir}" handoff create ` +
           `--subproject-name "${subprojectName}" ` +
@@ -194,10 +204,30 @@ describe('handoff command', () => {
             stdio: 'pipe',
           },
         );
-      }).toThrow(/Original failure:[\s\S]*Rollback failure:/);
+      } catch (error) {
+        errorText = getExecErrorText(error);
+      }
+
+      expect(errorText).toMatch(/Original failure:[\s\S]*Rollback failure:/);
+      expect((errorText.match(/Original failure:/g) || [])).toHaveLength(1);
+      expect((errorText.match(/Rollback failure:/g) || [])).toHaveLength(1);
     } finally {
       chmodSync(parentProjectFile, 0o666);
     }
+  });
+
+  it('exposes original and rollback failures through structured error data', () => {
+    const originalError = new Error('original failure');
+    const rollbackError = new Error('rollback failure');
+
+    const combinedError = combineHandoffFailure(originalError, rollbackError);
+
+    expect(combinedError).toBeInstanceOf(HandoffRollbackError);
+    expect(combinedError.cause).toBe(rollbackError);
+    expect(combinedError.originalError).toBe(originalError);
+    expect(combinedError.rollbackError).toBe(rollbackError);
+    expect((combinedError.message.match(/Original failure:/g) || [])).toHaveLength(1);
+    expect((combinedError.message.match(/Rollback failure:/g) || [])).toHaveLength(1);
   });
 
   it('prints identical playbook text from the root and command-local guide flags', () => {
