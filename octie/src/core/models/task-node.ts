@@ -363,9 +363,9 @@ export function validateAtomicTask(taskData: {
   }
 
   // Check deliverables count
-  if (taskData.deliverables.length > 5) {
+  if (taskData.deliverables.length > 10) {
     violations.push(
-      `Too many deliverables (${taskData.deliverables.length} > 5). This suggests the task is too large and should be split into smaller, focused tasks.`
+      `Too many deliverables (${taskData.deliverables.length} > 10). This suggests the task is too large and should be split into smaller, focused tasks.`
     );
   }
 

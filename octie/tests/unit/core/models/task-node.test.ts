@@ -14,10 +14,6 @@ import { describe, it, expect } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 import { TaskNode, validateAtomicTask } from '../../../../src/core/models/task-node.js';
 import { ValidationError, AtomicTaskViolationError, ImmutabilityViolationError } from '../../../../src/types/index.js';
-import {
-  ValidationError,
-  AtomicTaskViolationError,
-} from '../../../../src/types/index.js';
 
 describe('TaskNode', () => {
   describe('constructor validation', () => {
@@ -167,7 +163,7 @@ describe('TaskNode', () => {
     });
 
     it('should throw ValidationError if deliverables is too many', () => {
-      const deliverables = Array.from({ length: 6 }, () => ({
+      const deliverables = Array.from({ length: 11 }, () => ({
         id: uuidv4(),
         text: 'Deliverable',
         completed: false,
@@ -183,6 +179,25 @@ describe('TaskNode', () => {
           deliverables,
         });
       }).toThrow(ValidationError);
+    });
+
+    it('should allow exactly 10 deliverables', () => {
+      const deliverables = Array.from({ length: 10 }, (_, i) => ({
+        id: uuidv4(),
+        text: `src/module/file${i}.ts`,
+        completed: false,
+      }));
+
+      const task = new TaskNode({
+        title: 'Implement multi-file login rollout',
+        description: 'Create a multi-file login rollout task that still fits the intended 10-deliverable ceiling while covering route service schema middleware fixture and test outputs for the feature.',
+        success_criteria: [
+          { id: uuidv4(), text: 'All 10 deliverables are tracked without validation failure', completed: false },
+        ],
+        deliverables,
+      });
+
+      expect(task.deliverables).toHaveLength(10);
     });
   });
 
@@ -311,6 +326,25 @@ describe('TaskNode', () => {
       });
 
       expect(task.title).toBe('Implement login endpoint');
+    });
+
+    it('should reject more than 10 deliverables in atomic validation', () => {
+      const deliverables = Array.from({ length: 11 }, (_, i) => ({
+        id: uuidv4(),
+        text: `src/module/file${i}.ts`,
+        completed: false,
+      }));
+
+      expect(() => {
+        validateAtomicTask({
+          title: 'Implement oversized deliverable rollout',
+          description: 'Create an oversized deliverable rollout task that exists only to verify the atomic validator rejects more than the intended 10 deliverables in one task definition.',
+          success_criteria: [
+            { id: uuidv4(), text: 'Validation rejects oversized deliverable lists', completed: false },
+          ],
+          deliverables,
+        });
+      }).toThrow(AtomicTaskViolationError);
     });
 
     it('should accept task with file path deliverables', () => {
