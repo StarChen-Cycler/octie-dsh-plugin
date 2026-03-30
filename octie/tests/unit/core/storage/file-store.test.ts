@@ -8,7 +8,7 @@
  * - Path utilities tests
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
@@ -286,6 +286,42 @@ describe('TaskStorage', () => {
       expect(historyEntries[0]?.task_count).toBe(1);
       expect(historyEntries[0]?.snapshot_file).toContain('history/snapshots/');
       expect(historyEntries[0]?.reason).toBeDefined();
+    });
+
+    it('should clean up snapshot files and keep live project data when history append fails', async () => {
+      await storage.createProject('Snapshot Project');
+
+      const graph = await storage.load();
+      const task = new TaskNode({
+        title: 'Implement append failure regression module',
+        description: 'Create a task so save-path testing can verify that live project persistence survives a later history append failure without leaving orphan snapshots.',
+        success_criteria: [
+          { id: uuidv4(), text: 'Task is written into the live project file', completed: false },
+        ],
+        deliverables: [
+          { id: uuidv4(), text: 'src/append-failure.ts', completed: false },
+        ],
+      });
+      graph.addNode(task);
+
+      const snapshotCountBefore = readdirSync(storage.snapshotsDirPath).length;
+      const appendSpy = vi.spyOn(storage['_writer'], 'append').mockImplementation(async () => {
+        throw new Error('Injected append failure');
+      });
+
+      await expect(storage.save(graph)).rejects.toThrow(
+        'Project saved, but snapshot history recording failed',
+      );
+
+      appendSpy.mockRestore();
+
+      expect(readdirSync(storage.snapshotsDirPath).length).toBe(snapshotCountBefore);
+
+      const persistedGraph = await storage.load();
+      expect(persistedGraph.hasNode(task.id)).toBe(true);
+
+      const historyEntries = await storage.listHistory();
+      expect(historyEntries).toHaveLength(1);
     });
   });
 

@@ -225,6 +225,9 @@ export class TaskStorage {
     options: SaveGraphOptions = {}
   ): Promise<void> {
     const createBackup = options.createBackup ?? this._autoBackup;
+    let projectFile: ProjectFile | undefined;
+    let shouldSnapshot = false;
+    let historyContext: SnapshotWriteContext | undefined;
 
     // Ensure directory exists
     await this.init();
@@ -246,7 +249,7 @@ export class TaskStorage {
       }
 
       // Build project file structure
-      const projectFile: ProjectFile = {
+      projectFile = {
         $schema: 'https://octie.dev/schemas/project-v1.json',
         version: '1.0.0',
         format: 'octie-project',
@@ -273,18 +276,30 @@ export class TaskStorage {
       });
 
       const currentHash = this._computeHash(serialized);
-      const shouldSnapshot = options.history?.forceSnapshot || previousHash !== currentHash;
+      shouldSnapshot = options.history?.forceSnapshot || previousHash !== currentHash;
       if (shouldSnapshot) {
-        const historyContext = {
+        historyContext = {
           ...inferSnapshotWriteContext(),
           ...(options.history || {}),
         };
-        await this._historyStore.createSnapshot(projectFile, graph, historyContext);
       }
     } catch (error) {
       throw new FileOperationError(
         `Failed to save project: ${error instanceof Error ? error.message : String(error)}`,
         this.projectFilePath
+      );
+    }
+
+    if (!shouldSnapshot || !projectFile || !historyContext) {
+      return;
+    }
+
+    try {
+      await this._historyStore.createSnapshot(projectFile, graph, historyContext);
+    } catch (error) {
+      throw new FileOperationError(
+        `Project saved, but snapshot history recording failed: ${error instanceof Error ? error.message : String(error)}`,
+        this.historyFilePath,
       );
     }
   }

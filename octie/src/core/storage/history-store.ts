@@ -149,12 +149,25 @@ export class ProjectHistoryStore {
       entry.restored_from_snapshot_id = context.restoredFromSnapshotId;
     }
 
+    let snapshotWritten = false;
+
     try {
       await this._writer.write(snapshotPath, projectFile, { createBackup: false });
+      snapshotWritten = true;
       await this._writer.append(this.historyFilePath, `${JSON.stringify(entry)}\n`);
     } catch (error) {
+      let cleanupMessage = '';
+      if (snapshotWritten) {
+        try {
+          await this._writer.delete(snapshotPath);
+        } catch (cleanupError) {
+          cleanupMessage = ` Cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`;
+        }
+      }
+
+      const failureMessage = `Failed to record snapshot history: ${error instanceof Error ? error.message : String(error)}`;
       throw new FileOperationError(
-        `Failed to record snapshot history: ${error instanceof Error ? error.message : String(error)}`,
+        `${failureMessage}${cleanupMessage}`,
         this.historyFilePath,
       );
     }
