@@ -102,10 +102,11 @@ describe('history command', () => {
 
     const restoredGraph = await storage.load();
     expect(restoredGraph.hasNode(task.id)).toBe(true);
+    expect((await storage.listBackups()).some(path => path.includes('project.bak'))).toBe(true);
 
     const entries = await storage.listHistory();
-    expect(entries[0]?.reason).toBe('pre_restore');
-    expect(entries[0]?.restored_from_snapshot_id).toBe(snapshotToRestore.snapshot_id);
+    const preRestoreEntry = entries.find(entry => entry.reason === 'pre_restore');
+    expect(preRestoreEntry?.restored_from_snapshot_id).toBe(snapshotToRestore.snapshot_id);
   });
 
   it('prompts for confirmation by default and cancels restore on no', async () => {

@@ -190,19 +190,7 @@ export class TaskStorage {
 
       // Validate project file structure
       this._validateProjectFile(projectFile);
-
-      // Create graph from loaded data
-      const graph = new TaskGraphStore(projectFile.metadata);
-      for (const [, taskData] of Object.entries(projectFile.tasks)) {
-        // Convert plain object to TaskNode class instance
-        const node = TaskNode.fromJSON(taskData);
-        graph.addNode(node);
-      }
-
-      // Note: Edges are automatically restored when nodes are added
-      // via the TaskNode.edges field, so we don't need to restore them again
-
-      return graph;
+      return this._createGraphFromProjectFile(projectFile);
 
     } catch (error) {
       if (error instanceof FileOperationError) {
@@ -557,11 +545,29 @@ export class TaskStorage {
     });
 
     const { projectFile } = await this._historyStore.loadSnapshot(snapshotId);
-    await this._writer.write(this.projectFilePath, projectFile, { createBackup: true });
+    this._validateProjectFile(projectFile);
+    const restoredGraph = this._createGraphFromProjectFile(projectFile);
+    await this.save(restoredGraph, {
+      createBackup: true,
+      history: {
+        reason: 'history_restore',
+        sourceCommand: options.sourceCommand || 'octie history restore',
+      },
+    });
   }
 
   private _computeHash(content: string): string {
     return createHash('sha256').update(content, 'utf8').digest('hex');
+  }
+
+  private _createGraphFromProjectFile(projectFile: ProjectFile): TaskGraphStore {
+    const graph = new TaskGraphStore(projectFile.metadata);
+    for (const [, taskData] of Object.entries(projectFile.tasks)) {
+      const node = TaskNode.fromJSON(taskData);
+      graph.addNode(node);
+    }
+
+    return graph;
   }
 
   private _getBackupBaseName(): string {

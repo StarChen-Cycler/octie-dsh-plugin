@@ -346,6 +346,7 @@ describe('TaskStorage', () => {
     it('should restore a snapshot after first recording a pre-restore snapshot', async () => {
       await storage.createProject('Restore Project');
 
+      const saveSpy = vi.spyOn(storage, 'save');
       const graph = await storage.load();
       const task = new TaskNode({
         title: 'Implement restoreable task',
@@ -366,16 +367,19 @@ describe('TaskStorage', () => {
       await storage.save(graph);
       expect((await storage.load()).hasNode(task.id)).toBe(false);
 
+      saveSpy.mockClear();
       await storage.restoreSnapshot(snapshotToRestore.snapshot_id, {
         sourceCommand: 'octie history restore',
       });
 
+      expect(saveSpy).toHaveBeenCalledTimes(1);
       const restoredGraph = await storage.load();
       expect(restoredGraph.hasNode(task.id)).toBe(true);
+      expect((await storage.listBackups()).some(path => path.includes('project.bak'))).toBe(true);
 
       const historyEntries = await storage.listHistory();
-      expect(historyEntries[0]?.reason).toBe('pre_restore');
-      expect(historyEntries[0]?.restored_from_snapshot_id).toBe(snapshotToRestore.snapshot_id);
+      const preRestoreEntry = historyEntries.find(entry => entry.reason === 'pre_restore');
+      expect(preRestoreEntry?.restored_from_snapshot_id).toBe(snapshotToRestore.snapshot_id);
     });
   });
 });

@@ -169,7 +169,7 @@ Behavior:
       });
 
       success(`Restored snapshot: ${snapshotId}`);
-      info('A pre_restore snapshot of the previous live state was recorded before the restore.');
+      info('The restore ran through the normal save lifecycle and recorded a pre_restore snapshot of the previous live state.');
       process.exit(0);
     } catch (err) {
       if (err instanceof Error) {
