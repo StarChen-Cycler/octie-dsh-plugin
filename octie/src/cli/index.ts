@@ -19,6 +19,11 @@ import { importCommand } from './commands/import.js';
 import { serveCommand } from './commands/serve.js';
 import { findCommand } from './commands/find.js';
 import { wireCommand } from './commands/wire.js';
+import {
+  CREATE_SUBTASK_HANDOFF_GUIDE_FLAG,
+  handoffCommand,
+  tryHandleGuideFlags,
+} from './commands/handoff.js';
 import { registerApproveCommand } from './commands/approve.js';
 // import { batchCommand } from './commands/batch.js';
 import { formatError } from './utils/helpers.js';
@@ -74,6 +79,14 @@ function createProgram(): Command {
       showGlobalOptions: true,
     });
 
+  program.addHelpText(
+    'after',
+    `
+Guide Flags:
+  ${CREATE_SUBTASK_HANDOFF_GUIDE_FLAG}  Print the loose subproject handoff playbook
+`,
+  );
+
   // Error handling
   program.exitOverride(handleError);
 
@@ -84,8 +97,13 @@ function createProgram(): Command {
  * Main entry point
  */
 function main(): void {
+  const rawArgs = process.argv.slice(2);
+  if (tryHandleGuideFlags(rawArgs)) {
+    return;
+  }
+
   // Run root guard before Commander parses args, but respect explicit --project.
-  const explicitProjectPath = extractProjectPathFromArgs(process.argv.slice(2));
+  const explicitProjectPath = extractProjectPathFromArgs(rawArgs);
   verifyAndRegisterProject(explicitProjectPath);
 
   const program = createProgram();
@@ -104,6 +122,7 @@ function main(): void {
   program.addCommand(serveCommand);
   program.addCommand(findCommand);
   program.addCommand(wireCommand);
+  program.addCommand(handoffCommand);
   registerApproveCommand(program);
   // program.addCommand(batchCommand);
 

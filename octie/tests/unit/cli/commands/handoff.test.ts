@@ -1,0 +1,151 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { execSync } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { v4 as uuidv4 } from 'uuid';
+import { TaskStorage } from '../../../../src/core/storage/file-store.js';
+
+describe('handoff command', () => {
+  let tempDir: string;
+  let tempHome: string;
+  let cliPath: string;
+  let env: NodeJS.ProcessEnv;
+  let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `octie-handoff-test-${uuidv4()}`);
+    tempHome = join(tmpdir(), `octie-home-${uuidv4()}`);
+    mkdirSync(tempHome, { recursive: true });
+    cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
+
+    originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
+    process.env.HOME = tempHome;
+    process.env.USERPROFILE = tempHome;
+    env = {
+      ...process.env,
+      HOME: tempHome,
+      USERPROFILE: tempHome,
+    };
+  });
+
+  afterEach(() => {
+    process.env.HOME = originalHome;
+    process.env.USERPROFILE = originalUserProfile;
+
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors.
+    }
+
+    try {
+      rmSync(tempHome, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors.
+    }
+  });
+
+  function runCli(command: string): string {
+    return execSync(`node ${cliPath} ${command}`, {
+      encoding: 'utf-8',
+      env,
+    });
+  }
+
+  it('creates a child subproject, appends handoff notes, and keeps linkage note-only', async () => {
+    const parentName = `parent-${uuidv4().substring(0, 8)}`;
+    const subprojectName = `child-${uuidv4().substring(0, 8)}`;
+    runCli(`init --project "${tempDir}" --name "${parentName}"`);
+
+    const output = runCli(
+      `--project "${tempDir}" handoff create ` +
+      `--subproject-name "${subprojectName}" ` +
+      `--title "Create ${subprojectName} handoff gate" ` +
+      `--description "Create a loose parent handoff that points to a child Octie project so detailed follow-on work can move into a dedicated subproject graph." ` +
+      `--success-criterion "Child subproject exists at the expected path" ` +
+      `--deliverable "parent handoff task record"`,
+    );
+
+    expect(output).toContain('Handoff created');
+
+    const childProjectPath = join(tempDir, '.octie', 'subprojects', subprojectName, '.octie', 'project.json');
+    expect(existsSync(childProjectPath)).toBe(true);
+
+    const storage = new TaskStorage({ projectDir: tempDir });
+    const graph = await storage.load();
+    expect(graph.size).toBe(1);
+
+    const task = graph.getAllTasks()[0];
+    expect(task?.notes).toContain(`.octie/subprojects/${subprojectName}/`);
+    expect(task?.notes).toContain('This is a loose contextual reference only.');
+    expect(task?.notes).toContain('Create the child closeout gate manually inside the child project.');
+    expect(task?.related_files).toEqual([]);
+    expect(task?.sub_items).toEqual([]);
+
+    rmSync(join(tempDir, '.octie', 'subprojects', subprojectName), { recursive: true, force: true });
+    const graphAfterDelete = await storage.load();
+    expect(graphAfterDelete.size).toBe(1);
+    expect(graphAfterDelete.getAllTasks()[0]?.id).toBe(task?.id);
+  });
+
+  it('fails fast when the target subproject folder already exists without creating parent task state', async () => {
+    const parentName = `parent-${uuidv4().substring(0, 8)}`;
+    const subprojectName = `child-${uuidv4().substring(0, 8)}`;
+    runCli(`init --project "${tempDir}" --name "${parentName}"`);
+    mkdirSync(join(tempDir, '.octie', 'subprojects', subprojectName), { recursive: true });
+
+    expect(() => {
+      runCli(
+        `--project "${tempDir}" handoff create ` +
+        `--subproject-name "${subprojectName}" ` +
+        `--title "Create duplicate handoff gate" ` +
+        `--description "Create a second loose handoff against the same child folder to verify the command aborts before adding parent task state." ` +
+        `--success-criterion "Command aborts before creating parent task state" ` +
+        `--deliverable "duplicate handoff attempt record"`,
+      );
+    }).toThrow();
+
+    const storage = new TaskStorage({ projectDir: tempDir });
+    const graph = await storage.load();
+    expect(graph.size).toBe(0);
+  });
+
+  it('rolls back the child subproject when parent task persistence fails', () => {
+    const parentName = `parent-${uuidv4().substring(0, 8)}`;
+    const subprojectName = `child-${uuidv4().substring(0, 8)}`;
+    runCli(`init --project "${tempDir}" --name "${parentName}"`);
+
+    const parentProjectFile = join(tempDir, '.octie', 'project.json');
+    chmodSync(parentProjectFile, 0o444);
+
+    try {
+      expect(() => {
+        runCli(
+          `--project "${tempDir}" handoff create ` +
+          `--subproject-name "${subprojectName}" ` +
+          `--title "Create rollback handoff gate" ` +
+          `--description "Create a loose handoff that should fail while saving the parent project so child project rollback can be verified." ` +
+          `--success-criterion "Child project.json exists before parent save attempt" ` +
+          `--deliverable "rollback handoff attempt record"`,
+        );
+      }).toThrow();
+
+      expect(existsSync(join(tempDir, '.octie', 'subprojects', subprojectName))).toBe(false);
+    } finally {
+      chmodSync(parentProjectFile, 0o666);
+    }
+  });
+
+  it('prints identical playbook text from the root and command-local guide flags', () => {
+    const rootGuide = runCli('--right-way-to-create-subtask-handoff');
+    const commandGuide = runCli('handoff create --right-way-to-create-subtask-handoff');
+
+    expect(rootGuide).toBe(commandGuide);
+    expect(rootGuide).toContain('.octie/subprojects/<name>/.octie/project.json');
+    expect(rootGuide).toContain('Do not add cross-project graph edges');
+    expect(rootGuide).toContain('create the child closeout gate manually there');
+  });
+});

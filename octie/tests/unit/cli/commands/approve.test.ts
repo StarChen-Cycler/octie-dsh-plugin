@@ -2,8 +2,9 @@
  * Tests for approve command
  */
 
+import { execSync } from 'node:child_process';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,11 +15,25 @@ import type { TaskGraphStore } from '../../../../src/core/graph/index.js';
 
 describe('approve command', () => {
   let tempDir: string;
+  let outsideDir: string;
+  let tempHome: string;
+  let cliPath: string;
+  let env: NodeJS.ProcessEnv;
   let storage: TaskStorage;
   let graph: TaskGraphStore;
 
   beforeEach(async () => {
     tempDir = join(tmpdir(), `octie-approve-test-${uuidv4()}`);
+    outsideDir = join(tmpdir(), `octie-approve-outside-${uuidv4()}`);
+    tempHome = join(tmpdir(), `octie-approve-home-${uuidv4()}`);
+    cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
+    env = {
+      ...process.env,
+      HOME: tempHome,
+      USERPROFILE: tempHome,
+    };
+    mkdirSync(outsideDir, { recursive: true });
+    mkdirSync(tempHome, { recursive: true });
     storage = new TaskStorage({ projectDir: tempDir });
     await storage.createProject('test-project');
     graph = await storage.load();
@@ -27,6 +42,8 @@ describe('approve command', () => {
   afterEach(async () => {
     try {
       rmSync(tempDir, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+      rmSync(tempHome, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors
     }
@@ -205,5 +222,54 @@ describe('approve command', () => {
     await expect(
       approveCommand('nonexistent', { project: tempDir })
     ).rejects.toThrow();
+  });
+
+  it('should honor global and local --project when run outside the project directory', async () => {
+    const globalTaskId = uuidv4();
+    const localTaskId = uuidv4();
+
+    graph.addNode(new TaskNode({
+      id: globalTaskId,
+      title: 'Write global approve regression test',
+      description: 'Verify that approve uses the explicit global project option instead of falling back to cwd auto-detection.',
+      success_criteria: [
+        { id: uuidv4(), text: 'Global --project approve succeeds outside the project directory', completed: true },
+      ],
+      deliverables: [
+        { id: uuidv4(), text: 'tests/approve-global-regression.txt', completed: true },
+      ],
+      status: 'in_review',
+    }));
+
+    graph.addNode(new TaskNode({
+      id: localTaskId,
+      title: 'Write local approve regression test',
+      description: 'Verify that approve also honors the subcommand-local project option when invoked outside the project directory.',
+      success_criteria: [
+        { id: uuidv4(), text: 'Local approve --project succeeds outside the project directory', completed: true },
+      ],
+      deliverables: [
+        { id: uuidv4(), text: 'tests/approve-local-regression.txt', completed: true },
+      ],
+      status: 'in_review',
+    }));
+
+    await storage.save(graph);
+
+    const globalOutput = execSync(
+      `node "${cliPath}" --project "${tempDir}" approve ${globalTaskId}`,
+      { cwd: outsideDir, env, encoding: 'utf-8' }
+    );
+    expect(globalOutput).toContain('Task approved');
+
+    const localOutput = execSync(
+      `node "${cliPath}" approve ${localTaskId} --project "${tempDir}"`,
+      { cwd: outsideDir, env, encoding: 'utf-8' }
+    );
+    expect(localOutput).toContain('Task approved');
+
+    const graph2 = await storage.load();
+    expect(graph2.getNode(globalTaskId)?.status).toBe('completed');
+    expect(graph2.getNode(localTaskId)?.status).toBe('completed');
   });
 });
