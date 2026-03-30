@@ -16,10 +16,22 @@
  * @module core/storage
  */
 
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import type { ProjectFile, ProjectIndexes, ProjectMetadata, GraphEdge } from '../../types/index.js';
+import type {
+  GraphEdge,
+  ProjectFile,
+  ProjectIndexes,
+  ProjectMetadata,
+  SnapshotHistoryEntry,
+} from '../../types/index.js';
 import { FileOperationError, ValidationError } from '../../types/index.js';
 import { AtomicFileWriter } from './atomic-write.js';
+import {
+  inferSnapshotWriteContext,
+  ProjectHistoryStore,
+  type SnapshotWriteContext,
+} from './history-store.js';
 import { TaskGraphStore } from '../graph/index.js';
 import { TaskNode } from '../models/task-node.js';
 
@@ -47,6 +59,11 @@ export interface TaskStorageConfig {
   autoBackup?: boolean;
   /** Number of backups to keep (default: 5) */
   backupCount?: number;
+}
+
+export interface SaveGraphOptions {
+  createBackup?: boolean;
+  history?: SnapshotWriteContext;
 }
 
 /**
@@ -96,7 +113,7 @@ export class TaskStorage {
    * Get the backup file path
    */
   get backupFilePath(): string {
-    return `${this.projectFilePath}.bak`;
+    return join(this.octieDirPath, `${this._getBackupBaseName()}.bak`);
   }
 
   /**
@@ -120,6 +137,22 @@ export class TaskStorage {
     return join(this.octieDirPath, 'config.json');
   }
 
+  get historyDirPath(): string {
+    return join(this.octieDirPath, 'history');
+  }
+
+  get snapshotsDirPath(): string {
+    return join(this.historyDirPath, 'snapshots');
+  }
+
+  get historyFilePath(): string {
+    return join(this.historyDirPath, 'history.ndjson');
+  }
+
+  private get _historyStore(): ProjectHistoryStore {
+    return new ProjectHistoryStore(this.octieDirPath, this._writer);
+  }
+
   /**
    * Initialize the Octie directory structure
    * Creates .octie directory with subdirectories if they don't exist
@@ -127,10 +160,6 @@ export class TaskStorage {
   async init(): Promise<void> {
     // Ensure .octie directory exists
     await this._writer.ensureDir(this.octieDirPath);
-
-    // Ensure subdirectories exist
-    await this._writer.ensureDir(this.indexesDirPath);
-    await this._writer.ensureDir(this.cacheDirPath);
   }
 
   /**
@@ -193,7 +222,7 @@ export class TaskStorage {
    */
   async save(
     graph: TaskGraphStore,
-    options: { createBackup?: boolean } = {}
+    options: SaveGraphOptions = {}
   ): Promise<void> {
     const createBackup = options.createBackup ?? this._autoBackup;
 
@@ -227,11 +256,31 @@ export class TaskStorage {
         indexes: await this._buildIndexes(graph),
       };
 
+      const serialized = JSON.stringify(projectFile, null, 2);
+      let previousHash: string | null = null;
+      if (await this.exists()) {
+        try {
+          const currentContent = await this._writer.read(this.projectFilePath);
+          previousHash = this._computeHash(currentContent);
+        } catch {
+          previousHash = null;
+        }
+      }
+
       // Write atomically
       await this._writer.write(this.projectFilePath, projectFile, {
         createBackup,
       });
 
+      const currentHash = this._computeHash(serialized);
+      const shouldSnapshot = options.history?.forceSnapshot || previousHash !== currentHash;
+      if (shouldSnapshot) {
+        const historyContext = {
+          ...inferSnapshotWriteContext(),
+          ...(options.history || {}),
+        };
+        await this._historyStore.createSnapshot(projectFile, graph, historyContext);
+      }
     } catch (error) {
       throw new FileOperationError(
         `Failed to save project: ${error instanceof Error ? error.message : String(error)}`,
@@ -394,8 +443,6 @@ export class TaskStorage {
    * @param description - Optional project description
    */
   async createProject(projectName: string, description?: string): Promise<void> {
-    await this.init();
-
     const metadata: ProjectMetadata = {
       project_name: projectName,
       version: '1.0.0',
@@ -403,36 +450,14 @@ export class TaskStorage {
       updated_at: new Date().toISOString(),
       description,
     };
-
-    const projectFile: ProjectFile = {
-      $schema: 'https://octie.dev/schemas/project-v1.json',
-      version: '1.0.0',
-      format: 'octie-project',
-      metadata,
-      tasks: {},
-      edges: [],
-      indexes: {
-        byStatus: {
-          ready: [],
-          in_progress: [],
-          in_review: [],
-          completed: [],
-          blocked: [],
-        },
-        byPriority: {
-          top: [],
-          second: [],
-          later: [],
-        },
-        rootTasks: [],
-        orphanTasks: [],
-        searchText: {},
-        files: {},
+    const graph = new TaskGraphStore(metadata);
+    await this.save(graph, {
+      createBackup: false,
+      history: {
+        reason: 'init',
+        sourceCommand: 'octie init',
+        forceSnapshot: true,
       },
-    };
-
-    await this._writer.write(this.projectFilePath, projectFile, {
-      createBackup: false, // No backup on initial create
     });
   }
 
@@ -443,11 +468,16 @@ export class TaskStorage {
   async listBackups(): Promise<string[]> {
     const { promises: fs } = await import('node:fs');
     const backups: string[] = [];
+    const baseName = this._getBackupBaseName();
 
     try {
       const files = await fs.readdir(this.octieDirPath);
       for (const file of files) {
-        if (file.startsWith(`${this._projectFileName}.bak`)) {
+        if (
+          file === `${baseName}.bak` ||
+          file.startsWith(`${baseName}.bak.`) ||
+          file.startsWith(`${this._projectFileName}.bak`)
+        ) {
           backups.push(join(this.octieDirPath, file));
         }
       }
@@ -485,6 +515,43 @@ export class TaskStorage {
         latestBackup
       );
     }
+  }
+
+  async listHistory(): Promise<SnapshotHistoryEntry[]> {
+    return await this._historyStore.listSnapshots();
+  }
+
+  async restoreSnapshot(
+    snapshotId: string,
+    options: { sourceCommand?: string } = {},
+  ): Promise<void> {
+    if (!await this.exists()) {
+      throw new FileOperationError(
+        'Octie project not found. Run `octie init` to create a new project.',
+        this.projectFilePath,
+      );
+    }
+
+    const liveGraph = await this.load();
+    const liveProjectFile = await this._writer.readJSON<ProjectFile>(this.projectFilePath);
+    await this._historyStore.createSnapshot(liveProjectFile, liveGraph, {
+      reason: 'pre_restore',
+      sourceCommand: options.sourceCommand || 'octie history restore',
+      restoredFromSnapshotId: snapshotId,
+      forceSnapshot: true,
+    });
+
+    const { projectFile } = await this._historyStore.loadSnapshot(snapshotId);
+    await this._writer.write(this.projectFilePath, projectFile, { createBackup: true });
+  }
+
+  private _computeHash(content: string): string {
+    return createHash('sha256').update(content, 'utf8').digest('hex');
+  }
+
+  private _getBackupBaseName(): string {
+    const lastDot = this._projectFileName.lastIndexOf('.');
+    return lastDot > 0 ? this._projectFileName.substring(0, lastDot) : this._projectFileName;
   }
 }
 

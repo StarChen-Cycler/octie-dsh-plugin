@@ -179,6 +179,30 @@ export class AtomicFileWriter {
   }
 
   /**
+   * Append content to a file, creating parent directories if needed.
+   * Used for append-only audit/history logs.
+   *
+   * @param filePath - Target file path
+   * @param content - Content to append
+   * @throws {FileOperationError} If append fails
+   */
+  async append(filePath: string, content: string): Promise<void> {
+    if (content.length === 0) {
+      throw new FileOperationError('Cannot append empty content', filePath);
+    }
+
+    try {
+      await this.ensureDir(this._getDirPath(filePath));
+      await fs.appendFile(filePath, content, 'utf8');
+    } catch (error) {
+      throw new FileOperationError(
+        `Append failed: ${error instanceof Error ? error.message : String(error)}`,
+        filePath
+      );
+    }
+  }
+
+  /**
    * Create backup of existing file
    * @param filePath - File to backup
    * @private

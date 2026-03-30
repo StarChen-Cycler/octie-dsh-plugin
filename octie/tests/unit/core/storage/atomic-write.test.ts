@@ -292,6 +292,16 @@ describe('AtomicFileWriter', () => {
 
       await expect(writer.delete(filePath)).resolves.not.toThrow();
     });
+
+    it('should append content for append-only logs', async () => {
+      const filePath = join(tempDir, 'history', 'history.ndjson');
+
+      await writer.append(filePath, '{"id":1}\n');
+      await writer.append(filePath, '{"id":2}\n');
+
+      const content = await writer.read(filePath);
+      expect(content).toBe('{"id":1}\n{"id":2}\n');
+    });
   });
 
   describe('directory operations', () => {

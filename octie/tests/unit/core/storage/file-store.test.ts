@@ -4,12 +4,12 @@
  * Tests for TaskStorage class including:
  * - Load/save tests
  * - Directory structure tests
- * - Backup rotation tests
+ * - Snapshot history tests
  * - Path utilities tests
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -73,19 +73,19 @@ describe('TaskStorage', () => {
     });
 
     it('should return backup file path', () => {
-      expect(storage.backupFilePath).toBe(join(tempDir, '.octie', 'project.json.bak'));
+      expect(storage.backupFilePath).toBe(join(tempDir, '.octie', 'project.bak'));
     });
 
-    it('should return indexes directory path', () => {
-      expect(storage.indexesDirPath).toBe(join(tempDir, '.octie', 'indexes'));
+    it('should return history directory path', () => {
+      expect(storage.historyDirPath).toBe(join(tempDir, '.octie', 'history'));
     });
 
-    it('should return cache directory path', () => {
-      expect(storage.cacheDirPath).toBe(join(tempDir, '.octie', 'cache'));
+    it('should return snapshots directory path', () => {
+      expect(storage.snapshotsDirPath).toBe(join(tempDir, '.octie', 'history', 'snapshots'));
     });
 
-    it('should return config file path', () => {
-      expect(storage.configFilePath).toBe(join(tempDir, '.octie', 'config.json'));
+    it('should return history file path', () => {
+      expect(storage.historyFilePath).toBe(join(tempDir, '.octie', 'history', 'history.ndjson'));
     });
   });
 
@@ -97,18 +97,12 @@ describe('TaskStorage', () => {
       expect(octieExists).toBe(true);
     });
 
-    it('should create indexes subdirectory', async () => {
+    it('should not create extra directories during bare init', async () => {
       await storage.init();
 
-      const exists = await storage._writer.exists(storage.indexesDirPath);
-      expect(exists).toBe(true);
-    });
-
-    it('should create cache subdirectory', async () => {
-      await storage.init();
-
-      const exists = await storage._writer.exists(storage.cacheDirPath);
-      expect(exists).toBe(true);
+      expect(existsSync(storage.indexesDirPath)).toBe(false);
+      expect(existsSync(storage.cacheDirPath)).toBe(false);
+      expect(existsSync(storage.historyDirPath)).toBe(false);
     });
   });
 
@@ -151,15 +145,15 @@ describe('TaskStorage', () => {
       expect(projectExists).toBe(true);
     });
 
-    it('should create config.json file', async () => {
+    it('should create history baseline files', async () => {
       await storage.createProject('Test Project');
 
-      // Config file is created by init(), verify octie directory exists
-      const octieExists = await storage._writer.exists(storage.octieDirPath);
-      expect(octieExists).toBe(true);
+      expect(existsSync(storage.historyDirPath)).toBe(true);
+      expect(existsSync(storage.snapshotsDirPath)).toBe(true);
+      expect(existsSync(storage.historyFilePath)).toBe(true);
 
-      // Note: config.json creation depends on implementation
-      // For now, just verify the directory structure is created
+      const snapshotFiles = readdirSync(storage.snapshotsDirPath);
+      expect(snapshotFiles.length).toBe(1);
     });
   });
 
@@ -269,6 +263,30 @@ describe('TaskStorage', () => {
       expect(loadedTask?.created_at).toBe(originalCreatedAt);
       expect(loadedTask?.updated_at).toBe(originalUpdatedAt);
     });
+
+    it('should append immutable snapshot history on save', async () => {
+      await storage.createProject('Snapshot Project');
+
+      const graph = await storage.load();
+      graph.addNode(new TaskNode({
+        title: 'Implement snapshot test module',
+        description: 'Create a task so snapshot history can verify that post-save committed graph state is recorded after a real graph mutation.',
+        success_criteria: [
+          { id: uuidv4(), text: 'Task is persisted to the live graph', completed: false },
+        ],
+        deliverables: [
+          { id: uuidv4(), text: 'src/snapshot.ts', completed: false },
+        ],
+      }));
+
+      await storage.save(graph);
+
+      const historyEntries = await storage.listHistory();
+      expect(historyEntries.length).toBe(2);
+      expect(historyEntries[0]?.task_count).toBe(1);
+      expect(historyEntries[0]?.snapshot_file).toContain('history/snapshots/');
+      expect(historyEntries[0]?.reason).toBeDefined();
+    });
   });
 
   describe('delete', () => {
@@ -285,6 +303,43 @@ describe('TaskStorage', () => {
     it('should handle deletion of non-existent project gracefully', async () => {
       // Should not throw error even if project doesn't exist
       await expect(storage.delete()).resolves.not.toThrow();
+    });
+  });
+
+  describe('restore history', () => {
+    it('should restore a snapshot after first recording a pre-restore snapshot', async () => {
+      await storage.createProject('Restore Project');
+
+      const graph = await storage.load();
+      const task = new TaskNode({
+        title: 'Implement restoreable task',
+        description: 'Create a task that can later be removed from the live graph so snapshot restore can verify returning to an older version.',
+        success_criteria: [
+          { id: uuidv4(), text: 'Task exists before restore', completed: false },
+        ],
+        deliverables: [
+          { id: uuidv4(), text: 'src/restore.ts', completed: false },
+        ],
+      });
+      graph.addNode(task);
+      await storage.save(graph);
+
+      const snapshotToRestore = (await storage.listHistory())[0]!;
+
+      graph.removeNode(task.id);
+      await storage.save(graph);
+      expect((await storage.load()).hasNode(task.id)).toBe(false);
+
+      await storage.restoreSnapshot(snapshotToRestore.snapshot_id, {
+        sourceCommand: 'octie history restore',
+      });
+
+      const restoredGraph = await storage.load();
+      expect(restoredGraph.hasNode(task.id)).toBe(true);
+
+      const historyEntries = await storage.listHistory();
+      expect(historyEntries[0]?.reason).toBe('pre_restore');
+      expect(historyEntries[0]?.restored_from_snapshot_id).toBe(snapshotToRestore.snapshot_id);
     });
   });
 });

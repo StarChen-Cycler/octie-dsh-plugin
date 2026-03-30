@@ -4,7 +4,7 @@
  * Tests for init command functionality including:
  * - .octie directory structure creation
  * - project.json with metadata
- * - config.json with defaults
+ * - history snapshot baseline creation
  * - Project existence validation
  * - Custom project path handling
  * - Error handling
@@ -51,10 +51,9 @@ describe('init command', () => {
       const octieDir = join(tempDir, '.octie');
       expect(existsSync(octieDir)).toBe(true);
 
-      // Check for subdirectories
+      // Check for active history structure
       const octieContents = readdirSync(octieDir);
-      expect(octieContents).toContain('indexes');
-      expect(octieContents).toContain('cache');
+      expect(octieContents).toContain('history');
 
       expect(output).toContain('Octie project initialized');
     });
@@ -75,15 +74,19 @@ describe('init command', () => {
       // edges are not part of ProjectFile, they're in the graph structure
     });
 
-    it('should not create config.json (config is managed via CLI options)', () => {
+    it('should create initial history snapshot baseline', () => {
       execSync(
         `node ${cliPath} init --project "${tempDir}" --name "${uniqueName}"`,
         { encoding: 'utf-8' }
       );
 
-      const configJsonPath = join(tempDir, '.octie', 'config.json');
-      // config.json is not created during init - configuration is via CLI options
-      expect(existsSync(configJsonPath)).toBe(false);
+      const historyDir = join(tempDir, '.octie', 'history');
+      const snapshotsDir = join(historyDir, 'snapshots');
+      const historyIndexPath = join(historyDir, 'history.ndjson');
+
+      expect(existsSync(historyDir)).toBe(true);
+      expect(existsSync(snapshotsDir)).toBe(true);
+      expect(existsSync(historyIndexPath)).toBe(true);
     });
   });
 
