@@ -600,6 +600,44 @@ describe('create command', () => {
     });
   });
 
+  describe('C7 verification (CLI integration)', () => {
+    let cliTempDir: string;
+    let cliStorage: TaskStorage;
+    let cliPath: string;
+
+    beforeEach(async () => {
+      cliTempDir = join(tmpdir(), `octie-cli-c7-${uuidv4()}`);
+      cliStorage = new TaskStorage({ projectDir: cliTempDir });
+      await cliStorage.createProject('cli-c7-project');
+      cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
+    });
+
+    afterEach(() => {
+      try {
+        rmSync(cliTempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should normalize Git Bash converted C7 paths during create', async () => {
+      execSync(
+        `node ${cliPath} --project "${cliTempDir}" create ` +
+        `--title "Implement create C7 normalization task" ` +
+        `--description "Create a task so Git Bash converted C7 paths are normalized during CLI task creation and stored as canonical Unix-style library identifiers." ` +
+        `--success-criterion "Stores canonical library id after create" ` +
+        `--deliverable "src/create-c7.ts" ` +
+        `--c7-verified "C:/Program Files/Git/mongodb/docs:Query patterns"`,
+        { encoding: 'utf-8' }
+      );
+
+      const graph = await cliStorage.load();
+      const task = graph.getAllTasks()[0];
+      expect(task?.c7_verified[0]?.library_id).toBe('/mongodb/docs');
+      expect(task?.c7_verified[0]?.notes).toBe('Query patterns');
+    });
+  });
+
   describe('notes file option (CLI integration)', () => {
     let cliTempDir: string;
     let cliStorage: TaskStorage;

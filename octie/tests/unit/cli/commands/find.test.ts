@@ -247,6 +247,17 @@ describe('find command', () => {
       expect(tasks.length).toBe(1);
       expect(tasks[0].title).toBe('Setup database connection');
     });
+
+    it('should normalize Git Bash converted verified library paths', () => {
+      const output = execSync(
+        `node "${cliPath}" find --verified "C:/Program Files/Git/mongodb" --project "${tempDir}" --format json`,
+        { encoding: 'utf-8' }
+      );
+
+      const tasks = JSON.parse(output);
+      expect(tasks.length).toBe(1);
+      expect(tasks[0].title).toBe('Setup database connection');
+    });
   });
 
   describe('--without-blockers option', () => {

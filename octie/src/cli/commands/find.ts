@@ -15,6 +15,7 @@ import chalk from 'chalk';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import type { TaskNode } from '../../core/models/task-node.js';
 import { getProjectPath, loadGraph, formatStatus, formatPriority } from '../utils/helpers.js';
+import { normalizeGitBashPath } from './shared-helpers.js';
 
 /**
  * Search options interface
@@ -181,15 +182,7 @@ function applyFilters(graph: TaskGraphStore, options: FindOptions): TaskNode[] {
 
   // Apply --verified filter (C7 verification library)
   if (options.verified) {
-    // Handle Windows Git Bash path conversion: "/path" becomes "C:/Program Files/Git/path"
-    let libraryId = options.verified;
-    const gitBashPrefix = /^[A-Za-z]:\/(\/)?Program Files\/Git\//;
-    if (gitBashPrefix.test(libraryId)) {
-      const match = libraryId.match(/Program Files\/Git\/(.*)$/);
-      if (match) {
-        libraryId = '/' + match[1];
-      }
-    }
+    const libraryId = normalizeGitBashPath(options.verified);
     tasks = tasks.filter(t => matchesC7Verification(t, libraryId));
   }
 

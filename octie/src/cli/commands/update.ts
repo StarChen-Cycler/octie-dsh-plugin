@@ -10,6 +10,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { TaskNode } from '../../core/models/task-node.js';
 import { wouldCreateCycle } from '../../core/graph/algorithms.js';
+import { normalizeGitBashPath } from './shared-helpers.js';
 
 /**
  * Resolve a short UUID to a full criterion ID within a task
@@ -354,17 +355,7 @@ export const updateCommand = new Command('update')
       // Add C7 verification(s) - supports multiple values
       const c7Entries = options.verifyC7 || [];
       for (const entry of c7Entries) {
-        // Handle Windows Git Bash path conversion: "/path" becomes "C:/Program Files/Git/path"
-        // Detect and strip the Git Bash prefix
-        let cleanEntry = entry;
-        const gitBashPrefix = /^[A-Za-z]:\/(\/)?Program Files\/Git\//;
-        if (gitBashPrefix.test(entry)) {
-          // Extract the original Unix path after "Program Files/Git/"
-          const match = entry.match(/Program Files\/Git\/(.*)$/);
-          if (match) {
-            cleanEntry = '/' + match[1];
-          }
-        }
+        const cleanEntry = normalizeGitBashPath(entry);
 
         // Now parse the library-id:notes format
         const colonIndex = cleanEntry.indexOf(':');
@@ -385,15 +376,7 @@ export const updateCommand = new Command('update')
 
       // Remove C7 verification
       if (options.removeC7Verified) {
-        // Handle Windows Git Bash path conversion: "/path" becomes "C:/Program Files/Git/path"
-        let libraryId = options.removeC7Verified as string;
-        const gitBashPrefix = /^[A-Za-z]:\/(\/)?Program Files\/Git\//;
-        if (gitBashPrefix.test(libraryId)) {
-          const match = libraryId.match(/Program Files\/Git\/(.*)$/);
-          if (match) {
-            libraryId = '/' + match[1];
-          }
-        }
+        const libraryId = normalizeGitBashPath(options.removeC7Verified as string);
         task.removeC7Verification(libraryId);
         updated = true;
       }

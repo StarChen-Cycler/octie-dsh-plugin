@@ -456,6 +456,26 @@ describe('update command', () => {
       const task = graph.getNode(testTaskId);
       expect(task?.c7_verified).toHaveLength(0);
     });
+
+    it('should normalize Git Bash converted C7 paths when adding and removing verification', async () => {
+      execSync(
+        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --verify-c7 "C:/Program Files/Git/mongodb/docs:Query patterns"`,
+        { encoding: 'utf-8' }
+      );
+
+      let graph = await storage.load();
+      let task = graph.getNode(testTaskId);
+      expect(task?.c7_verified[0]?.library_id).toBe('/mongodb/docs');
+
+      execSync(
+        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --remove-c7-verified "C:/Program Files/Git/mongodb/docs"`,
+        { encoding: 'utf-8' }
+      );
+
+      graph = await storage.load();
+      task = graph.getNode(testTaskId);
+      expect(task?.c7_verified).toHaveLength(0);
+    });
   });
 
   describe('error handling', () => {

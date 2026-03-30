@@ -218,16 +218,19 @@ export async function executeProjectInit(
   registerProject(request.projectPath);
 }
 
+export function normalizeGitBashPath(input: string): string {
+  const gitBashPrefix = /^[A-Za-z]:\/(\/)?Program Files\/Git\//;
+  if (!gitBashPrefix.test(input)) {
+    return input;
+  }
+
+  const match = input.match(/Program Files\/Git\/(.*)$/);
+  return match ? `/${match[1]}` : input;
+}
+
 function parseC7Verifications(entries: string[]): C7Verification[] {
   return entries.map((entry: string) => {
-    let cleanEntry = entry;
-    const gitBashPrefix = /^[A-Za-z]:\/(\/)?Program Files\/Git\//;
-    if (gitBashPrefix.test(entry)) {
-      const match = entry.match(/Program Files\/Git\/(.*)$/);
-      if (match) {
-        cleanEntry = '/' + match[1];
-      }
-    }
+    const cleanEntry = normalizeGitBashPath(entry);
 
     const colonIndex = cleanEntry.indexOf(':');
     if (colonIndex === -1) {
