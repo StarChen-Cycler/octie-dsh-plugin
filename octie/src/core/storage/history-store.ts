@@ -99,10 +99,12 @@ export function computeGraphHealth(graph: TaskGraphStore): SnapshotGraphHealth {
 export class ProjectHistoryStore {
   private readonly _octieDirPath: string;
   private readonly _writer: AtomicFileWriter;
+  private readonly _snapshotRetention: number;
 
-  constructor(octieDirPath: string, writer: AtomicFileWriter) {
+  constructor(octieDirPath: string, writer: AtomicFileWriter, snapshotRetention: number) {
     this._octieDirPath = octieDirPath;
     this._writer = writer;
+    this._snapshotRetention = snapshotRetention;
   }
 
   get historyDirPath(): string {
@@ -150,14 +152,17 @@ export class ProjectHistoryStore {
     }
 
     let snapshotWritten = false;
+    let historyAppended = false;
 
     try {
       await this._writer.write(snapshotPath, projectFile, { createBackup: false });
       snapshotWritten = true;
       await this._writer.append(this.historyFilePath, `${JSON.stringify(entry)}\n`);
+      historyAppended = true;
+      await this._pruneSnapshots();
     } catch (error) {
       let cleanupMessage = '';
-      if (snapshotWritten) {
+      if (snapshotWritten && !historyAppended) {
         try {
           await this._writer.delete(snapshotPath);
         } catch (cleanupError) {
@@ -206,5 +211,34 @@ export class ProjectHistoryStore {
     const snapshotPath = join(this._octieDirPath, entry.snapshot_file);
     const projectFile = await this._writer.readJSON<ProjectFile>(snapshotPath);
     return { entry, projectFile };
+  }
+
+  private async _pruneSnapshots(): Promise<void> {
+    if (this._snapshotRetention < 1) {
+      return;
+    }
+
+    const entries = await this.listSnapshots();
+    if (entries.length <= this._snapshotRetention) {
+      return;
+    }
+
+    const retainedEntries = entries.slice(0, this._snapshotRetention);
+    const prunedEntries = entries.slice(this._snapshotRetention);
+
+    for (const entry of prunedEntries) {
+      const snapshotPath = join(this._octieDirPath, entry.snapshot_file);
+      await this._writer.delete(snapshotPath);
+    }
+
+    const retainedHistory = retainedEntries
+      .slice()
+      .reverse()
+      .map(entry => JSON.stringify(entry))
+      .join('\n');
+
+    await this._writer.write(this.historyFilePath, `${retainedHistory}\n`, {
+      createBackup: false,
+    });
   }
 }

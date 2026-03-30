@@ -75,6 +75,36 @@ describe('history command', () => {
     expect(entries[0].edge_count).toBeGreaterThanOrEqual(0);
   });
 
+  it('lists only retained snapshot entries after retention pruning', async () => {
+    const storage = new TaskStorage({
+      projectDir: tempDir,
+      snapshotRetention: 3,
+    });
+    const graph = await storage.load();
+
+    for (let i = 0; i < 4; i++) {
+      graph.addNode(new TaskNode({
+        title: `Implement retained history task ${i}`,
+        description: `Create task ${i} so CLI history listing can verify that retention pruning keeps only the most recent immutable snapshots in the visible history window.`,
+        success_criteria: [
+          { id: uuidv4(), text: `History snapshot ${i} is recorded`, completed: false },
+        ],
+        deliverables: [
+          { id: uuidv4(), text: `src/history/retained-${i}.ts`, completed: false },
+        ],
+      }));
+      await storage.save(graph);
+    }
+
+    const jsonOutput = execSync(
+      `node ${cliPath} --project "${tempDir}" --format json history list`,
+      { encoding: 'utf-8', env },
+    );
+    const entries = JSON.parse(jsonOutput);
+
+    expect(entries).toHaveLength(3);
+  });
+
   it('restores a snapshot by recording a pre_restore snapshot first', async () => {
     const storage = new TaskStorage({ projectDir: tempDir });
     const graph = await storage.load();

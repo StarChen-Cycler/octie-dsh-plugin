@@ -323,6 +323,32 @@ describe('TaskStorage', () => {
       const historyEntries = await storage.listHistory();
       expect(historyEntries).toHaveLength(1);
     });
+
+    it('should prune snapshot files and metadata entries to the configured retention window', async () => {
+      const retentionStorage = new TaskStorage({
+        projectDir: tempDir,
+        snapshotRetention: 3,
+      });
+      await retentionStorage.createProject('Retention Project');
+
+      const graph = await retentionStorage.load();
+      for (let i = 0; i < 4; i++) {
+        graph.addNode(new TaskNode({
+          title: `Implement retention task ${i}`,
+          description: `Create task ${i} so snapshot retention pruning can verify that repeated graph mutations do not leave unbounded immutable history growth over time.`,
+          success_criteria: [
+            { id: uuidv4(), text: `Task ${i} is persisted`, completed: false },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: `src/retention-${i}.ts`, completed: false },
+          ],
+        }));
+        await retentionStorage.save(graph);
+      }
+
+      expect(readdirSync(retentionStorage.snapshotsDirPath).length).toBe(3);
+      expect(await retentionStorage.listHistory()).toHaveLength(3);
+    });
   });
 
   describe('delete', () => {

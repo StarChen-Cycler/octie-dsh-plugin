@@ -44,6 +44,7 @@ const DEFAULT_PROJECT_FILE = 'project.json';
  * Default .octie directory name
  */
 const OCTIE_DIR_NAME = '.octie';
+const DEFAULT_SNAPSHOT_RETENTION = 50;
 
 /**
  * Task Storage configuration
@@ -59,6 +60,8 @@ export interface TaskStorageConfig {
   autoBackup?: boolean;
   /** Number of backups to keep (default: 5) */
   backupCount?: number;
+  /** Number of immutable snapshots to retain (default: 50) */
+  snapshotRetention?: number;
 }
 
 export interface SaveGraphOptions {
@@ -77,6 +80,7 @@ export class TaskStorage {
   private _projectFileName: string;
   private _autoBackup: boolean;
   private _backupCount: number;
+  private _snapshotRetention: number;
   private _writer: AtomicFileWriter;
 
   /**
@@ -89,6 +93,7 @@ export class TaskStorage {
     this._projectFileName = config.projectFileName || DEFAULT_PROJECT_FILE;
     this._autoBackup = config.autoBackup ?? true;
     this._backupCount = config.backupCount ?? 5;
+    this._snapshotRetention = config.snapshotRetention ?? DEFAULT_SNAPSHOT_RETENTION;
 
     this._writer = new AtomicFileWriter({
       backupCount: this._backupCount,
@@ -150,7 +155,7 @@ export class TaskStorage {
   }
 
   private get _historyStore(): ProjectHistoryStore {
-    return new ProjectHistoryStore(this.octieDirPath, this._writer);
+    return new ProjectHistoryStore(this.octieDirPath, this._writer, this._snapshotRetention);
   }
 
   /**
