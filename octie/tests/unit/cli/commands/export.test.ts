@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, existsSync, readFileSync } from 'node:fs';
+import { rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -71,6 +71,14 @@ describe('export command', () => {
       // Ignore cleanup errors
     }
   });
+
+  function getExecErrorText(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return String(error);
+  }
 
   describe('JSON export', () => {
     it('should export project as JSON', () => {
@@ -163,20 +171,45 @@ describe('export command', () => {
 
       expect(existsSync(deepPath)).toBe(true);
     });
+
+    it('should still export successfully when the parent directory already exists', () => {
+      const existingDir = join(exportDir, 'existing');
+      rmSync(existingDir, { recursive: true, force: true });
+      mkdirSync(existingDir, { recursive: true });
+
+      const outputPath = join(existingDir, 'export.json');
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" export --type json --output "${outputPath}"`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('Exported');
+      expect(existsSync(outputPath)).toBe(true);
+    });
   });
 
   describe('error handling', () => {
-    // Note: Invalid output path may succeed on some systems (writes to default location)
-    // The CLI handles errors gracefully instead of throwing
-    it.skip('should handle invalid output path gracefully', () => {
-      const invalidPath = '/root/restricted/export.json';
+    it('should report non-EEXIST mkdir failures clearly', () => {
+      let errorText = '';
 
-      expect(() => {
+      try {
         execSync(
-          `node ${cliPath} --project "${tempDir}" export --type json --output "${invalidPath}"`,
-          { encoding: 'utf-8', stdio: 'pipe' }
+          `node ${cliPath} --project "${tempDir}" export --type json --output "${join(exportDir, 'forced', 'export.json')}"`,
+          {
+            encoding: 'utf-8',
+            env: {
+              ...process.env,
+              OCTIE_TEST_FORCE_EXPORT_MKDIR_FAILURE: '1',
+            },
+            stdio: 'pipe',
+          }
         );
-      }).toThrow();
+      } catch (error) {
+        errorText = getExecErrorText(error);
+      }
+
+      expect(errorText).toContain('Injected export mkdir failure');
+      expect((errorText.match(/Injected export mkdir failure/g) || [])).toHaveLength(1);
     });
 
     // Note: Invalid export type defaults to JSON, so it succeeds

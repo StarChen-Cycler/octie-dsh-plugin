@@ -10,6 +10,14 @@ import chalk from 'chalk';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+function ensureExportDir(outputPath: string): void {
+  if (process.env.OCTIE_TEST_FORCE_EXPORT_MKDIR_FAILURE === '1') {
+    throw new Error('Injected export mkdir failure');
+  }
+
+  mkdirSync(dirname(outputPath), { recursive: true });
+}
+
 /**
  * Create the export command
  */
@@ -50,11 +58,7 @@ Default: Writes to tasks.json (or tasks.md) if no -o specified
       const outputPath = options.output || defaultFileName;
 
       // Create parent directory if it doesn't exist
-      try {
-        mkdirSync(dirname(outputPath), { recursive: true });
-      } catch {
-        // Ignore error if directory already exists
-      }
+      ensureExportDir(outputPath);
 
       writeFileSync(outputPath, output, 'utf-8');
 
