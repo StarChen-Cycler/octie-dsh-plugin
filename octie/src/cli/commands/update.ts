@@ -127,9 +127,13 @@ export const updateCommand = new Command('update')
   )
   .option('--complete-criterion <id>', 'Mark success criterion(s) as complete (supports: id, short-uuid, id1,id2, "id1","id2")', parseMultipleIds, [])
   .option('--remove-criterion <id>', 'Remove a success criterion by ID (NOTE: cannot remove completed items)')
-  .option('--blockers <ids>', 'Add blocker(s) (requires --dependency-explanation)')
+  .option('--blockers <ids>', 'Add blocker(s) (requires --dependencies)')
   .option('--unblock <id>', 'Remove a blocker (removes graph edge)')
-  .option('--dependency-explanation <text>', 'Set/update dependencies explanation (required with --blockers)')
+  .option('--dependencies <text>', 'Set/update dependencies explanation (required with --blockers)')
+  .addOption(
+    new Option('--dependency-explanation <text>')
+      .hideHelp()
+  )
   .option('--clear-dependencies', 'Clear dependencies explanation (for removing last blocker)')
   .addOption(
     new Option(
@@ -269,13 +273,15 @@ export const updateCommand = new Command('update')
         updated = true;
       }
 
-      // Add blocker (twin validation: requires --dependency-explanation)
+      const dependenciesText = options.dependencies ?? options.dependencyExplanation;
+
+      // Add blocker (twin validation: requires --dependencies)
       const blockerId = options.blockers;
       if (blockerId) {
-        if (!options.dependencyExplanation) {
-          error('When using --blockers, --dependency-explanation is required (twin feature).');
+        if (!dependenciesText) {
+          error('When using --blockers, --dependencies is required (twin feature).');
           info(`Current dependencies: "${task.dependencies || '(none)'}"`);
-          info('Example: --blockers abc123 --dependency-explanation "Needs API spec from abc123"');
+          info('Example: --blockers abc123 --dependencies "Needs API spec from abc123"');
           process.exit(1);
         }
         // Resolve short UUID to full UUID
@@ -299,7 +305,7 @@ export const updateCommand = new Command('update')
         graph.addEdge(blockerTask.id, task.id);
         // Update dependencies explanation (append to existing)
         const existingDeps = task.dependencies || '';
-        task.setDependencies(existingDeps ? `${existingDeps}\n${options.dependencyExplanation}` : options.dependencyExplanation);
+        task.setDependencies(existingDeps ? `${existingDeps}\n${dependenciesText}` : dependenciesText);
         updated = true;
       }
 
@@ -322,14 +328,14 @@ export const updateCommand = new Command('update')
       }
 
       // Set/update dependencies explanation
-      if (options.dependencyExplanation && !options.block) {
+      if (dependenciesText && !options.blockers) {
         // Standalone dependency explanation update (must have blockers)
         if (task.blockers.length === 0) {
           error('Cannot set dependencies explanation without blockers.');
-          info('Use --blockers to add a blocker first, or provide both --blockers and --dependency-explanation together.');
+          info('Use --blockers to add a blocker first, or provide both --blockers and --dependencies together.');
           process.exit(1);
         }
-        task.setDependencies(options.dependencyExplanation);
+        task.setDependencies(dependenciesText);
         updated = true;
       }
 
@@ -469,29 +475,30 @@ updateCommand.on('--help', () => {
   console.log('');
   console.log(chalk.bold('Blockers & Dependencies (Twin Feature):'));
   console.log(chalk.cyan('  --blockers <id>') + ': Add a blocker (creates graph edge).');
-  console.log('                   REQUIRES --dependency-explanation (twin validation).');
+  console.log('                   REQUIRES --dependencies (twin validation).');
   console.log('                   Prevents self-blocking and cycle creation.');
   console.log('');
   console.log(chalk.cyan('  --unblock <id>') + ': Remove a blocker (removes graph edge).');
   console.log('                  If last blocker removed, dependencies auto-cleared.');
   console.log('');
-  console.log(chalk.cyan('  --dependency-explanation <text>') + ': Set/update dependencies explanation.');
-  console.log('                                     Required with --blockers.');
+  console.log(chalk.cyan('  --dependencies <text>') + ': Set/update dependencies explanation.');
+  console.log('                             Required with --blockers.');
+  console.log('                             Legacy alias: --dependency-explanation');
   console.log('');
   console.log(chalk.cyan('  --clear-dependencies') + ': Explicitly clear dependencies explanation.');
   console.log('');
   console.log(chalk.yellow('  Examples:'));
   console.log('    Add blocker with explanation:');
-  console.log('      octie update abc --blockers xyz --dependency-explanation "Needs xyz output"');
+  console.log('      octie update abc --blockers xyz --dependencies "Needs xyz output"');
   console.log('');
   console.log('    Update existing dependencies text:');
-  console.log('      octie update abc --dependency-explanation "Updated reason"');
+  console.log('      octie update abc --dependencies "Updated reason"');
   console.log('');
   console.log('    Remove blocker (auto-clears if last one):');
   console.log('      octie update abc --unblock xyz');
   console.log('');
   console.log(chalk.red('  Error Conditions:'));
-  console.log('    --blockers without --dependency-explanation → Error');
+  console.log('    --blockers without --dependencies → Error');
   console.log('    Self-blocking (task blocks itself) → Error');
   console.log('    Would create cycle → Error');
   console.log('    Cannot uncomplete/remove completed items → Error');

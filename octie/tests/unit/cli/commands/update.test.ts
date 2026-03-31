@@ -619,6 +619,8 @@ describe('update command', () => {
       expect(output).toContain('--priority');
       expect(output).toContain('--add-deliverable');
       expect(output).toContain('--complete-criterion');
+      expect(output).toContain('--dependencies');
+      expect(output).not.toContain('--dependency-explanation <text>');
     });
   });
 
@@ -712,7 +714,7 @@ describe('update command', () => {
     });
   });
 
-  describe('twin validation (block + dependency-explanation)', () => {
+  describe('twin validation (block + dependencies)', () => {
     let blockerTaskId: string;
 
     beforeEach(async () => {
@@ -729,7 +731,40 @@ describe('update command', () => {
       blockerTaskId = match?.[1] || '';
     });
 
-    it('should add blocker with dependency-explanation (twin)', async () => {
+    it('should add blocker with dependencies (twin)', async () => {
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
+        `--blockers "${blockerTaskId}" ` +
+        `--dependencies "Needs blocker output to proceed"`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('Task updated');
+
+      const graph = await storage.load();
+      const task = graph.getNode(testTaskId);
+      expect(task?.blockers).toContain(blockerTaskId);
+      expect(task?.dependencies).toContain('Needs blocker output to proceed');
+    });
+
+    it('should reject --blockers without --dependencies', () => {
+      let errorMsg = '';
+      try {
+        execSync(
+          `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
+          `--blockers "${blockerTaskId}"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        );
+      } catch (err: any) {
+        errorMsg = err.stderr?.toString() || err.stdout?.toString() || '';
+      }
+
+      expect(errorMsg).toContain('block');
+      expect(errorMsg).toContain('dependencies');
+      expect(errorMsg).toContain('required');
+    });
+
+    it('should still accept legacy --dependency-explanation alias', async () => {
       const output = execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
         `--blockers "${blockerTaskId}" ` +
@@ -745,29 +780,12 @@ describe('update command', () => {
       expect(task?.dependencies).toContain('Needs blocker output to proceed');
     });
 
-    it('should reject --blockers without --dependency-explanation', () => {
-      let errorMsg = '';
-      try {
-        execSync(
-          `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
-          `--blockers "${blockerTaskId}"`,
-          { encoding: 'utf-8', stdio: 'pipe' }
-        );
-      } catch (err: any) {
-        errorMsg = err.stderr?.toString() || err.stdout?.toString() || '';
-      }
-
-      expect(errorMsg).toContain('block');
-      expect(errorMsg).toContain('dependency-explanation');
-      expect(errorMsg).toContain('required');
-    });
-
     it('should auto-clear dependencies when last blocker is removed', async () => {
-      // First add a blocker with dependency-explanation
+      // First add a blocker with dependencies
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
         `--blockers "${blockerTaskId}" ` +
-        `--dependency-explanation "Initial dependency explanation"`,
+        `--dependencies "Initial dependency explanation"`,
         { encoding: 'utf-8' }
       );
 
@@ -800,7 +818,7 @@ describe('update command', () => {
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
         `--blockers "${blockerTaskId}" ` +
-        `--dependency-explanation "Current dependency reason"`,
+        `--dependencies "Current dependency reason"`,
         { encoding: 'utf-8' }
       );
 
@@ -829,7 +847,7 @@ describe('update command', () => {
       }
 
       // Error should show current dependencies info
-      expect(errorMsg).toContain('dependency-explanation');
+      expect(errorMsg).toContain('dependencies');
       expect(errorMsg).toContain('required');
     });
 
@@ -840,7 +858,7 @@ describe('update command', () => {
       const output = execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
         `--blockers "${shortId}" ` +
-        `--dependency-explanation "Needs blocker output to proceed"`,
+        `--dependencies "Needs blocker output to proceed"`,
         { encoding: 'utf-8' }
       );
 
@@ -853,12 +871,12 @@ describe('update command', () => {
     });
 
     it('should unblock using short UUID prefix', async () => {
-      // First add a blocker with dependency-explanation using short UUID
+      // First add a blocker with dependencies using short UUID
       const shortId = blockerTaskId.substring(0, 8);
       execSync(
         `node ${cliPath} --project "${tempDir}" update ${testTaskId} ` +
         `--blockers "${shortId}" ` +
-        `--dependency-explanation "Initial dependency explanation"`,
+        `--dependencies "Initial dependency explanation"`,
         { encoding: 'utf-8' }
       );
 
