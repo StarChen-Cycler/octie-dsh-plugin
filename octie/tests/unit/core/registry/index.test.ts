@@ -67,7 +67,7 @@ describe('global registry', () => {
     rmSync(tempHome, { recursive: true, force: true });
   });
 
-  it('keeps stale registry entries when listing projects', async () => {
+  it('prunes stale registry entries when listing projects', async () => {
     const validProjectDir = join(tmpdir(), `octie-valid-project-${uuidv4()}`);
     const missingProjectDir = join(tmpdir(), `octie-missing-project-${uuidv4()}`);
     const registryPath = join(tempHome, '.octie', 'projects.json');
@@ -100,18 +100,19 @@ describe('global registry', () => {
         'utf-8'
       );
 
-      const { getAllProjects, loadRegistry, verifyProjectExists } = await import(
+      const { getAllProjects, getAllProjectsRaw, loadRegistry, verifyProjectExists } = await import(
         '../../../../src/core/registry/index.js'
       );
 
+      const rawProjects = getAllProjectsRaw();
       const projects = getAllProjects();
       const registryAfterRead = loadRegistry();
 
-      expect(projects).toHaveLength(2);
+      expect(rawProjects).toHaveLength(2);
+      expect(projects).toHaveLength(1);
       expect(registryAfterRead.projects['valid-project']).toBeDefined();
-      expect(registryAfterRead.projects['missing-project']).toBeDefined();
+      expect(registryAfterRead.projects['missing-project']).toBeUndefined();
       expect(verifyProjectExists(registryAfterRead.projects['valid-project']!)).toBe(true);
-      expect(verifyProjectExists(registryAfterRead.projects['missing-project']!)).toBe(false);
     } finally {
       rmSync(validProjectDir, { recursive: true, force: true });
     }

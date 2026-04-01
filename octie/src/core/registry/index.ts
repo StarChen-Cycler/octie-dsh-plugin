@@ -397,15 +397,40 @@ export function unregisterProjectDetailed(projectPath: string): UnregisterProjec
   }
 }
 
+function pruneMissingProjectsInRegistry(registry: ProjectRegistry): boolean {
+  let changed = false;
+
+  for (const [key, project] of Object.entries(registry.projects)) {
+    if (!isValidOctieProject(project.path)) {
+      delete registry.projects[key];
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 /**
  * Get all registered projects
- * Read-only access: missing projects stay in the registry so the UI can
- * surface them with a warning instead of silently deleting user state.
- * @returns Array of registered projects, including stale ones
+ * Prunes stale entries whose local .octie/project.json no longer exists.
+ * This keeps the web UI sidebar and home page aligned with disk state.
+ * @returns Array of registered projects after stale-entry cleanup
  */
 export function getAllProjects(): RegistryProject[] {
-  const registry = loadRegistry();
-  return Object.values(registry.projects);
+  try {
+    return withRegistryLock(() => {
+      const registry = loadRegistryInternal({ throwOnCorruption: true });
+      const changed = pruneMissingProjectsInRegistry(registry);
+
+      if (changed) {
+        saveRegistry(registry);
+      }
+
+      return Object.values(registry.projects);
+    });
+  } catch {
+    return Object.values(loadRegistry());
+  }
 }
 
 /**
