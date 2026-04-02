@@ -910,7 +910,7 @@ describe('create command', () => {
         `--success-criterion "Returns user profile with 200 status" ` +
         `--deliverable "src/api/user.ts" ` +
         `--blockers "${blockerId}" ` +
-        `--dependencies "Needs base API server from blocker"`,
+        `--dependency-explanation "Needs base API server from blocker"`,
         { encoding: 'utf-8' }
       );
 
@@ -924,7 +924,7 @@ describe('create command', () => {
       expect(task?.dependencies).toBe('Needs base API server from blocker');
     });
 
-    it('should reject --blockers without --dependencies (partial twin)', () => {
+    it('should reject --blockers without --dependency-explanation (partial twin)', () => {
       let errorMsg = '';
       try {
         execSync(
@@ -941,11 +941,11 @@ describe('create command', () => {
       }
 
       expect(errorMsg).toContain('blockers');
-      expect(errorMsg).toContain('dependencies');
+      expect(errorMsg).toContain('dependency-explanation');
       expect(errorMsg).toContain('required');
     });
 
-    it('should reject --dependencies without --blockers (partial twin)', () => {
+    it('should reject --dependency-explanation without --blockers (partial twin)', () => {
       let errorMsg = '';
       try {
         execSync(
@@ -954,16 +954,36 @@ describe('create command', () => {
           `--description "Create GET /settings endpoint that returns user application settings and preferences" ` +
           `--success-criterion "Returns settings" ` +
           `--deliverable "src/api/settings.ts" ` +
-          `--dependencies "Some dependency explanation"`,
+          `--dependency-explanation "Some dependency explanation"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );
       } catch (err: any) {
         errorMsg = err.stderr?.toString() || err.stdout?.toString() || '';
       }
 
-      expect(errorMsg).toContain('dependencies');
+      expect(errorMsg).toContain('dependency-explanation');
       expect(errorMsg).toContain('blockers');
       expect(errorMsg).toContain('required');
+    });
+
+    it('should still accept --dependencies as an alias', async () => {
+      const output = execSync(
+        `node ${cliPath} --project "${cliTempDir}" create ` +
+        `--title "Implement alias-based endpoint" ` +
+        `--description "Create GET /alias endpoint that verifies the dependencies alias still works for task creation." ` +
+        `--success-criterion "Returns alias-backed response with 200 status" ` +
+        `--deliverable "src/api/alias.ts" ` +
+        `--blockers "${blockerId}" ` +
+        `--dependencies "Needs base API server from blocker"`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('Task created');
+
+      const graph = await cliStorage.load();
+      const task = graph.getAllTasks().find(t => t.title === 'Implement alias-based endpoint');
+      expect(task?.blockers).toContain(blockerId);
+      expect(task?.dependencies).toBe('Needs base API server from blocker');
     });
   });
 

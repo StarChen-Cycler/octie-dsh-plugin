@@ -23,7 +23,7 @@ The previous root README had drifted away from the code. This version reflects w
 
 Recent commits on `main` added or tightened the following behavior:
 
-- Canonical twin flag naming now uses `--dependencies` for blocker explanations. `update` still accepts the hidden legacy alias `--dependency-explanation`.
+- Canonical twin flag naming now uses `--dependency-explanation` for blocker explanations. `--dependencies` remains accepted as a hidden compatibility alias.
 - Snapshot history now prunes retained snapshots instead of growing forever.
 - Snapshot restore now runs through the normal save lifecycle instead of bypassing it.
 - Failed snapshot-history writes and handoff rollbacks now surface cleanup failures more clearly.
@@ -119,7 +119,7 @@ octie create \
   --success-criterion "Form submits valid credentials to the auth endpoint" \
   --deliverable "web-ui/src/components/LoginForm.tsx" \
   --blockers abc1234 \
-  --dependencies "Needs the auth API contract and live endpoint from abc1234"
+  --dependency-explanation "Needs the auth API contract and live endpoint from abc1234"
 ```
 
 ### 3. Inspect and update tasks

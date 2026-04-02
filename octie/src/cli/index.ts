@@ -21,10 +21,10 @@ import { serveCommand } from './commands/serve.js';
 import { findCommand } from './commands/find.js';
 import { wireCommand } from './commands/wire.js';
 import {
-  CREATE_SUBTASK_HANDOFF_GUIDE_FLAG,
-  handoffCommand,
+  getGuideFlagsHelpText,
   tryHandleGuideFlags,
-} from './commands/handoff.js';
+} from './commands/guides.js';
+import { handoffCommand } from './commands/handoff.js';
 import { registerApproveCommand } from './commands/approve.js';
 // import { batchCommand } from './commands/batch.js';
 import { formatError } from './utils/helpers.js';
@@ -82,10 +82,7 @@ function createProgram(): Command {
 
   program.addHelpText(
     'after',
-    `
-Guide Flags:
-  ${CREATE_SUBTASK_HANDOFF_GUIDE_FLAG}  Print the loose subproject handoff playbook
-`,
+    getGuideFlagsHelpText(),
   );
 
   // Error handling

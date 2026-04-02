@@ -235,8 +235,8 @@ describe('handoff command', () => {
     const commandGuide = runCli('handoff create --right-way-to-create-subtask-handoff');
 
     expect(rootGuide).toBe(commandGuide);
-    expect(rootGuide).toContain('.octie/subprojects/<name>/.octie/project.json');
-    expect(rootGuide).toContain('Do not add cross-project graph edges');
-    expect(rootGuide).toContain('create the child closeout gate manually there');
+    expect(rootGuide).toContain('Right Way To Create Subtask Handoff');
+    expect(rootGuide).toContain('anchor the parent handoff task to completed baseline tasks');
+    expect(rootGuide).toContain('do not approve the parent handoff task until the child closeout gate is complete');
   });
 });

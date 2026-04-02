@@ -12,8 +12,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && npm run build:web",
-    "build:cli": "tsc",
+    "build": "npm run build:cli && npm run build:web",
+    "build:cli": "tsc && node scripts/copy-guide-assets.mjs",
     "build:web": "cd web-ui && npm run build",
     "dev": "tsc --watch",
     "dev:web": "cd web-ui && npm run dev",

@@ -73,8 +73,12 @@ export function addTaskCreationOptions<T extends Command>(command: T): T {
       'Comma-separated task IDs that block this task (creates graph edges for execution order)',
     )
     .option(
-      '-d, --dependencies <text>',
+      '-d, --dependency-explanation <text>',
       'Explanatory text: WHY this task depends on its blockers (required if --blockers is set)',
+    )
+    .addOption(
+      new Option('--dependencies <text>')
+        .hideHelp(),
     )
     .addOption(
       new Option(
@@ -120,6 +124,7 @@ export interface CreateCommandOptions {
   deliverable?: string[];
   priority?: string;
   blockers?: string;
+  dependencyExplanation?: string;
   dependencies?: string;
   relatedFiles?: string[];
   c7Verified?: string[];
@@ -316,23 +321,23 @@ export function preflightTaskCreation(
   }
 
   const blockers = parseList(options.blockers || '');
-  const dependenciesText = (options.dependencies || '').trim();
+  const dependenciesText = (options.dependencyExplanation || options.dependencies || '').trim();
   if (blockers.length > 0 && !dependenciesText) {
     throw new CliPreparationError(
-      'When --blockers is provided, --dependencies explanation text is also required.',
+      'When --blockers is provided, --dependency-explanation text is also required.',
       [
-        'The twin feature requires both blockers (task IDs) and dependencies (explanation).',
-        'Example: --blockers abc123 --dependencies "Needs the API spec from abc123"',
+        'The twin feature requires both blockers (task IDs) and dependency explanation text.',
+        'Example: --blockers abc123 --dependency-explanation "Needs the API spec from abc123"',
       ],
     );
   }
 
   if (dependenciesText && blockers.length === 0) {
     throw new CliPreparationError(
-      'When --dependencies is provided, --blockers task IDs are also required.',
+      'When --dependency-explanation is provided, --blockers task IDs are also required.',
       [
-        'The twin feature requires both blockers (task IDs) and dependencies (explanation).',
-        'Example: --blockers abc123 --dependencies "Needs the API spec from abc123"',
+        'The twin feature requires both blockers (task IDs) and dependency explanation text.',
+        'Example: --blockers abc123 --dependency-explanation "Needs the API spec from abc123"',
       ],
     );
   }

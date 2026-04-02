@@ -64,7 +64,7 @@ export const createCommand = addTaskCreationOptions(
           console.log('');
           console.log(chalk.yellow.bold('Specific issues found:'));
           for (const violation of err.violations) {
-            console.log(chalk.red('  ✗') + violation);
+            console.log(chalk.red('  ✗ ') + violation);
           }
           console.log('');
           info('See atomic task policy below for guidance');
@@ -96,16 +96,17 @@ createCommand.on('--help', () => {
   console.log('                Creates GRAPH EDGES affecting execution order.');
   console.log('                Task A blocks Task B → A must complete before B starts.');
   console.log('');
-  console.log(chalk.cyan('  --dependencies (-d)') + ': Explanatory text WHY this task depends on its blockers.');
+  console.log(chalk.cyan('  --dependency-explanation (-d)') + ': Explanatory text WHY this task depends on its blockers.');
   console.log('                  REQUIRED when --blockers is set (twin validation).');
+  console.log('                  Alias: --dependencies');
   console.log('                  Does NOT affect execution order - pure metadata.');
   console.log('');
   console.log(chalk.yellow('  Example (both required together):'));
   console.log('    octie create --title "Build Frontend" \\');
   console.log('      --blockers abc123,def456 \\');
-  console.log('      --dependencies "Needs API spec from abc123 and auth from def456"');
+  console.log('      --dependency-explanation "Needs API spec from abc123 and auth from def456"');
   console.log('');
   console.log(chalk.red('  Error if only one provided:'));
-  console.log('    --blockers without --dependencies → Error: twin required');
-  console.log('    --dependencies without --blockers → Error: twin required');
+  console.log('    --blockers without --dependency-explanation → Error: twin required');
+  console.log('    --dependency-explanation without --blockers → Error: twin required');
 });
