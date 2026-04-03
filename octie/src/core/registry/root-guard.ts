@@ -16,8 +16,6 @@ import { isValidOctieProject, registerProject } from './index.js';
  * Supports:
  * - `--project path/to/project`
  * - `--project=path/to/project`
- * - `-p path/to/project`
- * - `-p=path/to/project`
  *
  * @param args - Raw CLI args, usually process.argv.slice(2)
  * @param basePath - Base path used to resolve relative project paths
@@ -34,7 +32,7 @@ export function extractProjectPathFromArgs(
       continue;
     }
 
-    if (arg === '--project' || arg === '-p') {
+    if (arg === '--project') {
       const value = args[i + 1];
       if (value && !value.startsWith('-')) {
         return resolve(basePath, value);
@@ -44,13 +42,6 @@ export function extractProjectPathFromArgs(
 
     if (arg.startsWith('--project=')) {
       const value = arg.substring('--project='.length);
-      if (value) {
-        return resolve(basePath, value);
-      }
-    }
-
-    if (arg.startsWith('-p=')) {
-      const value = arg.substring(3);
       if (value) {
         return resolve(basePath, value);
       }

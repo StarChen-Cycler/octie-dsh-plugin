@@ -20,13 +20,13 @@ describe('root guard project path extraction', () => {
     expect(result).toBe('I:\\ai-automation-projects\\task-driver\\config-driven-modification');
   });
 
-  it('extracts short-form -p path', () => {
+  it('ignores short-form -p so subcommands can reuse it safely', () => {
     const result = extractProjectPathFromArgs(
-      ['-p', '.\\subproject', 'find', '--without-blockers'],
+      ['handoff', 'create', '-p', 'second'],
       'I:\\ai-automation-projects\\task-driver'
     );
 
-    expect(result).toBe('I:\\ai-automation-projects\\task-driver\\subproject');
+    expect(result).toBeUndefined();
   });
 
   it('returns undefined when no explicit project is provided', () => {

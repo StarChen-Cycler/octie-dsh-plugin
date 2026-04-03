@@ -56,6 +56,14 @@ describe('handoff command', () => {
     });
   }
 
+  function runCliInDir(command: string, cwd: string): string {
+    return execSync(`node ${cliPath} ${command}`, {
+      encoding: 'utf-8',
+      env,
+      cwd,
+    });
+  }
+
   function getExecErrorText(error: unknown): string {
     if (error instanceof Error) {
       return error.message;
@@ -146,6 +154,32 @@ describe('handoff command', () => {
     } finally {
       chmodSync(parentProjectFile, 0o666);
     }
+  });
+
+  it('treats -p on handoff create as priority instead of project path', async () => {
+    const parentName = `parent-${uuidv4().substring(0, 8)}`;
+    const subprojectName = `child-${uuidv4().substring(0, 8)}`;
+    runCli(`init --project "${tempDir}" --name "${parentName}"`);
+
+    const output = runCliInDir(
+      `handoff create ` +
+      `--subproject-name "${subprojectName}" ` +
+      `--title "Create ${subprojectName} handoff gate" ` +
+      `--description "Create a loose parent handoff from the active project directory so short priority parsing does not get mistaken for a root project path." ` +
+      `--success-criterion "Child subproject exists at the expected path" ` +
+      `--deliverable "parent handoff task record" ` +
+      `-p second`,
+      tempDir,
+    );
+
+    expect(output).toContain('Handoff created');
+
+    const storage = new TaskStorage({ projectDir: tempDir });
+    const graph = await storage.load();
+    const task = graph.getAllTasks()[0];
+
+    expect(task?.priority).toBe('second');
+    expect(task?.notes).toContain(`.octie/subprojects/${subprojectName}/`);
   });
 
   it('reports rollback cleanup as incomplete when unregisterProject cannot clear the child registry entry', () => {
