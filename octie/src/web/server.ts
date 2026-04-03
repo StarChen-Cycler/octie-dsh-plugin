@@ -176,12 +176,11 @@ export class WebServer {
    * Configure API routes
    */
   private _configureRoutes(): void {
-    // Serve web UI static files from web-ui directory
-    // Check multiple possible locations for the web UI
+    // Serve the actual Octie web UI bundle only. Do not fall back to legacy
+    // html reports here because they can be Vitest output rather than the app.
     const possibleWebUiPaths = [
-      join(__dirname, '../web-ui'),            // dist/web-ui (built from web-ui/)
-      join(__dirname, '../../html'),           // legacy: dist/web/html
-      join(process.cwd(), 'html'),             // project root html
+      join(__dirname, '../web-ui'),            // packaged build: dist/web-ui
+      join(__dirname, '../../web-ui/dist'),    // local repo fallback
     ];
 
     let webUiPath: string | null = null;
@@ -202,10 +201,11 @@ export class WebServer {
       });
     }
 
-    // Serve test coverage report at /test route
+    // Serve Vitest / coverage HTML separately at /test so it never replaces
+    // the main application UI at the root route.
     const possibleTestPaths = [
-      join(process.cwd(), 'html'),             // project root html (vitest output)
-      join(__dirname, '../../html'),           // from dist/web location
+      join(process.cwd(), 'html'),             // caller cwd html (vitest output)
+      join(__dirname, '../../html'),           // package root html
     ];
 
     for (const testPath of possibleTestPaths) {

@@ -28,6 +28,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "prepack": "npm run build",
     "prebuild": "npm run clean",
     "serve": "node dist/cli/index.js serve",
     "prepublishOnly": "npm run build && npm test"

@@ -96,12 +96,33 @@ describe('Web API Integration Tests', () => {
 
   describe('Health and Info Endpoints', () => {
     it('GET / should serve web UI or redirect to API', async () => {
-      const response = await request(app)
-        .get('/')
-        .expect('Content-Type', /html|json/);
+      const response = await request(app).get('/');
 
       // Should either return HTML (web UI) or redirect to API
       expect([200, 302]).toContain(response.status);
+
+      if (response.status === 200) {
+        expect(response.headers['content-type']).toMatch(/html/);
+      }
+    });
+
+    it('GET / should not serve the Vitest html fallback as the main app', async () => {
+      const response = await request(app).get('/');
+
+      if (response.status === 200) {
+        expect(response.text).not.toContain('<title>Vitest</title>');
+      } else {
+        expect(response.status).toBe(302);
+      }
+    });
+
+    it('GET /test should keep serving the Vitest html report when available', async () => {
+      const response = await request(app)
+        .get('/test/')
+        .expect('Content-Type', /html/);
+
+      expect(response.status).toBe(200);
+      expect(response.text).toContain('<title>Vitest</title>');
     });
 
     it('GET /health should return healthy status', async () => {
