@@ -39,6 +39,18 @@ Do not create vague tasks like:
 - `Improve performance`
 - `Handle edge cases`
 
+## One-at-a-time creation (no batch, no compact)
+
+⚠️ CRITICAL: Always create Octie tasks **one at a time**.
+
+- Run `octie create` once per task, then verify with `octie get <id> --format md`
+- After each creation, audit the task for atomicity before creating the next one
+- **Never** create multiple tasks in a single command or loop
+- **Never** use compact/abbreviated flag syntax to rush through creation
+- Each task deserves full attention to title, description, criteria, and deliverables
+
+**Why**: The atomic task feature requires each task to be audited individually. Batch creation or compact shortcuts bypass the review step and produce low-quality tasks that need rework later.
+
 ## `octie create` rules
 
 Use:

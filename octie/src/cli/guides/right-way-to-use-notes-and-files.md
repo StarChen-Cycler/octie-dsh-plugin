@@ -28,7 +28,11 @@ Use notes for:
 - constraints
 - rationale
 - discoveries
+- inspirations — capture useful ideas that arise during task creation or implementation
+- notable changes — record meaningful decisions, scope shifts, or important observations
 - supporting context that does not belong in criteria or deliverables
+
+⚠️ Add notes proactively. If something notable occurs during task work — an insight, a pivot, a surprising finding — run `octie add-note <id> "<note>"` to capture it. Notes are the living context of a task; sparse notes mean lost knowledge.
 
 Use C7 verification for:
 - external documentation-backed implementation patterns
