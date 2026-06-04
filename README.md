@@ -140,7 +140,9 @@ octie approve abc1234
 ### 4. Start the UI
 
 ```bash
-octie serve
+octie serve              # Default: localhost:3000
+octie serve -p 8080      # Custom port
+octie serve --open       # Auto-open browser
 ```
 
 Default server address:
@@ -163,13 +165,16 @@ Octie projects are stored inside the target working directory:
 
 ```text
 .octie/
-|-- project.json
+|-- project.json              # Main task storage
+|-- project.json.bak          # Latest backup
+|-- project.json.bak.{ts}     # Rotated backups (5 by default)
+|-- config.json               # Project configuration
 |-- history/
-|   |-- history.ndjson
-|   `-- snapshots/
-|-- subprojects/
-|-- indexes/
-`-- cache/
+|   |-- history.ndjson        # Immutable snapshot history
+|   `-- snapshots/            # Snapshot files
+|-- subprojects/              # Child project handoffs
+|-- indexes/                  # Pre-computed indexes
+`-- cache/                    # Serialized graph cache
 ```
 
 ### Status model
@@ -196,12 +201,13 @@ octie approve <task-id>
 
 ### Task requirements enforced by code
 
-- `title`: required, max 200 chars, atomic-task validation applied
+- `title`: required, max 200 chars; ASCII titles must be >= 10 chars and contain an action verb
 - `description`: required, 50-10000 chars
-- `success_criteria`: required, 1-10
-- `deliverables`: required, 1-10
+- `success_criteria`: required, 1-10, must be quantitative (no subjective words)
+- `deliverables`: required, 1-10, must be specific (file paths or concrete outputs)
+- `priority`: `top` | `second` (default) | `later`
 - `need_fix`: optional, but blocks review until resolved
-- `blockers` + `dependencies`: treated as a paired feature
+- `blockers` + `dependency-explanation`: treated as a paired feature (both required together)
 
 ## Active CLI surface
 
@@ -300,6 +306,20 @@ Relevant docs in the package directory:
 - `CONTRIBUTING.md`
 - `TROUBLESHOOTING.md`
 - `openapi.yaml`
+
+### Guide flags
+
+Run any command with these flags to print built-in workflow guides:
+
+```bash
+octie --right-way-to-form-tasks
+octie --right-way-to-manage-dependencies
+octie --right-way-to-find-work
+octie --right-way-to-review-and-approve
+octie --right-way-to-refine-tasks
+octie --right-way-to-use-notes-and-files
+octie --right-way-to-create-subtask-handoff
+```
 
 ## Current caveats
 
