@@ -39,6 +39,7 @@ target/
 *.tmp
 *.temp
 *.bak
+*.backup
 
 # OS files
 .DS_Store
@@ -74,6 +75,7 @@ packages/
 docs/
 design/
 files/
+right-way-to-flags/
 
 # Memo files
 .memo/
