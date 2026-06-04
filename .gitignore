@@ -71,6 +71,8 @@ octie/web-ui/src/assets/
 vendor/
 packages/
 docs/
+design/
+files/
 
 # Memo files
 .memo/
