@@ -57,6 +57,7 @@ desktop.ini
 *.tar.gz
 *.mp3
 *.mp4
+!/Octie-Banner.png
 
 # AI/memo generated
 .claude/
@@ -77,3 +78,5 @@ files/
 # Memo files
 .memo/
 CLAUDE.md
+/*.md
+!README.md

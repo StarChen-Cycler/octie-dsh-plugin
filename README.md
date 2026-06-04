@@ -1,7 +1,7 @@
 # Octie
 
 <p align="center">
-  <img src="./octie/Octie-Banner.png" alt="Octie Banner" />
+  <img src="./Octie-Banner.png" alt="Octie Banner" />
 </p>
 
 This repository is a workspace around the `Octie` task graph tool. The actively implemented product lives in [`octie/`](./octie), while the repo root also contains design notes, workflow writeups, and supporting docs.
