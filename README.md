@@ -6,9 +6,7 @@
 
 Octie is a state-oriented project management framework built for the agent era. As AI agents scale from minute-long tasks to day-long autonomous operations, teams face three systemic crises: **context rot** that buries critical instructions in long conversations, **missing harnesses** that prevent agents from acting on their environment, and **state fragmentation** that forces every new session to start from zero. Octie solves this by treating multi-agent workflows as a **DAG state machine**—where task dependencies become state propagation channels, status is **derived via an embedded engine** rather than manually edited, and **atomic validation** blocks vague tasks at the architecture level before they ever reach an agent. State changes **auto-propagate via BFS** across the dependency graph, while **immutable snapshots** with SHA-256 deduplication ensure any long-running session can recover exactly where it left off. In short, Octie is the **project management operating system for agent teams**, turning chaotic multi-agent collaboration into a predictable, observable, and recoverable state machine.
 
-<p align="center">
-  <img src="./octie-harness-2.jpg" alt="Octie teaser" />
-</p>
+
 
 ## Quick start
 
