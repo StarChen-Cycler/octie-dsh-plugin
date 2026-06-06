@@ -167,13 +167,26 @@ export default function HomePage() {
         {/* Hero section */}
         <header className="text-center mb-16 animate-fade-in-up">
           {/* Logo/Brand */}
-          <div className="mb-6">
-            <img
-              src="/Octie-Logo.png"
-              alt="Octie"
-              className="h-16 mx-auto"
-              style={{ filter: 'drop-shadow(0 0 20px rgba(0, 212, 255, 0.3))' }}
-            />
+          <div className="inline-flex items-center gap-3 mb-6">
+            <div
+              className="w-14 h-14 rounded-xl flex items-center justify-center p-1.5"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-violet))',
+                boxShadow: 'var(--glow-cyan)',
+              }}
+            >
+              <img
+                src="/Octie-Logo.png"
+                alt="Octie"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <h1
+              className="text-3xl font-bold gradient-text"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              octie
+            </h1>
           </div>
 
           {/* Tagline */}
