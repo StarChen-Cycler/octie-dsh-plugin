@@ -168,19 +168,12 @@ export default function HomePage() {
         <header className="text-center mb-16 animate-fade-in-up">
           {/* Logo/Brand */}
           <div className="inline-flex items-center gap-3 mb-6">
-            <div
-              className="w-14 h-14 rounded-xl flex items-center justify-center p-1.5"
-              style={{
-                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-violet))',
-                boxShadow: 'var(--glow-cyan)',
-              }}
-            >
-              <img
-                src="/Octie-Logo.png"
-                alt="Octie"
-                className="w-full h-full object-contain"
-              />
-            </div>
+            <img
+              src="/Octie-Logo.png"
+              alt="Octie"
+              className="h-14 w-14 rounded-xl"
+              style={{ filter: 'drop-shadow(0 0 20px rgba(0, 212, 255, 0.3))' }}
+            />
             <h1
               className="text-3xl font-bold gradient-text"
               style={{ fontFamily: 'var(--font-display)' }}
