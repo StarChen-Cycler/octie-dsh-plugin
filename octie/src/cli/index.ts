@@ -5,6 +5,7 @@
  * Main entry point for all CLI commands
  */
 
+import { createRequire } from 'node:module';
 import { Command, CommanderError } from 'commander';
 import { initCommand } from './commands/init.js';
 import { createCommand } from './commands/create.js';
@@ -33,7 +34,8 @@ import {
   verifyAndRegisterProject,
 } from '../core/registry/root-guard.js';
 
-const VERSION = '2.0.0';
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require('../../package.json') as { version: string };
 
 /**
  * Global error handler
