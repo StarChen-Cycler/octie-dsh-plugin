@@ -1,7 +1,7 @@
 # Octie
 
 <p align="center">
-  <img src="./Octie-Banner.png" alt="Octie Banner" />
+  <img src="./Octie-Banner.jpg" alt="Octie Banner" />
 </p>
 
 This repository contains `Octie`, a graph-based task management system with a CLI tool and web UI.
@@ -37,12 +37,12 @@ Recent commits on `main` added or tightened the following behavior:
 ## Repository layout
 
 ```text
-task-driver/
+octie/
 |-- README.md
 |-- LICENSE                     # MIT
 |-- NOTICE                      # Third-party attributions
 |-- .gitignore
-|-- Octie-Banner.png
+|-- Octie-Banner.jpg
 `-- octie/                      # CLI, core graph logic, server, UI, tests
 ```
 

@@ -58,7 +58,8 @@ desktop.ini
 *.tar.gz
 *.mp3
 *.mp4
-!/Octie-Banner.png
+!/Octie-Banner.jpg
+!/octie-harness-2.jpg
 
 # AI/memo generated
 .claude/
