@@ -4,9 +4,7 @@
   <img src="./Octie-Banner.png" alt="Octie Banner" />
 </p>
 
-This repository is a workspace around the `Octie` task graph tool. The actively implemented product lives in [`octie/`](./octie), while the repo root also contains design notes, workflow writeups, and supporting docs.
-
-The previous root README had drifted away from the code. This version reflects what is actually implemented today.
+This repository contains `Octie`, a graph-based task management system with a CLI tool and web UI.
 
 ## What is implemented
 
@@ -41,12 +39,11 @@ Recent commits on `main` added or tightened the following behavior:
 ```text
 task-driver/
 |-- README.md
-|-- octie/                      # Actual CLI, core graph logic, server, UI, tests
-|-- docs/                       # Supporting docs
-|-- design/                     # Design notes
-|-- CLAUDE.md
-|-- LICENSE
-`-- *.md                        # Root-level planning and workflow notes
+|-- LICENSE                     # MIT
+|-- NOTICE                      # Third-party attributions
+|-- .gitignore
+|-- Octie-Banner.png
+`-- octie/                      # CLI, core graph logic, server, UI, tests
 ```
 
 Inside `octie/`:
@@ -63,6 +60,11 @@ octie/
 |-- test/                       # Graph-focused legacy tests
 |-- openapi.yaml
 |-- ARCHITECTURE.md
+|-- CHANGELOG.md
+|-- CONTRIBUTING.md
+|-- SECURITY.md
+|-- RELEASE.md
+|-- TROUBLESHOOTING.md
 `-- package.json
 ```
 
@@ -302,10 +304,13 @@ npm run serve
 
 Relevant docs in the package directory:
 
-- `ARCHITECTURE.md`
-- `CONTRIBUTING.md`
-- `TROUBLESHOOTING.md`
-- `openapi.yaml`
+- `ARCHITECTURE.md` — system design and data flow
+- `CONTRIBUTING.md` — contribution guidelines
+- `CHANGELOG.md` — version history
+- `RELEASE.md` — publish checklist
+- `SECURITY.md` — vulnerability reporting
+- `TROUBLESHOOTING.md` — common issues and fixes
+- `openapi.yaml` — API specification
 
 ### Guide flags
 
