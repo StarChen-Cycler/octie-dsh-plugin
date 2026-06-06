@@ -1,0 +1,22 @@
+Octie
+Copyright 2026 Yuchen Zhang
+
+This product includes software developed by third parties:
+
+octie/ dependencies (all MIT):
+- chalk (MIT)
+- cli-table3 (MIT)
+- commander (MIT)
+- express (MIT)
+- uuid (MIT)
+- zod (MIT)
+
+octie/web-ui/ dependencies (all MIT):
+- react, react-dom (MIT)
+- @xyflow/react, @reactflow/core, @reactflow/background, @reactflow/controls (MIT)
+- zustand (MIT)
+- dagre (MIT)
+- html-to-image (MIT)
+- tailwindcss, @tailwindcss/vite (MIT)
+
+All production dependencies are MIT licensed, fully compatible with the project's MIT license.
