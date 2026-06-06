@@ -68,7 +68,8 @@ htmlcov/
 
 # Specific folders
 octie/html/assets/
-octie/web-ui/public/
+octie/web-ui/public/*
+!/octie/web-ui/public/Octie-Logo.png
 octie/web-ui/src/assets/
 vendor/
 packages/

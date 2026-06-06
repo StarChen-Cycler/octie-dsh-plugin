@@ -195,23 +195,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             style={{ borderBottom: '1px solid var(--border-muted)' }}
           >
             <div className="flex items-center gap-2.5">
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center"
-                style={{
-                  background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-violet))',
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
-                </svg>
-              </div>
-              <span
-                className="font-semibold text-sm"
-                style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}
-              >
-                octie
-              </span>
+              <img
+                src="/Octie-Logo.png"
+                alt="Octie"
+                className="h-6 w-auto"
+              />
             </div>
 
             {/* Close button for mobile */}
