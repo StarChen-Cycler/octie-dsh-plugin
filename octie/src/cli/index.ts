@@ -33,8 +33,7 @@ import {
   verifyAndRegisterProject,
 } from '../core/registry/root-guard.js';
 
-// Version from package.json
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 
 /**
  * Global error handler
