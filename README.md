@@ -4,94 +4,11 @@
   <img src="./Octie-Banner.jpg" alt="Octie Banner" />
 </p>
 
-This repository contains `Octie`, a graph-based task management system with a CLI tool and web UI.
+Octie is a state-oriented project management framework built for the agent era. As AI agents scale from minute-long tasks to day-long autonomous operations, teams face three systemic crises: **context rot** that buries critical instructions in long conversations, **missing harnesses** that prevent agents from acting on their environment, and **state fragmentation** that forces every new session to start from zero. Octie solves this by treating multi-agent workflows as a **DAG state machine**—where task dependencies become state propagation channels, status is **derived via an embedded engine** rather than manually edited, and **atomic validation** blocks vague tasks at the architecture level before they ever reach an agent. State changes **auto-propagate via BFS** across the dependency graph, while **immutable snapshots** with SHA-256 deduplication ensure any long-running session can recover exactly where it left off. In short, Octie is the **project management operating system for agent teams**, turning chaotic multi-agent collaboration into a predictable, observable, and recoverable state machine.
 
-## What is implemented
-
-- A Node.js CLI for graph-based task management.
-- A file-backed task graph stored under `.octie/`.
-- Automatic task status calculation with a single manual approval step.
-- Atomic task validation for titles, descriptions, success criteria, and deliverables.
-- Directed blocker relationships with dependency explanation text as a paired field.
-- Graph operations such as reconnecting, merging, wiring, cycle detection, and validation.
-- Immutable snapshot history with listing, restore, and retention pruning.
-- Loose subproject handoff creation under `.octie/subprojects/`.
-- A web server plus React UI for browsing projects, tasks, graph data, and stats.
-- A global project registry at `~/.octie/projects.json` used by the UI home page and sidebar.
-- Import/export flows for JSON and Markdown.
-- Unit, integration, and benchmark coverage with Vitest.
-
-## Latest code-aligned additions and fixes
-
-Recent commits on `main` added or tightened the following behavior:
-
-- Canonical twin flag naming now uses `--dependency-explanation` for blocker explanations. `--dependencies` remains accepted as a hidden compatibility alias.
-- Snapshot history now prunes retained snapshots instead of growing forever.
-- Snapshot restore now runs through the normal save lifecycle instead of bypassing it.
-- Failed snapshot-history writes and handoff rollbacks now surface cleanup failures more clearly.
-- Status propagation now runs after rewiring-style graph changes so dependent task states stay consistent.
-- Export now surfaces parent-directory creation failures.
-- Deliverable validation is aligned to the implemented max of 10.
-- Git Bash style path normalization is shared across commands that parse file or library inputs.
-
-## Repository layout
-
-```text
-octie/
-|-- README.md
-|-- LICENSE                     # MIT
-|-- NOTICE                      # Third-party attributions
-|-- .gitignore
-|-- Octie-Banner.jpg
-`-- octie/                      # CLI, core graph logic, server, UI, tests
-```
-
-Inside `octie/`:
-
-```text
-octie/
-|-- bin/                        # CLI launcher
-|-- src/
-|   |-- cli/                    # Command definitions
-|   |-- core/                   # Graph, storage, registry, models
-|   `-- web/                    # Express server and routes
-|-- web-ui/                     # React 19 + Vite UI
-|-- tests/                      # Unit, integration, benchmark tests
-|-- test/                       # Graph-focused legacy tests
-|-- openapi.yaml
-|-- ARCHITECTURE.md
-|-- CHANGELOG.md
-|-- CONTRIBUTING.md
-|-- SECURITY.md
-|-- RELEASE.md
-|-- TROUBLESHOOTING.md
-`-- package.json
-```
-
-## Tech stack
-
-- CLI/core: TypeScript, Commander, Express, Zod, UUID
-- UI: React 19, Vite, Zustand, Tailwind CSS 4, React Flow / XYFlow, Dagre
-- Testing: Vitest, Supertest
-
-## Installation
-
-### Global package
-
-The package name in `octie/package.json` is `octie-cli`, and the executable is `octie`.
-
-```bash
-npm install -g octie-cli
-```
-
-### Local development
-
-```bash
-cd octie
-npm install
-npm run build
-node bin/octie.js --help
-```
+<p align="center">
+  <img src="./octie-harness-2.jpg" alt="Octie teaser" />
+</p>
 
 ## Quick start
 
@@ -102,8 +19,6 @@ octie init --name my-project
 ```
 
 ### 2. Create a task
-
-Use the canonical blocker/dependency pair:
 
 ```bash
 octie create \
@@ -159,7 +74,53 @@ The UI home page lists registered projects. A project-specific URL can also be o
 http://localhost:3000/?project=<absolute-project-path>
 ```
 
+## What is implemented
+
+- **CLI**: A Node.js CLI for graph-based task management with 15 commands covering the full task lifecycle.
+- **DAG state engine**: File-backed task graph stored under `.octie/`; automatic status derivation (no manual status editing).
+- **Atomic validation**: Titles, descriptions, success criteria, and deliverables are validated against precise constraints—vague or underspecified tasks are rejected at creation time.
+- **Blocker wiring**: Directed blocker relationships paired with `--dependency-explanation` text; status auto-propagates via BFS after rewiring.
+- **Graph operations**: Reconnecting (cut), merging, wiring, cycle detection, and structural validation.
+- **Immutable snapshots**: Snapshot history with listing, restore, SHA-256 deduplication, and configurable retention pruning.
+- **Subproject handoffs**: Loose child project creation under `.octie/subprojects/` for task delegation across session boundaries.
+- **Web UI**: React-based server with multi-project home page, Kanban board, interactive graph view (PNG/SVG export), task detail panel, project stats, theme toggle, and keyboard shortcuts.
+- **Global registry**: `~/.octie/projects.json` powers the UI home page and sidebar project switching.
+- **Import/export**: JSON and Markdown flows for portability and AI/LLM context windows.
+- **Testing**: Unit, integration, and benchmark coverage with Vitest.
+
 ## Data model and workflow
+
+### Status model
+
+Statuses are derived from task state—only one manual transition exists:
+
+| Status | Condition |
+|---|---|
+| `ready` | No blockers and no work started |
+| `in_progress` | Work has started or `need_fix` items exist |
+| `in_review` | All criteria, deliverables, and `need_fix` items are complete |
+| `completed` | Approved manually via `octie approve <task-id>` |
+| `blocked` | Unresolved blockers exist |
+
+```text
+ready → in_progress → in_review → completed
+  ↑         ↓             ↓
+  └── blocked ←───────────┘
+```
+
+The only manual step: `in_review → completed`.
+
+### Task requirements enforced by code
+
+| Field | Rule |
+|---|---|
+| `title` | Required, max 200 chars; ASCII titles ≥ 10 chars, must contain an action verb |
+| `description` | Required, 50–10,000 chars |
+| `success_criteria` | Required, 1–10 items, must be quantitative (no subjective words) |
+| `deliverables` | Required, 1–10 items, must be specific (file paths or concrete outputs) |
+| `priority` | `top` \| `second` (default) \| `later` |
+| `need_fix` | Optional, but blocks review until resolved |
+| `blockers` + `dependency-explanation` | Paired feature—both required together |
 
 ### Storage layout
 
@@ -178,38 +139,6 @@ Octie projects are stored inside the target working directory:
 |-- indexes/                  # Pre-computed indexes
 `-- cache/                    # Serialized graph cache
 ```
-
-### Status model
-
-Statuses are derived from task state:
-
-- `ready`: no blockers and no work started
-- `blocked`: unresolved blockers exist
-- `in_progress`: work has started or `need_fix` items exist
-- `in_review`: all criteria, deliverables, and `need_fix` items are complete
-- `completed`: approved manually
-
-Only one manual transition exists:
-
-```text
-in_review -> completed
-```
-
-That transition is performed with:
-
-```bash
-octie approve <task-id>
-```
-
-### Task requirements enforced by code
-
-- `title`: required, max 200 chars; ASCII titles must be >= 10 chars and contain an action verb
-- `description`: required, 50-10000 chars
-- `success_criteria`: required, 1-10, must be quantitative (no subjective words)
-- `deliverables`: required, 1-10, must be specific (file paths or concrete outputs)
-- `priority`: `top` | `second` (default) | `later`
-- `need_fix`: optional, but blocks review until resolved
-- `blockers` + `dependency-explanation`: treated as a paired feature (both required together)
 
 ## Active CLI surface
 
@@ -234,7 +163,7 @@ These commands are registered in the current CLI:
 | `import` | Import JSON or Markdown, optionally merging |
 | `serve` | Start the web server and UI |
 
-Examples for the newer workflow commands:
+Examples:
 
 ```bash
 octie history list
@@ -248,9 +177,21 @@ octie handoff create \
   --deliverable "parent handoff gate record"
 ```
 
+Run any command with these flags to print built-in workflow guides:
+
+```bash
+octie --right-way-to-form-tasks
+octie --right-way-to-manage-dependencies
+octie --right-way-to-find-work
+octie --right-way-to-review-and-approve
+octie --right-way-to-refine-tasks
+octie --right-way-to-use-notes-and-files
+octie --right-way-to-create-subtask-handoff
+```
+
 ## Web UI and API
 
-### UI behavior that is actually present
+### UI features
 
 - Multi-project home page driven by the global registry
 - Sidebar project switching
@@ -260,13 +201,11 @@ octie handoff create \
 - Project stats bar
 - Theme toggle and keyboard shortcuts
 
-### UI behavior currently not exposed
+A list-view UI exists in code but is commented out in `web-ui/src/App.tsx`.
 
-- A list-view UI exists in code, but it is commented out in `web-ui/src/App.tsx`
+### API
 
-### Read-oriented API endpoints
-
-The current server reliably exposes read and analysis endpoints such as:
+The server exposes read and analysis endpoints:
 
 - `GET /health`
 - `GET /api`
@@ -281,16 +220,29 @@ The current server reliably exposes read and analysis endpoints such as:
 - `GET /api/graph/critical-path`
 - `GET /api/stats`
 
-There are also task mutation routes in the codebase (`POST/PUT/DELETE /api/tasks...`), but the current implementation mutates loaded graph objects without writing them back through storage. In practice, the CLI is the authoritative write path today.
+Task mutation routes exist (`POST/PUT/DELETE /api/tasks...`) but mutate in-memory objects without persisting through storage. The CLI is the authoritative write path.
 
-## Development
+## Tech stack
 
-From `octie/`:
+- **CLI/core**: TypeScript, Commander, Express, Zod, UUID
+- **UI**: React 19, Vite, Zustand, Tailwind CSS 4, React Flow / XYFlow, Dagre
+- **Testing**: Vitest, Supertest
+
+## Installation & development
+
+### Global package
 
 ```bash
+npm install -g octie-cli
+```
+
+### Local development
+
+```bash
+cd octie
 npm install
 npm run build
-npm test
+node bin/octie.js --help
 ```
 
 Other useful commands:
@@ -302,7 +254,41 @@ npm run bench
 npm run serve
 ```
 
-Relevant docs in the package directory:
+## Repository layout
+
+```text
+octie/
+|-- README.md
+|-- LICENSE                     # MIT
+|-- NOTICE                      # Third-party attributions
+|-- .gitignore
+|-- Octie-Banner.jpg
+`-- octie/                      # CLI, core graph logic, server, UI, tests
+```
+
+Inside `octie/`:
+
+```text
+octie/
+|-- bin/                        # CLI launcher
+|-- src/
+|   |-- cli/                    # Command definitions
+|   |-- core/                   # Graph, storage, registry, models
+|   `-- web/                    # Express server and routes
+|-- web-ui/                     # React 19 + Vite UI
+|-- tests/                      # Unit, integration, benchmark tests
+|-- test/                       # Graph-focused legacy tests
+|-- openapi.yaml
+|-- ARCHITECTURE.md
+|-- CHANGELOG.md
+|-- CONTRIBUTING.md
+|-- SECURITY.md
+|-- RELEASE.md
+|-- TROUBLESHOOTING.md
+`-- package.json
+```
+
+## Documentation
 
 - `ARCHITECTURE.md` — system design and data flow
 - `CONTRIBUTING.md` — contribution guidelines
@@ -312,24 +298,10 @@ Relevant docs in the package directory:
 - `TROUBLESHOOTING.md` — common issues and fixes
 - `openapi.yaml` — API specification
 
-### Guide flags
-
-Run any command with these flags to print built-in workflow guides:
-
-```bash
-octie --right-way-to-form-tasks
-octie --right-way-to-manage-dependencies
-octie --right-way-to-find-work
-octie --right-way-to-review-and-approve
-octie --right-way-to-refine-tasks
-octie --right-way-to-use-notes-and-files
-octie --right-way-to-create-subtask-handoff
-```
-
 ## Current caveats
 
-- The `batch` command source exists, but it is commented out in `src/cli/index.ts` and is not part of the active CLI.
-- The React UI is currently a browse-and-inspect surface centered on Kanban and Graph views.
+- The `batch` command source exists but is commented out in `src/cli/index.ts` and is not an active CLI command.
+- The React UI is a browse-and-inspect surface centered on Kanban and Graph views.
 - The CLI is more complete than the server-side write API and should be treated as the primary workflow surface.
 
 ## License
