@@ -70,6 +70,26 @@ function createProgram(): Command {
       writeOut: (str) => process.stdout.write(str),
     });
 
+  program.addHelpText(
+    'beforeAll',
+    '\n' +
+    '                              \n' +
+    '                              \n' +
+    '                              \n' +
+    '             rMMs             \n' +
+    '        ::,;is22si;,::        \n' +
+    '       iHH5,      ,2MMi       \n' +
+    '        rX          Xr        \n' +
+    '        :i          i:        \n' +
+    '       ;55s        s55;       \n' +
+    '       ,rri;:,;;,:;irr,       \n' +
+    '            .s33X.            \n' +
+    '              ,,              \n' +
+    '                              \n' +
+    '                              \n' +
+    '                              \n',
+  );
+
   // Global options
   program
     .option('--project <path>', 'Path to Octie project directory')
