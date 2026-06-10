@@ -1,6 +1,6 @@
 {
   "name": "octie-cli",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "A graph-based task management system with CLI and web UI for atomic, verifiable tasks",
   "main": "dist/core/index.js",
   "types": "dist/core/index.d.ts",
@@ -11,6 +11,8 @@
   "files": [
     "dist",
     "bin",
+    "!dist/**/*.js.map",
+    "!dist/**/*.d.ts.map",
     "README.md",
     "LICENSE"
   ],
