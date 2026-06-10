@@ -73,9 +73,9 @@ function createProgram(): Command {
   program.addHelpText(
     'beforeAll',
     '\n' +
-    '   ═══════════════════════════════════════\n' +
-    '   Welcome to Octie — graph-based task mgmt\n' +
-    '   ═══════════════════════════════════════\n' +
+    '   ═══════════════════════════════════════════════════\n' +
+    '   Welcome to Octie — State-oriented Agent Task mgmt System!!!\n' +
+    '   ═══════════════════════════════════════════════════\n' +
     '                              \n' +
     '             rMMs             \n' +
     '        ::,;is22si;,::        \n' +
