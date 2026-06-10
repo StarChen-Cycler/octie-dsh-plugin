@@ -73,8 +73,9 @@ function createProgram(): Command {
   program.addHelpText(
     'beforeAll',
     '\n' +
-    '                              \n' +
-    '                              \n' +
+    '   ═══════════════════════════════════════\n' +
+    '   Welcome to Octie — graph-based task mgmt\n' +
+    '   ═══════════════════════════════════════\n' +
     '                              \n' +
     '             rMMs             \n' +
     '        ::,;is22si;,::        \n' +
@@ -85,8 +86,6 @@ function createProgram(): Command {
     '       ,rri;:,;;,:;irr,       \n' +
     '            .s33X.            \n' +
     '              ,,              \n' +
-    '                              \n' +
-    '                              \n' +
     '                              \n',
   );
 
