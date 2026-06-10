@@ -33,6 +33,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "version": "node -e \"const{readFileSync,writeFileSync}=require('fs');const{version}=require('./package.json');const y=readFileSync('openapi.yaml','utf8');writeFileSync('openapi.yaml',y.replace(/version: \\d+\\.\\d+\\.\\d+/,`version: ${version}`))\" && git add openapi.yaml",
     "prepack": "npm run build",
     "prebuild": "npm run clean",
     "serve": "node dist/cli/index.js serve",
