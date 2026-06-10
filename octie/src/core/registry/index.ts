@@ -14,6 +14,7 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   renameSync,
   statSync,
@@ -116,13 +117,31 @@ function loadRegistryInternal(options: LoadRegistryOptions = {}): ProjectRegistr
     const content = readFileSync(registryPath, 'utf-8');
     const registry = JSON.parse(content) as ProjectRegistry;
 
-    // Ensure version compatibility
+    // Ensure version compatibility — preserve existing projects data
+    // even when the structure is unexpected (never silently discard data)
     if (!registry.version || !registry.projects) {
-      // Invalid registry, return empty
-      return {
+      const salvaged: ProjectRegistry = {
         version: REGISTRY_VERSION,
         projects: {},
       };
+
+      // Salvage: if the parsed object has a 'projects' field (even without version),
+      // preserve those entries instead of returning an empty registry
+      if (registry.projects && typeof registry.projects === 'object') {
+        salvaged.projects = registry.projects as Record<string, RegistryProject>;
+      } else if (!registry.version && !registry.projects) {
+        // Check if the parsed object itself looks like a projects map
+        // (old format without the version/projects wrapper)
+        const maybeProjects = registry as unknown as Record<string, unknown>;
+        const hasPathEntries = Object.values(maybeProjects).some(
+          (v) => v && typeof v === 'object' && (v as Record<string, unknown>).path,
+        );
+        if (hasPathEntries) {
+          salvaged.projects = maybeProjects as unknown as Record<string, RegistryProject>;
+        }
+      }
+
+      return salvaged;
     }
 
     return registry;
@@ -132,7 +151,8 @@ function loadRegistryInternal(options: LoadRegistryOptions = {}): ProjectRegistr
         ? error
         : new Error('Failed to parse global Octie registry');
     }
-    // Corrupted registry, return empty
+    // Corrupted or unreadable file — return empty only when the file is truly
+    // unparseable (this is the last resort; we already salvaged above)
     return {
       version: REGISTRY_VERSION,
       projects: {},
@@ -147,9 +167,49 @@ function loadRegistryInternal(options: LoadRegistryOptions = {}): ProjectRegistr
 export function saveRegistry(registry: ProjectRegistry): void {
   ensureRegistryDir();
   const registryPath = getGlobalRegistryPath();
+
+  // Safety guard: never overwrite a non-empty registry with an empty one.
+  // This prevents data loss when loadRegistryInternal() returned an empty
+  // registry due to corruption/unexpected structure and the empty result
+  // is being saved back. If the on-disk registry has projects and the new
+  // one has none, refuse to save.
+  if (Object.keys(registry.projects).length === 0 && existsSync(registryPath)) {
+    try {
+      const existingContent = readFileSync(registryPath, 'utf-8');
+      const existing = JSON.parse(existingContent) as ProjectRegistry;
+      if (existing.projects && Object.keys(existing.projects).length > 0) {
+        // Existing registry has data but we're about to save empty — refuse
+        return;
+      }
+    } catch {
+      // Can't read existing file — proceed with save (file may be corrupted)
+    }
+  }
+
   const tempPath = `${registryPath}.${process.pid}.${Date.now()}.tmp`;
   writeFileSync(tempPath, JSON.stringify(registry, null, 2), 'utf-8');
   renameSync(tempPath, registryPath);
+
+  // Clean up stale .tmp files older than 1 hour
+  try {
+    const files = readdirSync(getRegistryDirPath());
+    const now = Date.now();
+    for (const file of files) {
+      if (file.endsWith('.tmp')) {
+        const tmpPath = join(getRegistryDirPath(), file);
+        try {
+          const stats = statSync(tmpPath);
+          if (now - stats.mtimeMs > 3600000) {
+            unlinkSync(tmpPath);
+          }
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    }
+  } catch {
+    // Ignore directory read errors
+  }
 }
 
 function sleepSync(ms: number): void {
