@@ -14,51 +14,7 @@ import {
   saveRegistry,
   type RegistryProject,
 } from '../../core/registry/index.js';
-import { ERROR_SUGGESTIONS } from '../../types/index.js';
-import type { ApiResponse } from '../server.js';
-
-/**
- * Async error handler wrapper
- */
-function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
-  return (req: Request, res: Response, next: (err?: Error) => void) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
-}
-
-/**
- * Send successful API response
- */
-function sendSuccess<T>(res: Response, data: T, status: number = 200): void {
-  res.status(status).json({
-    success: true,
-    data,
-    timestamp: new Date().toISOString(),
-  } satisfies ApiResponse<T>);
-}
-
-/**
- * Send error API response
- */
-function sendError(
-  res: Response,
-  code: string,
-  message: string,
-  status: number = 400,
-  details?: unknown,
-  suggestion?: string
-): void {
-  res.status(status).json({
-    success: false,
-    error: {
-      code,
-      message,
-      suggestion: suggestion ?? ERROR_SUGGESTIONS[code],
-      details,
-    },
-    timestamp: new Date().toISOString(),
-  } satisfies ApiResponse);
-}
+import { asyncHandler, sendSuccess, sendError } from '../utils/route-helpers.js';
 
 /**
  * Extended project info with existence check

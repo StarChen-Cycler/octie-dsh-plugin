@@ -12,52 +12,7 @@ import type { TaskGraphStore } from '../../core/graph/index.js';
 import { topologicalSort, findCriticalPath, isValidDAG } from '../../core/graph/sort.js';
 import { detectCycle, hasCycle, getCycleStatistics } from '../../core/graph/cycle.js';
 import { TaskStorage } from '../../core/storage/file-store.js';
-import { ERROR_SUGGESTIONS } from '../../types/index.js';
-import type { ApiResponse } from '../server.js';
-
-/**
- * Async error handler wrapper
- * Catches async errors and passes them to Express error handling
- */
-function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
-  return (req: Request, res: Response, next: (err?: Error) => void) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
-}
-
-/**
- * Send successful API response
- */
-function sendSuccess<T>(res: Response, data: T, status: number = 200): void {
-  res.status(status).json({
-    success: true,
-    data,
-    timestamp: new Date().toISOString(),
-  } satisfies ApiResponse<T>);
-}
-
-/**
- * Send error API response
- */
-function sendError(
-  res: Response,
-  code: string,
-  message: string,
-  status: number = 400,
-  details?: unknown,
-  suggestion?: string
-): void {
-  res.status(status).json({
-    success: false,
-    error: {
-      code,
-      message,
-      suggestion: suggestion ?? ERROR_SUGGESTIONS[code],
-      details,
-    },
-    timestamp: new Date().toISOString(),
-  } satisfies ApiResponse);
-}
+import { asyncHandler, sendSuccess, sendError, getProjectPath } from '../utils/route-helpers.js';
 
 /**
  * Register graph routes
@@ -106,14 +61,6 @@ export function registerGraphRoutes(
     } catch {
       return null;
     }
-  }
-
-  /**
-   * Extract project path from query params
-   */
-  function getProjectPath(req: Request): string | undefined {
-    const project = req.query.project;
-    return typeof project === 'string' ? project : undefined;
   }
 
   /**

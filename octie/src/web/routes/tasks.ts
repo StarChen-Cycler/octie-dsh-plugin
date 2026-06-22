@@ -10,11 +10,11 @@
 import type { Request, Response, Router } from 'express';
 import { z } from 'zod';
 import type { TaskGraphStore } from '../../core/graph/index.js';
-import { TaskNotFoundError, CircularDependencyError, ValidationError, AtomicTaskViolationError, AmbiguousIdError, ERROR_SUGGESTIONS } from '../../types/index.js';
+import { TaskNotFoundError, CircularDependencyError, ValidationError, AtomicTaskViolationError, AmbiguousIdError } from '../../types/index.js';
 import { TaskNode } from '../../core/models/task-node.js';
 import { TaskStorage } from '../../core/storage/file-store.js';
 import { v4 as uuidv4 } from 'uuid';
-import type { ApiResponse } from '../server.js';
+import { asyncHandler, sendSuccess, sendError, getProjectPath } from '../utils/route-helpers.js';
 
 /**
  * Zod schema for task creation validation
@@ -100,50 +100,6 @@ const TaskQuerySchema = z.object({
 });
 
 /**
- * Async error handler wrapper
- * Catches async errors and passes them to Express error handling
- */
-function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
-  return (req: Request, res: Response, next: (err?: Error) => void) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
-}
-
-/**
- * Send successful API response
- */
-function sendSuccess<T>(res: Response, data: T, status: number = 200): void {
-  res.status(status).json({
-    success: true,
-    data,
-    timestamp: new Date().toISOString(),
-  } satisfies ApiResponse<T>);
-}
-
-/**
- * Send error API response
- */
-function sendError(
-  res: Response,
-  code: string,
-  message: string,
-  status: number = 400,
-  details?: unknown,
-  suggestion?: string
-): void {
-  res.status(status).json({
-    success: false,
-    error: {
-      code,
-      message,
-      suggestion: suggestion ?? ERROR_SUGGESTIONS[code],
-      details,
-    },
-    timestamp: new Date().toISOString(),
-  } satisfies ApiResponse);
-}
-
-/**
  * Register task routes
  * @param router - Express Router instance
  * @param getGraph - Function to get the current graph instance
@@ -190,14 +146,7 @@ export function registerTaskRoutes(
     } catch {
       return null;
     }
-  }
 
-  /**
-   * Extract project path from query params
-   */
-  function getProjectPath(req: Request): string | undefined {
-    const project = req.query.project;
-    return typeof project === 'string' ? project : undefined;
   }
 
   /**
