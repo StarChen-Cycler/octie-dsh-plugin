@@ -370,9 +370,16 @@ export function validateAtomicTask(taskData: {
   }
 
   // Check if criteria are quantitative
+  // Tokenize and prefix-match to avoid substring false positives.
+  // e.g., "nuclear" contains "clear" → NOT flagged (prefix doesn't match)
+  //       "properly" starts with "proper" → flagged (vague)
   const hasVagueCriteria = taskData.success_criteria.some(criterion => {
     const textLower = criterion.text.toLowerCase();
-    return SUBJECTIVE_WORDS.some(word => textLower.includes(word));
+    // Split into word tokens (sequences of letters)
+    const tokens = textLower.match(/[a-z]+/g) || [];
+    return tokens.some(token =>
+      SUBJECTIVE_WORDS.some(word => token.startsWith(word))
+    );
   });
 
   if (hasVagueCriteria) {
