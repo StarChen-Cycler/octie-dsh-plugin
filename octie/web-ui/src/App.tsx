@@ -112,6 +112,21 @@ function App() {
     }
   }, [currentProjectPath, fetchTasks, fetchGraph, fetchStats])
 
+  // SSE auto-refresh — listen for file change events from server
+  useEffect(() => {
+    if (!currentProjectPath) return;
+
+    const es = new EventSource('/api/events');
+
+    es.addEventListener('refresh', () => {
+      fetchTasks();
+      fetchGraph();
+      fetchStats();
+    });
+
+    return () => es.close();
+  }, [currentProjectPath, fetchTasks, fetchGraph, fetchStats]);
+
   const handleRefresh = useCallback(() => {
     fetchProjects()
     fetchTasks()
