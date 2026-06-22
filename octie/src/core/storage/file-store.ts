@@ -320,8 +320,9 @@ export class TaskStorage {
 
     // Use Object.create(null) to avoid prototype pollution
     // (e.g., token "constructor" would conflict with Object.prototype.constructor)
-    const searchText: Record<string, string[]> = Object.create(null);
-    const files: Record<string, string[]> = Object.create(null);
+    // Use Sets during building for O(1) dedup, convert to arrays at end
+    const searchTextSets: Record<string, Set<string>> = Object.create(null);
+    const filesSets: Record<string, Set<string>> = Object.create(null);
 
     // Build indexes from all tasks
     for (const task of graph.getAllTasks()) {
@@ -331,27 +332,33 @@ export class TaskStorage {
       // Priority index
       byPriority[task.priority]?.push(task.id);
 
-      // Full-text search index (tokenize and index)
+      // Full-text search index (tokenize and index with Set-based dedup)
       const text = `${task.title} ${task.description} ${task.notes}`.toLowerCase();
       const tokens = text.match(/\b\w+\b/g) || [];
       for (const token of tokens) {
-        if (!searchText[token]) {
-          searchText[token] = [];
+        if (!searchTextSets[token]) {
+          searchTextSets[token] = new Set();
         }
-        if (!searchText[token].includes(task.id)) {
-          searchText[token].push(task.id);
-        }
+        searchTextSets[token].add(task.id);
       }
 
-      // File reference index
+      // File reference index (Set-based dedup)
       for (const filePath of task.related_files) {
-        if (!files[filePath]) {
-          files[filePath] = [];
+        if (!filesSets[filePath]) {
+          filesSets[filePath] = new Set();
         }
-        if (!files[filePath].includes(task.id)) {
-          files[filePath].push(task.id);
-        }
+        filesSets[filePath].add(task.id);
       }
+    }
+
+    // Convert Sets to arrays for JSON serialization
+    const searchText: Record<string, string[]> = Object.create(null);
+    for (const token of Object.keys(searchTextSets)) {
+      searchText[token] = Array.from(searchTextSets[token]!);
+    }
+    const files: Record<string, string[]> = Object.create(null);
+    for (const filePath of Object.keys(filesSets)) {
+      files[filePath] = Array.from(filesSets[filePath]!);
     }
 
     // Get root and orphan tasks
