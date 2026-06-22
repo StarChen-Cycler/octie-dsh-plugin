@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Octie Task Panels</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #050508;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .panels {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+    perspective: 1200px;
+    perspective-origin: 50% 50%;
+  }
+
+  /* ── 3D wrapper per panel ── */
+  .panel-3d {
+    width: 280px;
+    transform-style: preserve-3d;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .panel-3d:nth-child(1) { transform: rotateY(6deg)  rotateX(3deg); }
+  .panel-3d:nth-child(2) { transform: rotateY(3deg)  rotateX(2deg); }
+  .panel-3d:nth-child(3) { transform: rotateY(0deg)  rotateX(0deg); }
+  .panel-3d:nth-child(4) { transform: rotateY(-3deg) rotateX(2deg); }
+  .panel-3d:nth-child(5) { transform: rotateY(-6deg) rotateX(3deg); }
+
+  .panel-3d:hover {
+    transform: rotateY(0deg) rotateX(-5deg) translateZ(30px) !important;
+  }
+
+  /* ── Task panel card ── */
+  .task-panel {
+    background: #21262d;
+    border: 2px solid;
+    border-radius: 8px;
+    padding: 8px 16px;
+    position: relative;
+    transform-style: preserve-3d;
+  }
+
+  .task-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    z-index: -1;
+    transform: translateZ(-4px) translateY(4px);
+    opacity: 0.3;
+    pointer-events: none;
+  }
+  .task-panel.ready::after       { background: #ff9f1c; }
+  .task-panel.in_progress::after { background: #00d4ff; }
+  .task-panel.in_review::after   { background: #a78bfa; }
+  .task-panel.completed::after   { background: #10b981; }
+  .task-panel.blocked::after     { background: #f43f5e; }
+
+  /* ── Panel glow by status ── */
+  .task-panel.ready       { border-color: #ff9f1c; }
+  .task-panel.in_progress { border-color: #00d4ff; }
+  .task-panel.in_review   { border-color: #a78bfa; }
+  .task-panel.completed   { border-color: #10b981; }
+  .task-panel.blocked     { border-color: #f43f5e; }
+
+  /* ── Pulse glow per status ── */
+  @keyframes pulse-ready {
+    0%, 100% { box-shadow: 0 0 5px  rgba(255, 159, 28, 0.3); }
+    50%      { box-shadow: 0 0 20px rgba(255, 159, 28, 0.5), 0 0 40px rgba(255, 159, 28, 0.2); }
+  }
+  @keyframes pulse-in-progress {
+    0%, 100% { box-shadow: 0 0 5px  rgba(0, 212, 255, 0.3); }
+    50%      { box-shadow: 0 0 20px rgba(0, 212, 255, 0.5), 0 0 40px rgba(0, 212, 255, 0.2); }
+  }
+  @keyframes pulse-in-review {
+    0%, 100% { box-shadow: 0 0 5px  rgba(167, 139, 250, 0.3); }
+    50%      { box-shadow: 0 0 20px rgba(167, 139, 250, 0.5), 0 0 40px rgba(167, 139, 250, 0.2); }
+  }
+  @keyframes pulse-completed {
+    0%, 100% { box-shadow: 0 0 5px  rgba(16, 185, 129, 0.3); }
+    50%      { box-shadow: 0 0 20px rgba(16, 185, 129, 0.5), 0 0 40px rgba(16, 185, 129, 0.2); }
+  }
+  @keyframes pulse-blocked {
+    0%, 100% { box-shadow: 0 0 5px  rgba(244, 63, 94, 0.3); }
+    50%      { box-shadow: 0 0 20px rgba(244, 63, 94, 0.5), 0 0 40px rgba(244, 63, 94, 0.2); }
+  }
+
+  .task-panel.ready       { animation: pulse-ready       2.5s ease-in-out infinite; }
+  .task-panel.in_progress { animation: pulse-in-progress 2.5s ease-in-out infinite; }
+  .task-panel.in_review   { animation: pulse-in-review   2.5s ease-in-out infinite; }
+  .task-panel.completed   { animation: pulse-completed   2.5s ease-in-out infinite; }
+  .task-panel.blocked     { animation: pulse-blocked     2.5s ease-in-out infinite; }
+
+  .task-panel:hover {
+    animation: none !important;
+  }
+  .task-panel.ready:hover       { box-shadow: 0 0 15px rgba(255, 159, 28, 0.6), 0 0 35px rgba(255, 159, 28, 0.3); }
+  .task-panel.in_progress:hover { box-shadow: 0 0 15px rgba(0, 212, 255, 0.6), 0 0 35px rgba(0, 212, 255, 0.3); }
+  .task-panel.in_review:hover   { box-shadow: 0 0 15px rgba(167, 139, 250, 0.6), 0 0 35px rgba(167, 139, 250, 0.3); }
+  .task-panel.completed:hover   { box-shadow: 0 0 15px rgba(16, 185, 129, 0.6), 0 0 35px rgba(16, 185, 129, 0.3); }
+  .task-panel.blocked:hover     { box-shadow: 0 0 15px rgba(244, 63, 94, 0.6), 0 0 35px rgba(244, 63, 94, 0.3); }
+
+  /* ── Handle dots ── */
+  .handle {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #00d4ff;
+    border: 2px solid #fff;
+    box-shadow: 0 0 6px rgba(0, 212, 255, 0.7), 0 0 14px rgba(0, 212, 255, 0.3);
+  }
+  .handle-top    { top:    -6px; }
+  .handle-bottom { bottom: -6px; }
+
+  /* ── Internal layout ── */
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .panel-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f0f6fc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .panel-badge {
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    flex-shrink: 0;
+    color: #fff;
+  }
+  .panel-badge.top    { background: #f43f5e; }
+  .panel-badge.second { background: #ff9f1c; }
+  .panel-badge.later  { background: #0d1117; color: #484f58; }
+
+  .panel-desc {
+    font-size: 12px;
+    color: #8b949e;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+
+  .panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #484f58;
+  }
+
+  .panel-footer .status-label {
+    text-transform: capitalize;
+  }
+</style>
+</head>
+<body>
+
+<div class="panels">
+
+  <!-- ready -->
+  <div class="panel-3d">
+    <div class="task-panel ready">
+      <div class="handle handle-top"></div>
+      <div class="panel-header">
+        <h3 class="panel-title">Set up authentication middleware</h3>
+        <span class="panel-badge top">top</span>
+      </div>
+      <p class="panel-desc">Add JWT auth middleware to protect API routes, verify tokens on each request, and return 401 for invalid credentials.</p>
+      <div class="panel-footer">
+        <span class="status-label">ready</span>
+        <span>0/4</span>
+      </div>
+      <div class="handle handle-bottom"></div>
+    </div>
+  </div>
+
+  <!-- in_progress -->
+  <div class="panel-3d">
+    <div class="task-panel in_progress">
+      <div class="handle handle-top"></div>
+      <div class="panel-header">
+        <h3 class="panel-title">Build user registration endpoint</h3>
+        <span class="panel-badge top">top</span>
+      </div>
+      <p class="panel-desc">Create POST /register endpoint with input validation, password hashing, and email verification flow integration.</p>
+      <div class="panel-footer">
+        <span class="status-label">in progress</span>
+        <span>1/3</span>
+      </div>
+      <div class="handle handle-bottom"></div>
+    </div>
+  </div>
+
+  <!-- in_review -->
+  <div class="panel-3d">
+    <div class="task-panel in_review">
+      <div class="handle handle-top"></div>
+      <div class="panel-header">
+        <h3 class="panel-title">Implement database migration scripts</h3>
+        <span class="panel-badge second">second</span>
+      </div>
+      <p class="panel-desc">Write migration scripts for adding new user profile fields. Include rollback scripts and validate against staging DB.</p>
+      <div class="panel-footer">
+        <span class="status-label">in review</span>
+        <span>3/3</span>
+      </div>
+      <div class="handle handle-bottom"></div>
+    </div>
+  </div>
+
+  <!-- completed -->
+  <div class="panel-3d">
+    <div class="task-panel completed">
+      <div class="handle handle-top"></div>
+      <div class="panel-header">
+        <h3 class="panel-title">Add health check endpoint</h3>
+        <span class="panel-badge later">later</span>
+      </div>
+      <p class="panel-desc">Simple GET /health returning service status, DB connectivity, and uptime. Already deployed to staging.</p>
+      <div class="panel-footer">
+        <span class="status-label">completed</span>
+        <span>2/2</span>
+      </div>
+      <div class="handle handle-bottom"></div>
+    </div>
+  </div>
+
+  <!-- blocked -->
+  <div class="panel-3d">
+    <div class="task-panel blocked">
+      <div class="handle handle-top"></div>
+      <div class="panel-header">
+        <h3 class="panel-title">Deploy CI/CD pipeline</h3>
+        <span class="panel-badge top">top</span>
+      </div>
+      <p class="panel-desc">Set up GitHub Actions workflow for automated testing, linting, and deployment. Blocked pending AWS IAM role creation.</p>
+      <div class="panel-footer">
+        <span class="status-label">blocked</span>
+        <span>0/4</span>
+      </div>
+      <div class="handle handle-bottom"></div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

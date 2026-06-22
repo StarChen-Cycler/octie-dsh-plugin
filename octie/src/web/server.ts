@@ -452,8 +452,12 @@ export class WebServer {
           let debounceTimer: ReturnType<typeof setTimeout> | null = null;
           this._fsWatcher = watch(projectFile, (_eventType) => {
             if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              // Invalidate graph caches so next request loads fresh data
+            debounceTimer = setTimeout(async () => {
+              // Reload the server's own graph instance from disk
+              try {
+                this._graph = await this._storage.load();
+              } catch { /* keep stale if load fails */ }
+              // Invalidate route-level caches so next request loads fresh data
               for (const clearer of this._graphCacheClearers) {
                 clearer(this._projectPath);
               }

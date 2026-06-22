@@ -88,7 +88,10 @@ function App() {
     return result;
   }, [tasks, filterStatus, filterPriority, searchQuery]);
 
-  // Initialize project from URL on mount
+  // Initialize project from URL on mount or auto-select first available
+  const projectFromUrl = useMemo(() => getProjectFromUrl(), [getProjectFromUrl]);
+  const projects = useProjectStore((s) => s.projects);
+
   useEffect(() => {
     const projectFromUrl = getProjectFromUrl()
     if (projectFromUrl) {
@@ -96,14 +99,22 @@ function App() {
     }
     // Fetch project list on initial load
     fetchProjects()
-  }, [getProjectFromUrl, setCurrentProject, fetchProjects])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-select first project when none specified (no URL param, projects loaded)
+  useEffect(() => {
+    if (!currentProjectPath && !projectFromUrl && projects.length > 0) {
+      setCurrentProject(projects[0].path)
+    }
+  }, [currentProjectPath, projectFromUrl, projects, setCurrentProject])
 
   // Sync project path to task store when it changes
   useEffect(() => {
     setCurrentProjectPath(currentProjectPath)
   }, [currentProjectPath, setCurrentProjectPath])
 
-  // Fetch data when project changes
+  // Fetch data when project changes (passes ?project= automatically via buildUrl)
   useEffect(() => {
     if (currentProjectPath) {
       fetchTasks()
