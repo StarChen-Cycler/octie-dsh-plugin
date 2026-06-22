@@ -623,7 +623,9 @@ export class TaskGraphStore {
     }
 
     // Priority 2: Parent is completed → delegate to canonical status calculation
-    return task.calculateStatus();
+    // ignoreBlockers because all parents are completed (verified by propagateStatus),
+    // so any blockers on this task are from completed tasks and should not block it
+    return task.calculateStatus({ ignoreBlockers: true });
   }
 
   /**

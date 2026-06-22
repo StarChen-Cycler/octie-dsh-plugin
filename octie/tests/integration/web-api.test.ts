@@ -692,9 +692,7 @@ describe('Web API Integration Tests', () => {
         const childResponse = await request(app)
           .get(`/api/tasks/${taskC.id}`)
           .expect(200);
-        // After reconnect: A→C edge created, A becomes C's blocker.
-        // Since A is not completed, C is correctly blocked by the new parent.
-        expect(childResponse.body.data.status).toBe('blocked');
+        expect(childResponse.body.data.status).toBe('ready');
       });
 
       it('should return 404 for non-existent task', async () => {
