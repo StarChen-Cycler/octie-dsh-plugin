@@ -107,7 +107,8 @@ const TaskQuerySchema = z.object({
 export function registerTaskRoutes(
   router: Router,
   getGraph: () => TaskGraphStore | null,
-  saveGraph?: (graph: TaskGraphStore) => Promise<void>
+  saveGraph?: (graph: TaskGraphStore) => Promise<void>,
+  broadcastRefresh?: () => void
 ): { clearCache: (projectPath?: string) => void } {
   // Cache for loaded project graphs
   const graphCache = new Map<string, TaskGraphStore>();
@@ -604,6 +605,8 @@ export function registerTaskRoutes(
   router.post('/api/cache/invalidate', asyncHandler(async (req: Request, res: Response) => {
     const projectPath = getProjectPath(req);
     clearCache(projectPath);
+    // Broadcast SSE refresh so frontend re-fetches
+    if (broadcastRefresh) broadcastRefresh();
     return sendSuccess(res, { invalidated: true, projectPath: projectPath || null });
   }));
 

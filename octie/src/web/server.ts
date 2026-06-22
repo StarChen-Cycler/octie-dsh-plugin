@@ -285,7 +285,8 @@ export class WebServer {
       () => this._graph,
       async (graph) => {
         if (graph) await this._storage.save(graph);
-      }
+      },
+      () => this._sseBroadcast?.('refresh')
     );
 
     // Register graph routes
