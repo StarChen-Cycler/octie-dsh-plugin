@@ -11,7 +11,8 @@ import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import type { Server as HttpServer } from 'node:http';
 import { createServer as httpCreateServer } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
+import type { FSWatcher } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TaskStorage } from '../core/storage/file-store.js';
@@ -19,6 +20,7 @@ import type { TaskGraphStore } from '../core/graph/index.js';
 import { registerTaskRoutes } from './routes/tasks.js';
 import { registerGraphRoutes } from './routes/graph.js';
 import { registerProjectsRoutes } from './routes/projects.js';
+import { registerEventsRoutes, type SseBroadcast } from './routes/events.js';
 import { OctieError, ERROR_SUGGESTIONS } from '../types/index.js';
 import { ZodError } from 'zod';
 
@@ -78,6 +80,9 @@ export class WebServer {
   private _storage: TaskStorage;
   private _graph: TaskGraphStore | null = null;
   private _shuttingDown = false;
+  private _fsWatcher: FSWatcher | null = null;
+  private _sseBroadcast: SseBroadcast | null = null;
+  private _graphCacheClearers: Array<(projectPath?: string) => void> = [];
 
   /**
    * Create a new WebServer instance
@@ -241,6 +246,7 @@ export class WebServer {
             tasks: 'GET /api/tasks, POST /api/tasks, GET /api/tasks/:id, PUT /api/tasks/:id, DELETE /api/tasks/:id, POST /api/tasks/:id/merge',
             graph: 'GET /api/graph, GET /api/graph/topology, POST /api/graph/validate, GET /api/graph/cycles, GET /api/graph/critical-path',
             stats: 'GET /api/stats',
+            events: 'GET /api/events (SSE auto-refresh)',
           },
         },
         timestamp: new Date().toISOString(),
@@ -274,19 +280,25 @@ export class WebServer {
     });
 
     // Register task routes
-    registerTaskRoutes(
+    const { clearCache: clearTaskCache } = registerTaskRoutes(
       this._app,
       () => this._graph
     );
 
     // Register graph routes
-    registerGraphRoutes(
+    const { clearCache: clearGraphCache } = registerGraphRoutes(
       this._app,
       () => this._graph
     );
 
+    // Store cache clearers for fs.watch cache invalidation
+    this._graphCacheClearers = [clearTaskCache, clearGraphCache];
+
     // Register projects routes (global registry)
     registerProjectsRoutes(this._app);
+
+    // Register SSE events route (auto-refresh for web UI)
+    this._sseBroadcast = registerEventsRoutes(this._app);
 
     // 404 handler for unmatched routes
     this._app.use((req: Request, res: Response) => {
@@ -430,6 +442,26 @@ export class WebServer {
         console.log(`🔗 URL: ${url}`);
         console.log(`📊 API: ${url}/api`);
         console.log(`\nPress Ctrl+C to stop\n`);
+
+        // Start file watcher for auto-refresh via SSE
+        const projectFile = this._storage.projectFilePath;
+        if (existsSync(projectFile)) {
+          let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+          this._fsWatcher = watch(projectFile, (_eventType) => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+              // Invalidate graph caches so next request loads fresh data
+              for (const clearer of this._graphCacheClearers) {
+                clearer(this._projectPath);
+              }
+              if (this._sseBroadcast) {
+                this._sseBroadcast('refresh');
+              }
+            }, 200);
+          });
+          console.log(`👁️  Watching: ${projectFile} for auto-refresh\n`);
+        }
+
         resolve();
       });
     });
@@ -440,6 +472,11 @@ export class WebServer {
    * @returns Promise that resolves when server is closed
    */
   async stop(): Promise<void> {
+    if (this._fsWatcher) {
+      await this._fsWatcher.close();
+      this._fsWatcher = null;
+    }
+
     if (!this._server) {
       return;
     }

@@ -153,7 +153,7 @@ function sendError(
 export function registerTaskRoutes(
   router: Router,
   getGraph: () => TaskGraphStore | null
-): void {
+): { clearCache: (projectPath?: string) => void } {
   // Cache for loaded project graphs
   const graphCache = new Map<string, TaskGraphStore>();
 
@@ -161,32 +161,33 @@ export function registerTaskRoutes(
    * Clear graph cache for a project (or all if no path)
    */
   function clearCache(projectPath?: string): void {
-    console.log('[CACHE] clearCache called, projectPath:', projectPath);
     if (projectPath) {
-      const deleted = graphCache.delete(projectPath);
-      console.log('[CACHE] Deleted from tasks cache:', deleted, 'Remaining:', graphCache.size);
+      graphCache.delete(projectPath);
     } else {
       graphCache.clear();
-      console.log('[CACHE] Cleared all tasks cache');
     }
   }
 
-  // Export for use by other routes and CLI
-  (globalThis as unknown as { __octieClearGraphCache: typeof clearCache }).__octieClearGraphCache = clearCache;
-
   /**
-   * Get graph for a specific project path - always load fresh from file
-   * Disabled caching to ensure fresh data after CLI modifications
+   * Get graph for a specific project path — uses in-memory cache
+   * Cache is invalidated via clearCache() called by fs.watch or CLI HTTP request
    */
   async function getProjectGraph(projectPath: string | undefined): Promise<TaskGraphStore | null> {
     if (!projectPath) {
       return getGraph();
     }
 
-    // Always load fresh from file - no caching
+    // Check cache first
+    const cached = graphCache.get(projectPath);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss — load from disk
     try {
       const storage = new TaskStorage({ projectDir: projectPath });
       const graph = await storage.load();
+      graphCache.set(projectPath, graph);
       return graph;
     } catch {
       return null;
@@ -627,4 +628,6 @@ export function registerTaskRoutes(
     clearCache(projectPath);
     return sendSuccess(res, { invalidated: true, projectPath: projectPath || null });
   }));
+
+  return { clearCache };
 }
