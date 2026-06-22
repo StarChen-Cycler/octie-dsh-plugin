@@ -28,7 +28,7 @@ export type TaskPriority = 'top' | 'second' | 'later';
  * Edge type enumeration for graph relationships
  * Defines the nature of connections between tasks
  */
-export type EdgeType = 'blocks' | 'depends_on' | 'parent_of' | 'related_to';
+export type EdgeType = 'blocks';
 
 /**
  * Success criterion for task completion validation

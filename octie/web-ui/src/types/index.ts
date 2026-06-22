@@ -1,7 +1,7 @@
 // Task types matching the backend API
 export type TaskStatus = 'ready' | 'in_progress' | 'in_review' | 'completed' | 'blocked';
 export type TaskPriority = 'top' | 'second' | 'later';
-export type EdgeType = 'blocks' | 'depends_on' | 'parent_of' | 'related_to';
+export type EdgeType = 'blocks';
 
 export interface SuccessCriterion {
   id: string;
