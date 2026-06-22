@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import { getProjectPath, loadGraph, saveGraph, success, error, info } from '../utils/helpers.js';
+import { invalidateProjectCache } from './shared-helpers.js';
 import chalk from 'chalk';
 import { detectCycle, validateReferences } from '../../core/graph/cycle.js';
 import { topologicalSort } from '../../core/graph/sort.js';
@@ -130,6 +131,7 @@ Example:
           }
           // Save the graph after fixing
           await saveGraph(projectPath, graph);
+          await invalidateProjectCache(projectPath);
           success(`Removed ${fixedCount} invalid blocker reference(s), graph is now valid`);
           process.exit(0);
         }

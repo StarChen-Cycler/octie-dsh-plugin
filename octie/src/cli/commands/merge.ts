@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import { getProjectPath, loadGraph, saveGraph, success, error, info, confirmPrompt } from '../utils/helpers.js';
+import { invalidateProjectCache } from './shared-helpers.js';
 import chalk from 'chalk';
 import { mergeTasks } from '../../core/graph/operations.js';
 
@@ -109,6 +110,7 @@ Warning:
 
       // Save
       await saveGraph(projectPath, graph);
+      await invalidateProjectCache(projectPath);
 
       success(`Tasks merged`);
       info(`Source deleted: ${chalk.cyan(fullSourceId.substring(0, 8))}`);

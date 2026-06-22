@@ -10,6 +10,7 @@
 
 import { Command } from 'commander';
 import { getProjectPath, loadGraph, saveGraph, success, error, info } from '../utils/helpers.js';
+import { invalidateProjectCache } from './shared-helpers.js';
 import chalk from 'chalk';
 
 /**
@@ -133,6 +134,7 @@ export const wireCommand = new Command('wire')
 
       // Step 5: Save
       await saveGraph(projectPath, graph);
+      await invalidateProjectCache(projectPath);
 
       // Success message
       success(`Wired ${chalk.cyan(bId)} between ${chalk.cyan(aId)} and ${chalk.cyan(cId)}`);

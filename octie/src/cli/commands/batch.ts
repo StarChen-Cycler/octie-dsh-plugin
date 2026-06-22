@@ -15,6 +15,7 @@ import type { TaskGraphStore } from '../../core/graph/index.js';
 import type { TaskNode } from '../../core/models/task-node.js';
 import type { TaskStatus } from '../../types/index.js';
 import { getProjectPath, loadGraph, saveGraph, success, error, info, warning } from '../utils/helpers.js';
+import { invalidateProjectCache } from './shared-helpers.js';
 
 /**
  * Filter options for batch operations (reused from find command)
@@ -501,6 +502,7 @@ batchCommand
 
       if (!options.dryRun && result.success) {
         await saveGraph(projectPath, graph);
+        await invalidateProjectCache(projectPath);
       }
 
       process.exit(result.success ? 0 : 1);
@@ -547,6 +549,7 @@ batchCommand
       if (!options.dryRun && result.success) {
         info('Creating backup before save...');
         await saveGraph(projectPath, graph);
+        await invalidateProjectCache(projectPath);
       }
 
       process.exit(result.success ? 0 : 1);
@@ -591,6 +594,7 @@ batchCommand
 
       if (!options.dryRun && result.success) {
         await saveGraph(projectPath, graph);
+        await invalidateProjectCache(projectPath);
       }
 
       process.exit(result.success ? 0 : 1);
@@ -635,6 +639,7 @@ batchCommand
 
       if (!options.dryRun && result.success) {
         await saveGraph(projectPath, graph);
+        await invalidateProjectCache(projectPath);
       }
 
       process.exit(result.success ? 0 : 1);
