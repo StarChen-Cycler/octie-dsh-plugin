@@ -196,8 +196,8 @@ export interface ProjectMetadata {
 export interface ProjectFile {
   /** All tasks indexed by ID */
   tasks: Record<string, TaskNode>;
-  /** Graph edges for serialization */
-  edges: GraphEdge[];
+  /** Graph edges for serialization (deprecated — edges are reconstructed from task data) */
+  edges?: GraphEdge[];
   /** Project metadata */
   metadata: ProjectMetadata;
   /** Optional indexes for fast lookup */

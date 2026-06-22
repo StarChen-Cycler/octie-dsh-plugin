@@ -19,7 +19,6 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type {
-  GraphEdge,
   ProjectFile,
   ProjectIndexes,
   ProjectMetadata,
@@ -229,18 +228,6 @@ export class TaskStorage {
       // Convert graph to JSON-serializable format
       const json = graph.toJSON();
 
-      // Convert edges to GraphEdge[] format
-      const edges: GraphEdge[] = [];
-      for (const [fromId, targets] of Object.entries(json.outgoingEdges)) {
-        for (const toId of targets) {
-          edges.push({
-            from: fromId,
-            to: toId,
-            type: 'blocks' as const, // Default edge type for now
-          });
-        }
-      }
-
       // Build project file structure
       projectFile = {
         $schema: 'https://octie.dev/schemas/project-v1.json',
@@ -248,7 +235,6 @@ export class TaskStorage {
         format: 'octie-project',
         metadata: json.metadata,
         tasks: json.nodes,
-        edges,
         indexes: await this._buildIndexes(graph),
       };
 
