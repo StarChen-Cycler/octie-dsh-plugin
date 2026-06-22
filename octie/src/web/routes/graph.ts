@@ -75,38 +75,14 @@ export function registerGraphRoutes(
     }
 
     // Serialize graph to JSON format
+    // Edges are guaranteed valid — removeNode cleans up both directions
     const graphData = graph.toJSON();
-
-    // Convert nodes from object (keyed by ID) to array for frontend
-    const nodesArray = Object.values(graphData.nodes);
-
-    // Get valid node IDs
-    const validNodeIds = new Set(nodesArray.map(n => n.id));
-
-    // Filter edges to only include valid node references
-    const filterEdges = (edges: Record<string, string[]>): Record<string, string[]> => {
-      const filtered: Record<string, string[]> = {};
-      for (const [sourceId, targetIds] of Object.entries(edges)) {
-        // Skip if source is invalid
-        if (!sourceId || sourceId === 'null' || sourceId === 'undefined' || !validNodeIds.has(sourceId)) {
-          continue;
-        }
-        // Filter targets to only valid nodes
-        const validTargets = (targetIds || []).filter(
-          targetId => targetId && targetId !== 'null' && targetId !== 'undefined' && validNodeIds.has(targetId)
-        );
-        if (validTargets.length > 0) {
-          filtered[sourceId] = validTargets;
-        }
-      }
-      return filtered;
-    };
 
     return sendSuccess(res, {
       metadata: graphData.metadata,
-      nodes: nodesArray,
-      outgoingEdges: filterEdges(graphData.outgoingEdges),
-      incomingEdges: filterEdges(graphData.incomingEdges),
+      nodes: Object.values(graphData.nodes),
+      outgoingEdges: graphData.outgoingEdges,
+      incomingEdges: graphData.incomingEdges,
     });
   }));
 
