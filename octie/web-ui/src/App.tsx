@@ -123,20 +123,27 @@ function App() {
     }
   }, [currentProjectPath, fetchTasks, fetchGraph, fetchStats])
 
-  // SSE auto-refresh — listen for file change events from server
-  useEffect(() => {
-    if (!currentProjectPath) return;
+  // SSE auto-refresh — persistent connection, uses refs to avoid reconnects
+  const sseFetchRef = useRef({ fetchTasks, fetchGraph, fetchStats, fetchProjects });
+  sseFetchRef.current = { fetchTasks, fetchGraph, fetchStats, fetchProjects };
 
+  useEffect(() => {
     const es = new EventSource('/api/events');
 
     es.addEventListener('refresh', () => {
+      const { fetchTasks, fetchGraph, fetchStats, fetchProjects } = sseFetchRef.current;
+      fetchProjects();
       fetchTasks();
       fetchGraph();
       fetchStats();
     });
 
+    es.onerror = () => {
+      // EventSource auto-reconnects; no action needed
+    };
+
     return () => es.close();
-  }, [currentProjectPath, fetchTasks, fetchGraph, fetchStats]);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     fetchProjects()

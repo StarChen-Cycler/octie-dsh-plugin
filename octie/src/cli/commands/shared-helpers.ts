@@ -21,7 +21,7 @@ import { TaskStorage } from '../../core/storage/file-store.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import { parseList, saveGraph } from '../utils/helpers.js';
 
-const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3030';
+const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3000';
 const DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS = 750;
 
 export class CliPreparationError extends Error {
