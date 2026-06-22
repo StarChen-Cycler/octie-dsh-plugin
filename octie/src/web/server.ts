@@ -282,7 +282,10 @@ export class WebServer {
     // Register task routes
     const { clearCache: clearTaskCache } = registerTaskRoutes(
       this._app,
-      () => this._graph
+      () => this._graph,
+      async (graph) => {
+        if (graph) await this._storage.save(graph);
+      }
     );
 
     // Register graph routes

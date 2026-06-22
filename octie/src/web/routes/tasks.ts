@@ -106,10 +106,13 @@ const TaskQuerySchema = z.object({
  */
 export function registerTaskRoutes(
   router: Router,
-  getGraph: () => TaskGraphStore | null
+  getGraph: () => TaskGraphStore | null,
+  saveGraph?: (graph: TaskGraphStore) => Promise<void>
 ): { clearCache: (projectPath?: string) => void } {
   // Cache for loaded project graphs
   const graphCache = new Map<string, TaskGraphStore>();
+  // Cache storage instances for save-after-mutate
+  const storageCache = new Map<string, TaskStorage>();
 
   /**
    * Clear graph cache for a project (or all if no path)
@@ -117,9 +120,29 @@ export function registerTaskRoutes(
   function clearCache(projectPath?: string): void {
     if (projectPath) {
       graphCache.delete(projectPath);
+      storageCache.delete(projectPath);
     } else {
       graphCache.clear();
+      storageCache.clear();
     }
+  }
+
+  /**
+   * Save a graph back to disk for the given project path
+   */
+  async function saveProject(projectPath: string | undefined, graph: TaskGraphStore): Promise<void> {
+    if (!projectPath) {
+      // Default project — use server's saveGraph callback
+      if (saveGraph) await saveGraph(graph);
+      return;
+    }
+    // Explicit project — use or create a TaskStorage for this path
+    let storage = storageCache.get(projectPath);
+    if (!storage) {
+      storage = new TaskStorage({ projectDir: projectPath });
+      storageCache.set(projectPath, storage);
+    }
+    await storage.save(graph);
   }
 
   /**
@@ -317,6 +340,9 @@ export function registerTaskRoutes(
         graph.addEdge(blockerId, taskId);
       }
 
+      // Save changes to disk (triggers fs.watch → SSE refresh)
+      await saveProject(projectPath, graph);
+
       // Return created task
       return sendSuccess(res, graph.getNodeOrThrow(taskId), 201);
     } catch (err) {
@@ -438,6 +464,9 @@ export function registerTaskRoutes(
       // Update node in graph
       graph.updateNode(task);
 
+      // Save changes to disk (triggers fs.watch → SSE refresh)
+      await saveProject(projectPath, graph);
+
       // Return updated task
       return sendSuccess(res, task);
     } catch (err) {
@@ -500,6 +529,9 @@ export function registerTaskRoutes(
         graph.removeNode(fullId);
       }
 
+      // Save changes to disk (triggers fs.watch → SSE refresh)
+      await saveProject(projectPath, graph);
+
       // Return success with deleted task info
       return sendSuccess(res, {
         deletedTask: task,
@@ -549,6 +581,9 @@ export function registerTaskRoutes(
 
       // Perform merge
       const mergedTask = mergeTasks(graph, id, targetId);
+
+      // Save changes to disk (triggers fs.watch → SSE refresh)
+      await saveProject(projectPath, graph);
 
       // Return merged task
       return sendSuccess(res, mergedTask);
