@@ -4,6 +4,7 @@
 
 import { Command, Option } from 'commander';
 import { getProjectPath, loadGraph, saveGraph, success, error, info, parseMultipleIds } from '../utils/helpers.js';
+import { invalidateProjectCache } from './shared-helpers.js';
 import chalk from 'chalk';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
@@ -426,6 +427,7 @@ export const updateCommand = new Command('update')
 
       // Save
       await saveGraph(projectPath, graph);
+      await invalidateProjectCache(projectPath);
 
       success(`Task updated: ${chalk.cyan(id)}`);
 

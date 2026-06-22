@@ -11,6 +11,7 @@
 import { Command } from 'commander';
 import { ValidationError } from '../../types/index.js';
 import { getProjectPath, loadGraph, saveGraph } from '../utils/helpers.js';
+import { invalidateProjectCache } from './shared-helpers.js';
 import chalk from 'chalk';
 
 /**
@@ -66,6 +67,7 @@ export async function approveCommand(
 
     // Save the graph
     await saveGraph(projectPath, graph);
+    await invalidateProjectCache(projectPath);
 
     // Output success message
     console.log(chalk.green(`✓ Task approved: ${task.id}`));

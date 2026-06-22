@@ -389,7 +389,7 @@ export function preflightTaskCreation(
   return { task };
 }
 
-async function invalidateProjectCache(projectPath: string): Promise<void> {
+export async function invalidateProjectCache(projectPath: string): Promise<void> {
   const serverUrl = process.env.OCTIE_SERVER_URL || DEFAULT_OCTIE_SERVER_URL;
   const rawTimeoutMs = Number(process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(rawTimeoutMs) && rawTimeoutMs > 0
