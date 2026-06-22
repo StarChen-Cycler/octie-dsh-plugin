@@ -36,16 +36,13 @@ export function recalculateDependentStatuses(
       const allBlockersResolved = areAllBlockersResolved(task.blockers, graph);
 
       if (allBlockersResolved) {
-        // All blockers are resolved - calculate new status without considering blockers
-        // Use the standard status calculation logic but skip the blockers check
-        const newStatus = calculateStatusIgnoringBlockers(task);
+        // All blockers are resolved - delegate to canonical status calculation
+        // with ignoreBlockers since blockers are all completed/deleted
+        const newStatus = task.calculateStatus({ ignoreBlockers: true });
 
         if (newStatus !== task.status) {
           task.status = newStatus;
-          // Touch the task to update timestamp
-          task.recalculateStatus(); // This will update timestamp
-          // Override the status since recalculateStatus() would set it back to blocked
-          task.status = newStatus;
+          task.recalculateStatus();
         }
       } else {
         // Still has active blockers - just recalculate normally
@@ -59,43 +56,6 @@ export function recalculateDependentStatuses(
   }
 
   return updatedTaskIds;
-}
-
-/**
- * Calculate task status ignoring blockers
- *
- * Used when all blockers are resolved to determine what the status should be.
- * This is the same logic as TaskNode.calculateStatus() but skips the blockers check.
- *
- * @param task - The task to calculate status for
- * @returns The calculated status (ready, in_progress, or in_review)
- */
-function calculateStatusIgnoringBlockers(task: {
-  success_criteria: Array<{ completed: boolean }>;
-  deliverables: Array<{ completed: boolean }>;
-  need_fix: Array<{ completed: boolean }>;
-}): 'ready' | 'in_progress' | 'in_review' {
-  // Check if ready for review (all items complete)
-  const allCriteriaComplete = task.success_criteria.every(c => c.completed);
-  const allDeliverablesComplete = task.deliverables.every(d => d.completed);
-  const allNeedFixComplete = task.need_fix.every(f => f.completed);
-  const allComplete = allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete;
-
-  if (allComplete) {
-    return 'in_review';
-  }
-
-  // Check if work has started
-  const anyCriteriaChecked = task.success_criteria.some(c => c.completed);
-  const anyDeliverableChecked = task.deliverables.some(d => d.completed);
-  const hasNeedFix = task.need_fix.length > 0;
-
-  if (anyCriteriaChecked || anyDeliverableChecked || hasNeedFix) {
-    return 'in_progress';
-  }
-
-  // Default - ready for work
-  return 'ready';
 }
 
 /**

@@ -1172,7 +1172,7 @@ export class TaskNode implements TaskNodeType {
    *
    * @returns The calculated status based on current task state
    */
-  calculateStatus(): TaskStatus {
+  calculateStatus(options?: { ignoreBlockers?: boolean }): TaskStatus {
     // Rule 1: Check if ready for review (all items complete) - HIGHEST PRIORITY
     // When all work is done, status is in_review regardless of blockers
     // Blockers prevent starting work, not completing it
@@ -1187,7 +1187,8 @@ export class TaskNode implements TaskNodeType {
 
     // Rule 2: Check if blocked (only when work is NOT complete)
     // Blockers prevent tasks from starting/resuming work
-    if (this.blockers.length > 0) {
+    // ignoreBlockers is used when all blockers are known to be resolved (completed/deleted)
+    if (!options?.ignoreBlockers && this.blockers.length > 0) {
       return 'blocked';
     }
 

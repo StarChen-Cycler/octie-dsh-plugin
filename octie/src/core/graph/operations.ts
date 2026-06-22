@@ -371,6 +371,13 @@ export function mergeTasks(
   // Update the target task in the graph with merged data
   graph.updateNode(target);
 
+  // Clean up source from all dependent tasks' blockers before removing source
+  for (const task of graph.getAllTasks()) {
+    if (task.blockers.includes(sourceId)) {
+      task.removeBlocker(sourceId);
+    }
+  }
+
   // Remove the source task
   graph.removeNode(sourceId);
 

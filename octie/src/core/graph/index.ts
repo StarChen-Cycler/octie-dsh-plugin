@@ -622,38 +622,8 @@ export class TaskGraphStore {
       return 'blocked';
     }
 
-    // Priority 2: Parent is completed
-    // Calculate status based on task's own items
-    return this.calculateStatusFromItems(task);
-  }
-
-  /**
-   * Calculate status based on task's own items (criteria/deliverables/need_fix)
-   *
-   * @param task - The task to calculate status for
-   * @returns The calculated status
-   */
-  private calculateStatusFromItems(task: TaskNode): TaskStatus {
-    const allCriteriaComplete = task.success_criteria.every(c => c.completed);
-    const allDeliverablesComplete = task.deliverables.every(d => d.completed);
-    const allNeedFixComplete = task.need_fix.every(f => f.completed);
-
-    const anyCriteriaComplete = task.success_criteria.some(c => c.completed);
-    const anyDeliverablesComplete = task.deliverables.some(d => d.completed);
-    const hasNeedFix = task.need_fix.length > 0;
-
-    // Rule 1: All items complete → in_review
-    if (allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete) {
-      return 'in_review';
-    }
-
-    // Rule 2: Some items complete OR has need_fix → in_progress
-    if (anyCriteriaComplete || anyDeliverablesComplete || hasNeedFix) {
-      return 'in_progress';
-    }
-
-    // Rule 3: Nothing started → ready
-    return 'ready';
+    // Priority 2: Parent is completed → delegate to canonical status calculation
+    return task.calculateStatus();
   }
 
   /**

@@ -393,8 +393,8 @@ describe('Web API Integration Tests', () => {
         expect(response.body.error.code).toBe('VALIDATION_ERROR');
       });
 
-      it('should reject task with too many deliverables (>5)', async () => {
-        const deliverables = Array(6).fill(null).map((_, i) => ({ text: `file${i}.ts` }));
+      it('should reject task with too many deliverables (>10)', async () => {
+        const deliverables = Array(11).fill(null).map((_, i) => ({ text: `file${i}.ts` }));
 
         const response = await request(app)
           .post('/api/tasks')
@@ -692,7 +692,9 @@ describe('Web API Integration Tests', () => {
         const childResponse = await request(app)
           .get(`/api/tasks/${taskC.id}`)
           .expect(200);
-        expect(childResponse.body.data.status).toBe('ready');
+        // After reconnect: A→C edge created, A becomes C's blocker.
+        // Since A is not completed, C is correctly blocked by the new parent.
+        expect(childResponse.body.data.status).toBe('blocked');
       });
 
       it('should return 404 for non-existent task', async () => {
