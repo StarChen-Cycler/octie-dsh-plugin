@@ -38,26 +38,20 @@ export function registerGraphRoutes(
   }
 
   /**
-   * Get graph for a specific project path — uses in-memory cache
-   * Cache is invalidated via clearCache() called by fs.watch or CLI HTTP request
+   * Get graph for a specific project path
+   * Default project (no ?project=) uses server's _graph.
+   * Other projects load fresh from disk every time — no caching so that
+   * CLI modifications from any project are immediately visible.
    */
   async function getProjectGraph(projectPath: string | undefined): Promise<TaskGraphStore | null> {
     if (!projectPath) {
       return getGraph();
     }
 
-    // Check cache first
-    const cached = graphCache.get(projectPath);
-    if (cached) {
-      return cached;
-    }
-
-    // Cache miss — load from disk
+    // Always load fresh from file for explicit project paths
     try {
       const storage = new TaskStorage({ projectDir: projectPath });
-      const graph = await storage.load();
-      graphCache.set(projectPath, graph);
-      return graph;
+      return await storage.load();
     } catch {
       return null;
     }
