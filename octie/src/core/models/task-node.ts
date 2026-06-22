@@ -610,23 +610,9 @@ export class TaskNode implements TaskNodeType {
       );
     }
 
-    if (data.success_criteria.length > 10) {
-      throw new ValidationError(
-        'Too many success criteria (max 10). Split into smaller tasks.',
-        'success_criteria'
-      );
-    }
-
     if (!data.deliverables || data.deliverables.length === 0) {
       throw new ValidationError(
         'At least one deliverable is required.',
-        'deliverables'
-      );
-    }
-
-    if (data.deliverables.length > 10) {
-      throw new ValidationError(
-        'Too many deliverables (max 10). Split into smaller tasks.',
         'deliverables'
       );
     }

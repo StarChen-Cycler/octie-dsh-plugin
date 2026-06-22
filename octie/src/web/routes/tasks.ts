@@ -32,15 +32,13 @@ const TaskCreateSchema = z.object({
     id: z.string().uuid().optional(),
     text: z.string().min(1, 'Criterion text cannot be empty'),
     completed: z.boolean().default(false),
-  })).min(1, 'At least one success criterion is required')
-    .max(10, 'Cannot have more than 10 success criteria'),
+  })).min(1, 'At least one success criterion is required'),
   deliverables: z.array(z.object({
     id: z.string().uuid().optional(),
     text: z.string().min(1, 'Deliverable text cannot be empty'),
     completed: z.boolean().default(false),
     file_path: z.string().optional(),
-  })).min(1, 'At least one deliverable is required')
-    .max(10, 'Cannot have more than 10 deliverables'),
+  })).min(1, 'At least one deliverable is required'),
   priority: z.enum(['top', 'second', 'later']).optional().default('second'),
   // Status is now derived from task state, but we allow it for backward compatibility
   status: z.enum(['ready', 'in_progress', 'in_review', 'completed', 'blocked']).optional(),

@@ -390,7 +390,7 @@ describe('Web API Integration Tests', () => {
           .expect(400);
 
         expect(response.body.success).toBe(false);
-        expect(response.body.error.code).toBe('VALIDATION_ERROR');
+        expect(response.body.error.code).toBe('ATOMIC_TASK_VIOLATION');
       });
 
       it('should reject task with too many deliverables (>10)', async () => {
