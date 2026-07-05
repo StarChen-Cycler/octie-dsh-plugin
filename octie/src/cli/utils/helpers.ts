@@ -13,7 +13,33 @@ import { OctieError, ERROR_SUGGESTIONS } from '../../types/index.js';
  */
 export async function getProjectPath(projectOption?: string): Promise<string> {
   if (projectOption) {
-    return path.resolve(projectOption);
+    const resolved = path.resolve(projectOption);
+
+    // --project . means "current directory" — auto-detect from here
+    const cwd = path.resolve('.');
+    if (resolved === cwd) {
+      const detected = await findProjectPath(cwd);
+      if (detected) return detected;
+      throw new Error(
+        'No Octie project found in current directory. Run `octie init` first.'
+      );
+    }
+
+    // --project .octie or --project path/to/.octie — user passed the .octie dir itself,
+    // resolve to parent directory (same as what auto-detection returns)
+    if (resolved.endsWith(path.sep + '.octie') || resolved.endsWith('/.octie')) {
+      const parent = path.dirname(resolved);
+      const storage = new TaskStorage({ projectDir: parent });
+      if (await storage.exists()) return parent;
+      throw new Error(
+        `No Octie project found at ${resolved}\n\n` +
+        '  Tip: For the root project, omit --project entirely (auto-detection handles it).\n' +
+        '  For subprojects, use --project with the PARENT directory that contains .octie/\n' +
+        '  Example: octie list --project .octie/subprojects/my-project'
+      );
+    }
+
+    return resolved;
   }
 
   // Auto-detect project path
@@ -34,7 +60,16 @@ export async function loadGraph(projectPath: string): Promise<TaskGraphStore> {
   const storage = new TaskStorage({ projectDir: projectPath });
 
   if (!(await storage.exists())) {
-    throw new Error(`No Octie project found at ${projectPath}`);
+    const basename = path.basename(projectPath);
+    let hint = '';
+    if (basename === '.octie' || basename === '.octie') {
+      hint = '\n\n  Tip: Pass the parent directory, not the .octie folder itself.\n' +
+        '  For root project, omit --project; for subprojects use the parent path.';
+    } else if (projectPath.includes('.octie' + path.sep + 'subprojects')) {
+      hint = '\n\n  Tip: Subproject paths should point to the directory containing .octie/\n' +
+        '  Example: --project .octie/subprojects/my-project (not .octie/subprojects/my-project/.octie)';
+    }
+    throw new Error(`No Octie project found at ${projectPath}${hint}`);
   }
 
   return await storage.load();

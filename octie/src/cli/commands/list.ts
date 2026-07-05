@@ -13,7 +13,7 @@ import { formatTaskMarkdown } from '../output/markdown.js';
 /**
  * Format task as table row
  */
-function formatTaskAsRow(task: TaskNode, showId: boolean = true): string[] {
+function formatTaskAsRow(task: TaskNode, showId: boolean = true, titleMaxWidth: number = 80): string[] {
   const row: string[] = [];
 
   if (showId) {
@@ -23,7 +23,9 @@ function formatTaskAsRow(task: TaskNode, showId: boolean = true): string[] {
   row.push(
     formatStatus(task.status),
     formatPriority(task.priority),
-    task.title.substring(0, 40)
+    // ponytail: let table colWidths handle truncation; no need to substring here
+    // unless titleMaxWidth is unreasonably small
+    titleMaxWidth < 30 ? task.title.substring(0, titleMaxWidth) : task.title
   );
 
   return row;
@@ -180,7 +182,18 @@ Examples:
           break;
 
         case 'table':
-        default:
+        default: {
+          // ponytail: adaptive column widths — ID and Priority are fixed,
+          // Status gets enough room for "in_progress" (11 chars),
+          // Title gets the rest of the terminal
+          const termWidth = process.stdout.columns || 80;
+          const idWidth = 10;
+          const statusWidth = 13;
+          const priorityWidth = 10;
+          // ~3 chars padding per column (left+right) + 1 separator per column
+          const overhead = 4 * 3 + 4;
+          const titleWidth = Math.max(30, termWidth - idWidth - statusWidth - priorityWidth - overhead);
+
           const table = new Table({
             head: [
               chalk.gray('ID'),
@@ -188,17 +201,18 @@ Examples:
               chalk.gray('Priority'),
               chalk.gray('Title'),
             ].map(h => chalk.bold(h)),
-            colWidths: [10, 15, 10, 40],
-            wordWrap: true,
+            colWidths: [idWidth, statusWidth, priorityWidth, titleWidth],
+            wordWrap: false,
           });
 
           for (const task of tasks) {
-            table.push(formatTaskAsRow(task));
+            table.push(formatTaskAsRow(task, true, titleWidth));
           }
 
           console.log(table.toString());
           console.log(chalk.gray(`Total: ${tasks.length} task${tasks.length !== 1 ? 's' : ''}`));
           break;
+        }
       }
 
       process.exit(0);

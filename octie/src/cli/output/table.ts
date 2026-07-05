@@ -101,42 +101,42 @@ export function formatTasksTable(
 
 /**
  * Format a single task as a detailed table view
+ * @param task - The task to format
+ * @param fields - Optional list of field names to include (null = all)
  */
-export function formatTaskDetailTable(task: TaskNode): string {
+export function formatTaskDetailTable(task: TaskNode, fields?: string[] | null): string {
+  const show = (name: string) => !fields || fields.includes(name);
   const lines: string[] = [];
 
-  // Header
+  // Header — always shown
   lines.push(chalk.bold(task.title));
   lines.push(chalk.gray(`ID: ${task.id}`));
   lines.push('');
 
   // Basic info table
-  const infoTable = new Table({
-    colWidths: [15, 50],
-    wordWrap: true,
-  });
+  const infoRows: string[][] = [];
+  if (show('status')) infoRows.push([chalk.gray('Status:'), formatStatus(task.status)]);
+  if (show('priority')) infoRows.push([chalk.gray('Priority:'), formatPriority(task.priority)]);
+  if (show('created_at')) infoRows.push([chalk.gray('Created:'), task.created_at]);
+  if (show('updated_at')) infoRows.push([chalk.gray('Updated:'), task.updated_at]);
+  if (show('completed_at') && task.completed_at) infoRows.push([chalk.gray('Completed:'), task.completed_at]);
 
-  infoTable.push(
-    [chalk.gray('Status:'), formatStatus(task.status)],
-    [chalk.gray('Priority:'), formatPriority(task.priority)],
-    [chalk.gray('Created:'), task.created_at],
-    [chalk.gray('Updated:'), task.updated_at]
-  );
-
-  if (task.completed_at) {
-    infoTable.push([chalk.gray('Completed:'), task.completed_at]);
+  if (infoRows.length > 0) {
+    const infoTable = new Table({ colWidths: [15, 50], wordWrap: true });
+    for (const row of infoRows) infoTable.push(row);
+    lines.push(infoTable.toString());
+    lines.push('');
   }
 
-  lines.push(infoTable.toString());
-  lines.push('');
-
   // Description
-  lines.push(chalk.bold('Description:'));
-  lines.push(task.description);
-  lines.push('');
+  if (show('description')) {
+    lines.push(chalk.bold('Description:'));
+    lines.push(task.description);
+    lines.push('');
+  }
 
   // Success criteria
-  if (task.success_criteria.length > 0) {
+  if (show('success_criteria') && task.success_criteria.length > 0) {
     lines.push(chalk.bold('Success Criteria:'));
     for (const sc of task.success_criteria) {
       const symbol = sc.completed ? chalk.green('✓') : chalk.gray('○');
@@ -147,7 +147,7 @@ export function formatTaskDetailTable(task: TaskNode): string {
   }
 
   // Deliverables
-  if (task.deliverables.length > 0) {
+  if (show('deliverables') && task.deliverables.length > 0) {
     lines.push(chalk.bold('Deliverables:'));
     for (const d of task.deliverables) {
       const symbol = d.completed ? chalk.green('✓') : chalk.gray('○');
@@ -159,7 +159,7 @@ export function formatTaskDetailTable(task: TaskNode): string {
   }
 
   // Need Fix Items (blocking issues)
-  if (task.need_fix.length > 0) {
+  if (show('need_fix') && task.need_fix.length > 0) {
     lines.push(chalk.bold('Need Fix:'));
     for (const nf of task.need_fix) {
       const symbol = nf.completed ? chalk.green('✓') : chalk.red('!');
@@ -172,18 +172,18 @@ export function formatTaskDetailTable(task: TaskNode): string {
   }
 
   // Relationships
-  if (task.blockers.length > 0) {
+  if (show('blockers') && task.blockers.length > 0) {
     lines.push(chalk.bold('Blocked by:'), chalk.cyan(task.blockers.join(', ')));
     lines.push('');
   }
 
-  if (task.dependencies) {
+  if (show('dependencies') && task.dependencies) {
     lines.push(chalk.bold('Dependencies:'), chalk.cyan(task.dependencies));
     lines.push('');
   }
 
   // Related files
-  if (task.related_files.length > 0) {
+  if (show('related_files') && task.related_files.length > 0) {
     lines.push(chalk.bold('Related Files:'));
     for (const file of task.related_files) {
       lines.push(`  - ${chalk.cyan(file)}`);
@@ -192,7 +192,7 @@ export function formatTaskDetailTable(task: TaskNode): string {
   }
 
   // Notes
-  if (task.notes) {
+  if (show('notes') && task.notes) {
     lines.push(chalk.bold('Notes:'));
     lines.push(task.notes);
     lines.push('');

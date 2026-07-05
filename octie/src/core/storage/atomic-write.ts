@@ -119,7 +119,10 @@ export class AtomicFileWriter {
       }
 
       // Step 4: Atomic rename to final location
-      await fs.rename(tempPath, filePath);
+      // ponytail: Windows EPERM retry — rename over existing file can fail
+      // when AV, backup streams, or OS caching hold a transient handle on target.
+      // Retry up to 3× with backoff before giving up.
+      await this._renameWithRetry(tempPath, filePath);
 
     } catch (error) {
       // Cleanup temp file on failure
@@ -137,6 +140,36 @@ export class AtomicFileWriter {
         `Atomic write failed: ${error instanceof Error ? error.message : String(error)}`,
         filePath
       );
+    }
+  }
+
+  /**
+   * Rename with retry on Windows EPERM
+   *
+   * On Windows, fs.rename over an existing file can fail with EPERM
+   * when the target has a transient open handle (AV scanner, backup
+   * stream not fully flushed, OS metadata cache). Retry a few times
+   * with increasing backoff.
+   *
+   * @private
+   */
+  private async _renameWithRetry(
+    tempPath: string,
+    filePath: string,
+    maxRetries: number = 3,
+  ): Promise<void> {
+    let delay = 50; // ms, doubles each retry
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await fs.rename(tempPath, filePath);
+        return;
+      } catch (err: any) {
+        if (attempt === maxRetries) throw err;
+        // Only retry on Windows EPERM/EBUSY; fail fast on other errors
+        if (err.code !== 'EPERM' && err.code !== 'EBUSY') throw err;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
     }
   }
 

@@ -6,7 +6,8 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { Command, Option } from 'commander';
 import { loadRegistry, registerProject } from '../../core/registry/index.js';
@@ -23,6 +24,19 @@ import { parseList, saveGraph } from '../utils/helpers.js';
 
 const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3000';
 const DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS = 750;
+
+// ponytail: matches server.ts — server writes its URL to this file on start,
+// CLI reads it so cache invalidation works regardless of which port was chosen.
+const LAST_SERVER_URL_FILE = join(homedir(), '.octie', '.last-server-url');
+
+function readLastServerUrl(): string | null {
+  try {
+    if (existsSync(LAST_SERVER_URL_FILE)) {
+      return readFileSync(LAST_SERVER_URL_FILE, 'utf-8').trim() || null;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
 
 export class CliPreparationError extends Error {
   readonly infoMessages: string[];
@@ -390,7 +404,7 @@ export function preflightTaskCreation(
 }
 
 export async function invalidateProjectCache(projectPath: string): Promise<void> {
-  const serverUrl = process.env.OCTIE_SERVER_URL || DEFAULT_OCTIE_SERVER_URL;
+  const serverUrl = process.env.OCTIE_SERVER_URL || readLastServerUrl() || DEFAULT_OCTIE_SERVER_URL;
   const rawTimeoutMs = Number(process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(rawTimeoutMs) && rawTimeoutMs > 0
     ? rawTimeoutMs

@@ -11,8 +11,9 @@ import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import type { Server as HttpServer } from 'node:http';
 import { createServer as httpCreateServer } from 'node:http';
-import { existsSync, watch } from 'node:fs';
+import { existsSync, watch, writeFileSync, unlinkSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TaskStorage } from '../core/storage/file-store.js';
@@ -26,6 +27,10 @@ import { ZodError } from 'zod';
 
 // Get the directory of this module for static file paths
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ponytail: single-file IPC — server writes its URL here, CLI reads it so
+// cache invalidation works regardless of port. If multiple servers run, last wins.
+const LAST_SERVER_URL_FILE = join(homedir(), '.octie', '.last-server-url');
 
 /**
  * Web server configuration options
@@ -447,6 +452,9 @@ export class WebServer {
         console.log(`📊 API: ${url}/api`);
         console.log(`\nPress Ctrl+C to stop\n`);
 
+        // Write server URL so CLI cache invalidation works regardless of port
+        try { writeFileSync(LAST_SERVER_URL_FILE, url, 'utf-8'); } catch { /* best-effort */ }
+
         // Start file watcher for auto-refresh via SSE
         const projectFile = this._storage.projectFilePath;
         if (existsSync(projectFile)) {
@@ -484,6 +492,9 @@ export class WebServer {
       await this._fsWatcher.close();
       this._fsWatcher = null;
     }
+
+    // Clean up server URL file
+    try { unlinkSync(LAST_SERVER_URL_FILE); } catch { /* best-effort */ }
 
     if (!this._server) {
       return;
