@@ -53,6 +53,9 @@ function App() {
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Prevent auto-select from re-firing after the user explicitly navigates to Home.
+  const hasAutoSelected = useRef(false)
+
   // Debounce search input - update filter after 500ms of no typing
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -102,9 +105,16 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-select first project when none specified (no URL param, projects loaded)
+  // Auto-select first project once on initial load when none specified.
+  // The guard prevents re-selecting after the user explicitly clicks Home.
   useEffect(() => {
-    if (!currentProjectPath && !projectFromUrl && projects.length > 0) {
+    if (
+      !hasAutoSelected.current &&
+      !currentProjectPath &&
+      !projectFromUrl &&
+      projects.length > 0
+    ) {
+      hasAutoSelected.current = true
       setCurrentProject(projects[0].path)
     }
   }, [currentProjectPath, projectFromUrl, projects, setCurrentProject])

@@ -26,8 +26,8 @@ import {
   tryHandleGuideFlags,
 } from './commands/guides.js';
 import { handoffCommand } from './commands/handoff.js';
+import { panelCommand } from './commands/panel.js';
 import { registerApproveCommand } from './commands/approve.js';
-// import { batchCommand } from './commands/batch.js';
 import { formatError } from './utils/helpers.js';
 import {
   extractProjectPathFromArgs,
@@ -142,16 +142,11 @@ function main(): void {
   program.addCommand(findCommand);
   program.addCommand(wireCommand);
   program.addCommand(handoffCommand);
+  program.addCommand(panelCommand);
   registerApproveCommand(program);
-  // program.addCommand(batchCommand);
 
   // Parse arguments
   program.parse(process.argv);
-
-  // Show help if no command provided
-  // if (!process.argv.slice(2).length) {
-  //   program.outputHelp();
-  // }
 }
 
 // Run CLI

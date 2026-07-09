@@ -212,14 +212,15 @@ describe('export command', () => {
       expect((errorText.match(/Injected export mkdir failure/g) || [])).toHaveLength(1);
     });
 
-    // Note: Invalid export type defaults to JSON, so it succeeds
-    it.skip('should reject invalid export type', () => {
-      expect(() => {
-        execSync(
-          `node ${cliPath} --project "${tempDir}" export --type invalid`,
-          { encoding: 'utf-8', stdio: 'pipe' }
-        );
-      }).toThrow();
+    it('should default to JSON when export type is invalid', () => {
+      const outputPath = join(tempDir, 'fallback.json');
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" export --type invalid --output "${outputPath}"`,
+        { encoding: 'utf-8', stdio: 'pipe' }
+      );
+
+      expect(output).toContain('Exported to');
+      expect(existsSync(outputPath)).toBe(true);
     });
   });
 

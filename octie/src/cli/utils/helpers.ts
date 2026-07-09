@@ -6,7 +6,7 @@ import chalk from 'chalk';
 import path from 'node:path';
 import { findProjectPath, TaskStorage } from '../../core/storage/file-store.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
-import { OctieError, ERROR_SUGGESTIONS } from '../../types/index.js';
+import { OctieError } from '../../types/index.js';
 
 /**
  * Get the project path from options or auto-detect
@@ -112,54 +112,6 @@ export function info(message: string): void {
 }
 
 /**
- * Format verbose message (only shown if --verbose flag is set)
- */
-export function verbose(message: string, verbose: boolean): void {
-  if (verbose) {
-    console.log(chalk.gray(message));
-  }
-}
-
-/**
- * Create a spinner for long-running operations
- */
-export function createSpinner(message: string, enabled: boolean) {
-  // Simple spinner implementation
-  let dots = 0;
-  let interval: NodeJS.Timeout | null = null;
-
-  return {
-    start: () => {
-      if (!enabled) return;
-      process.stdout.write(`\r${chalk.cyan('○')} ${message}`);
-      interval = setInterval(() => {
-        dots = (dots + 1) % 4;
-        const dotStr = '.'.repeat(dots);
-        process.stdout.write(`\r${chalk.cyan('○')} ${message}${dotStr}`);
-      }, 100);
-    },
-    stop: (finalMessage: string) => {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-      if (enabled) {
-        process.stdout.write(`\r${chalk.green('✓')} ${finalMessage}\n`);
-      }
-    },
-    fail: (finalMessage: string) => {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-      if (enabled) {
-        process.stdout.write(`\r${chalk.red('✗')} ${finalMessage}\n`);
-      }
-    },
-  };
-}
-
-/**
  * Parse comma-separated list
  */
 export function parseList(value: string): string[] {
@@ -203,22 +155,6 @@ export function parseMultipleIds(value: string, previous: string[]): string[] {
 }
 
 /**
- * Validate UUID format
- */
-export function isValidUUID(id: string): boolean {
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(id);
-}
-
-/**
- * Format task ID for display
- */
-export function formatTaskId(id: string): string {
-  return chalk.cyan(id);
-}
-
-/**
  * Format status for display
  */
 export function formatStatus(status: string): string {
@@ -249,14 +185,6 @@ export function formatPriority(priority: string): string {
 
   const colorFn = priorityColors[priority] || chalk.white;
   return colorFn(priority);
-}
-
-/**
- * Truncate text to fit width
- */
-export function truncate(text: string, maxWidth: number): string {
-  if (text.length <= maxWidth) return text;
-  return text.substring(0, maxWidth - 3) + '...';
 }
 
 /**
@@ -305,69 +233,6 @@ export function formatError(error: unknown, verbose: boolean = false): string {
   return chalk.red.bold('Error:') + ' ' + chalk.red(String(error));
 }
 
-/**
- * Get suggestion for an error code
- * Returns a suggestion string for the given error code
- */
-export function getErrorSuggestion(code: string): string | undefined {
-  return ERROR_SUGGESTIONS[code];
-}
-
-/**
- * Exit with error message
- * Formats and displays error, then exits with code 1
- */
-export function exitWithError(error: unknown, verbose: boolean = false): never {
-  console.error(formatError(error, verbose));
-  process.exit(1);
-}
-
-/**
- * Retry options for recovery operations
- */
-export interface RetryOptions {
-  /** Maximum number of retry attempts */
-  maxRetries: number;
-  /** Delay between retries in milliseconds */
-  delayMs: number;
-  /** Exponential backoff multiplier */
-  backoffMultiplier?: number;
-  /** Operation name for error messages */
-  operationName?: string;
-}
-
-/**
- * Retry a function with exponential backoff
- * Useful for file operations that may fail due to concurrent access
- */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions
-): Promise<T> {
-  const { maxRetries, delayMs, backoffMultiplier = 2, operationName = 'operation' } = options;
-  let lastError: Error | undefined;
-  let currentDelay = delayMs;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      if (attempt < maxRetries) {
-        if (process.env.VERBOSE === 'true') {
-          console.log(chalk.yellow(`Retry ${attempt}/${maxRetries} for ${operationName} after ${currentDelay}ms...`));
-        }
-        await new Promise(resolve => setTimeout(resolve, currentDelay));
-        currentDelay *= backoffMultiplier;
-      }
-    }
-  }
-
-  throw new Error(
-    `${operationName} failed after ${maxRetries} attempts. Last error: ${lastError?.message}`
-  );
-}
 
 /**
  * Prompt user for confirmation
@@ -391,33 +256,3 @@ export async function confirmPrompt(message: string): Promise<boolean> {
   }
 }
 
-/**
- * Attempt to recover from a corrupted project file
- * Tries to restore from backup and provides actionable suggestions
- */
-export async function attemptRecovery(projectPath: string): Promise<{ success: boolean; message: string }> {
-  const storage = new TaskStorage({ projectDir: projectPath });
-
-  try {
-    // Check if backup exists
-    const backups = await storage.listBackups();
-    if (backups.length === 0) {
-      return {
-        success: false,
-        message: 'No backup files available for recovery. You may need to re-initialize the project.',
-      };
-    }
-
-    // Attempt to restore
-    await storage.restoreFromBackup();
-    return {
-      success: true,
-      message: `Successfully restored from backup: ${backups[0]}`,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: `Recovery failed: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}

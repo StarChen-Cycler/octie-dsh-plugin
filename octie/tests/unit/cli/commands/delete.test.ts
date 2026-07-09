@@ -252,8 +252,7 @@ describe('delete command', () => {
   });
 
   describe('cascade deletion', () => {
-    // TODO: Cascade deletion not yet implemented
-    it.skip('should delete all dependents with --cascade flag', async () => {
+    it('should delete all dependents with --cascade flag', async () => {
       // Delete task1 with cascade
       // Should delete task1, task2, and task3 (all downstream)
 
