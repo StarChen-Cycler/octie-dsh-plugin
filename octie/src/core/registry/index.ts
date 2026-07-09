@@ -380,6 +380,60 @@ export function getProjectTaskCount(projectPath: string): number {
 }
 
 /**
+ * Aggregate task counts by status and priority from a project.
+ * @param projectPath - Path to the project
+ * @returns Object with statusCounts, priorityCounts, and total, or null if invalid
+ */
+export function getProjectTaskCounts(
+  projectPath: string,
+): { statusCounts: Record<string, number>; priorityCounts: Record<string, number>; total: number } | null {
+  const projectFile = join(projectPath, '.octie', 'project.json');
+
+  if (!existsSync(projectFile)) {
+    return null;
+  }
+
+  try {
+    const content = readFileSync(projectFile, 'utf-8');
+    const data = JSON.parse(content);
+
+    if (!data.tasks || typeof data.tasks !== 'object') {
+      return null;
+    }
+
+    const statusCounts: Record<string, number> = {
+      ready: 0,
+      in_progress: 0,
+      in_review: 0,
+      completed: 0,
+      blocked: 0,
+    };
+    const priorityCounts: Record<string, number> = {
+      top: 0,
+      second: 0,
+      later: 0,
+    };
+
+    let total = 0;
+    for (const task of Object.values(data.tasks) as Array<{ status?: string; priority?: string }>) {
+      if (!task || typeof task !== 'object') continue;
+      total += 1;
+      const { status, priority } = task;
+      if (typeof status === 'string' && status in statusCounts) {
+        statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+      }
+      if (typeof priority === 'string' && priority in priorityCounts) {
+        priorityCounts[priority] = (priorityCounts[priority] ?? 0) + 1;
+      }
+    }
+
+    return { statusCounts, priorityCounts, total };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Register or update a project in the registry
  * @param projectPath - Path to the project to register
  * @returns The registered project entry or null if invalid

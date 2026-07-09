@@ -1,41 +1,116 @@
 /**
  * Sidebar - Project navigation sidebar
  * Design: Terminal Noir - Dark cyberpunk aesthetic
+ *
+ * Projects are rendered as visual groups (boxed containers). Each group
+ * displays the project, its task status summary, and nested subprojects,
+ * forming a clear two-level directory in the sidebar.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useProjectStore, type RegistryProject } from '../store/projectStore';
 import { useTaskStore } from '../store/taskStore';
+import { buildProjectTree, type ProjectNode } from '../../../src/core/utils/projectTree.js';
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
 }
 
-function ProjectItem({
+const STATUS_ORDER = ['completed', 'in_progress', 'in_review', 'blocked', 'ready'] as const;
+
+const statusColors: Record<string, string> = {
+  ready: 'var(--accent-cyan)',
+  in_progress: 'var(--status-in-progress)',
+  in_review: 'var(--accent-violet)',
+  completed: 'var(--accent-emerald)',
+  blocked: 'var(--accent-rose)',
+};
+
+function StatusBadge({ status, count }: { status: string; count: number }) {
+  if (count === 0) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium tabular-nums"
+      style={{
+        background: `${statusColors[status] || 'var(--text-muted)'}20`,
+        color: statusColors[status] || 'var(--text-muted)',
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      <span
+        className="w-1 h-1 rounded-full"
+        style={{ background: statusColors[status] || 'var(--text-muted)' }}
+      />
+      {count}
+    </span>
+  );
+}
+
+function TaskSummary({ project }: { project: RegistryProject }) {
+  const total = project.taskCount;
+  const statusCounts = project.statusCounts || {};
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+      <span
+        className="text-xs tabular-nums"
+        style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+      >
+        {total} task{total !== 1 ? 's' : ''}
+      </span>
+      {STATUS_ORDER.map((status) => (
+        <StatusBadge key={status} status={status} count={statusCounts[status] ?? 0} />
+      ))}
+    </div>
+  );
+}
+
+function ProjectAvatar({
+  project,
+  isActive,
+  size = 'md',
+}: {
+  project: RegistryProject;
+  isActive: boolean;
+  size?: 'md' | 'sm';
+}) {
+  const isSmall = size === 'sm';
+  return (
+    <div
+      className={`${isSmall ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'} rounded-lg flex items-center justify-center font-bold flex-shrink-0`}
+      style={{
+        background: isActive
+          ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-violet))'
+          : 'var(--surface-elevated)',
+        border: isActive ? 'none' : '1px solid var(--border-default)',
+        color: isActive ? 'white' : 'var(--text-secondary)',
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      {project.name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+function ProjectButton({
   project,
   isActive,
   onClick,
-  index,
+  compact = false,
 }: {
   project: RegistryProject;
   isActive: boolean;
   onClick: () => void;
-  index: number;
+  compact?: boolean;
 }) {
-  const priorityColor = project.taskCount > 50
-    ? 'var(--accent-rose)'
-    : project.taskCount > 20
-      ? 'var(--accent-amber)'
-      : 'var(--accent-cyan)';
-
   return (
     <button
       onClick={onClick}
       disabled={!project.exists}
       className={`
-        w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200
-        focus-ring
+        w-full text-left rounded-lg transition-all duration-200 focus-ring
+        ${compact ? 'px-2 py-1.5' : 'px-3 py-2.5'}
         ${!project.exists ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
       `}
       style={{
@@ -44,29 +119,14 @@ function ProjectItem({
           : 'transparent',
         border: isActive ? '1px solid var(--accent-cyan)' : '1px solid transparent',
         boxShadow: isActive ? 'var(--glow-cyan)' : 'none',
-        animationDelay: `${index * 50}ms`,
       }}
     >
-      <div className="flex items-center gap-3">
-        {/* Project avatar */}
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
-          style={{
-            background: isActive
-              ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-violet))'
-              : 'var(--surface-elevated)',
-            border: isActive ? 'none' : '1px solid var(--border-default)',
-            color: isActive ? 'white' : 'var(--text-secondary)',
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          {project.name.charAt(0).toUpperCase()}
-        </div>
-
+      <div className="flex items-center gap-2">
+        <ProjectAvatar project={project} isActive={isActive} size={compact ? 'sm' : 'md'} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <span
-              className="font-medium text-sm truncate"
+              className={`font-medium truncate ${compact ? 'text-xs' : 'text-sm'}`}
               style={{
                 color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
               }}
@@ -75,8 +135,8 @@ function ProjectItem({
             </span>
             {!project.exists && (
               <svg
-                width="14"
-                height="14"
+                width="12"
+                height="12"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="var(--accent-amber)"
@@ -89,41 +149,54 @@ function ProjectItem({
               </svg>
             )}
           </div>
-
-          <div className="flex items-center gap-2 mt-0.5">
-            {/* Task count badge with smooth transition */}
-            <span
-              className="text-xs tabular-nums transition-all duration-300 ease-out"
-              style={{
-                color: priorityColor,
-                fontFamily: 'var(--font-mono)',
-                minWidth: '1.5em',
-                textAlign: 'center',
-              }}
-            >
-              {project.taskCount}
-            </span>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              tasks
-            </span>
-
-            {/* Folder name */}
-            {project.exists && (
-              <>
-                <span style={{ color: 'var(--border-default)' }}>·</span>
-                <span
-                  className="text-xs truncate"
-                  style={{ color: 'var(--text-muted)' }}
-                  title={project.path}
-                >
-                  {project.path.split(/[\\/]/).pop()}
-                </span>
-              </>
-            )}
-          </div>
+          <TaskSummary project={project} />
         </div>
       </div>
     </button>
+  );
+}
+
+function ProjectGroup({
+  node,
+  currentProjectPath,
+  onProjectClick,
+}: {
+  node: ProjectNode<RegistryProject>;
+  currentProjectPath: string | null;
+  onProjectClick: (project: RegistryProject) => void;
+}) {
+  const { project, children } = node;
+  const isActive = currentProjectPath === project.path;
+  const hasChildren = children.length > 0;
+
+  return (
+    <div
+      className="rounded-xl p-2"
+      style={{
+        background: 'var(--surface-raised)',
+        border: '1px solid var(--border-default)',
+      }}
+    >
+      <ProjectButton
+        project={project}
+        isActive={isActive}
+        onClick={() => onProjectClick(project)}
+      />
+
+      {hasChildren && (
+        <div className="mt-1.5 ml-2 pl-2" style={{ borderLeft: '1px solid var(--border-muted)' }}>
+          {children.map((child) => (
+            <ProjectButton
+              key={child.project.path}
+              project={child.project}
+              isActive={currentProjectPath === child.project.path}
+              onClick={() => onProjectClick(child.project)}
+              compact
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -142,6 +215,8 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects, currentProjectPath]);
+
+  const projectTree = useMemo(() => buildProjectTree(projects), [projects]);
 
   const handleProjectClick = (project: RegistryProject) => {
     if (!project.exists) return;
@@ -182,13 +257,13 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           transition-[width,min-width,border-color] duration-300 ease-out
         `}
         style={{
-          width: isOpen ? '256px' : '0',
-          minWidth: isOpen ? '256px' : '0',
+          width: isOpen ? '288px' : '0',
+          minWidth: isOpen ? '288px' : '0',
           background: 'var(--surface-abyss)',
           borderRight: isOpen ? '1px solid var(--border-default)' : '1px solid transparent',
         }}
       >
-        <div className="w-64 h-full flex flex-col">
+        <div className="w-72 h-full flex flex-col">
           {/* Header */}
           <div
             className="p-4 flex items-center justify-between"
@@ -222,7 +297,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
 
           {/* Home button */}
-          <div className="p-2">
+          <div className="p-3">
             <button
               onClick={handleHomeClick}
               className="w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-3 focus-ring"
@@ -271,13 +346,13 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           >
             <div className="flex-1" style={{ height: '1px', background: 'var(--border-muted)' }} />
             <span className="text-[10px] uppercase tracking-wider" style={{ fontFamily: 'var(--font-mono)' }}>
-              Projects
+              Panels
             </span>
             <div className="flex-1" style={{ height: '1px', background: 'var(--border-muted)' }} />
           </div>
 
           {/* Project list */}
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex-1 overflow-y-auto p-3">
             {projects.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <div
@@ -305,14 +380,13 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 </code>
               </div>
             ) : (
-              <div className="space-y-1">
-                {projects.map((project, index) => (
-                  <ProjectItem
-                    key={project.path}
-                    project={project}
-                    isActive={currentProjectPath === project.path}
-                    onClick={() => handleProjectClick(project)}
-                    index={index}
+              <div className="space-y-3">
+                {projectTree.map((node) => (
+                  <ProjectGroup
+                    key={node.project.path}
+                    node={node}
+                    currentProjectPath={currentProjectPath}
+                    onProjectClick={handleProjectClick}
                   />
                 ))}
               </div>

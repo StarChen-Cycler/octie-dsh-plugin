@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { TaskStorage } from '../../../../src/core/storage/file-store.js';
+import { TaskNode } from '../../../../src/core/models/task-node.js';
 
 describe('global registry', () => {
   let tempHome: string;
@@ -170,5 +171,64 @@ describe('global registry', () => {
     } finally {
       rmSync(projectDir, { recursive: true, force: true });
     }
+  });
+
+  it('aggregates task counts by status and priority from project.json', async () => {
+    const projectDir = join(tmpdir(), `octie-counts-project-${uuidv4()}`);
+
+    try {
+      const storage = new TaskStorage({ projectDir: projectDir });
+      await storage.createProject('counts-project');
+      const graph = await storage.load();
+
+      const readyTask = new TaskNode({
+        title: 'Implement ready feature',
+        description: 'This is a ready task description that must be at least fifty characters long.',
+        status: 'ready',
+        priority: 'top',
+        success_criteria: [{ id: uuidv4(), text: 'Criterion one is satisfied', completed: false }],
+        deliverables: [{ id: uuidv4(), text: 'src/ready.ts', completed: false }],
+      });
+      const completedTask = new TaskNode({
+        title: 'Create completed feature',
+        description: 'This is a completed task description that must be at least fifty characters long.',
+        status: 'completed',
+        priority: 'later',
+        success_criteria: [{ id: uuidv4(), text: 'Criterion two is satisfied', completed: true }],
+        deliverables: [{ id: uuidv4(), text: 'src/completed.ts', completed: true }],
+      });
+      graph.addNode(readyTask);
+      graph.addNode(completedTask);
+      await storage.save(graph);
+
+      const { getProjectTaskCounts } = await import('../../../../src/core/registry/index.js');
+
+      const counts = getProjectTaskCounts(projectDir);
+
+      expect(counts).not.toBeNull();
+      expect(counts!.total).toBe(2);
+      expect(counts!.statusCounts).toMatchObject({
+        ready: 1,
+        completed: 1,
+        in_progress: 0,
+        in_review: 0,
+        blocked: 0,
+      });
+      expect(counts!.priorityCounts).toMatchObject({
+        top: 1,
+        later: 1,
+        second: 0,
+      });
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns null for task counts when project is invalid', async () => {
+    const invalidDir = join(tmpdir(), `octie-invalid-project-${uuidv4()}`);
+
+    const { getProjectTaskCounts } = await import('../../../../src/core/registry/index.js');
+
+    expect(getProjectTaskCounts(invalidDir)).toBeNull();
   });
 });

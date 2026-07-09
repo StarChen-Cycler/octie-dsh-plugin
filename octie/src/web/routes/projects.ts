@@ -12,15 +12,18 @@ import {
   verifyProjectExists,
   loadRegistry,
   saveRegistry,
+  getProjectTaskCounts,
   type RegistryProject,
 } from '../../core/registry/index.js';
 import { asyncHandler, sendSuccess, sendError } from '../utils/route-helpers.js';
 
 /**
- * Extended project info with existence check
+ * Extended project info with existence check and task counts
  */
 interface ProjectWithStatus extends RegistryProject {
   exists: boolean;
+  statusCounts: Record<string, number>;
+  priorityCounts: Record<string, number>;
 }
 
 /**
@@ -35,11 +38,26 @@ export function registerProjectsRoutes(router: Router): void {
   router.get('/api/projects', asyncHandler(async (_req: Request, res: Response) => {
     const projects = getAllProjects();
 
-    // Add existence status to each project
-    const projectsWithStatus: ProjectWithStatus[] = projects.map(project => ({
-      ...project,
-      exists: verifyProjectExists(project),
-    }));
+    // Add existence status and task counts to each project
+    const projectsWithStatus: ProjectWithStatus[] = projects.map(project => {
+      const counts = getProjectTaskCounts(project.path);
+      return {
+        ...project,
+        exists: verifyProjectExists(project),
+        statusCounts: counts?.statusCounts ?? {
+          ready: 0,
+          in_progress: 0,
+          in_review: 0,
+          completed: 0,
+          blocked: 0,
+        },
+        priorityCounts: counts?.priorityCounts ?? {
+          top: 0,
+          second: 0,
+          later: 0,
+        },
+      };
+    });
 
     return sendSuccess(res, {
       projects: projectsWithStatus,

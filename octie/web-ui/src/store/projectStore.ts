@@ -14,6 +14,8 @@ export interface RegistryProject {
   lastAccessed: string;
   taskCount: number;
   exists: boolean;
+  statusCounts: Record<string, number>;
+  priorityCounts: Record<string, number>;
 }
 
 /**
