@@ -12,7 +12,7 @@ info:
     - Description must be at least 50 characters
     - Must have 1-10 success criteria (quantitative, measurable)
     - Must have 1-10 deliverables (specific outputs)
-  version: 2.0.4
+  version: 3.0.0
   contact:
     name: Octie Support
     url: https://github.com/anthropics/octie/issues
