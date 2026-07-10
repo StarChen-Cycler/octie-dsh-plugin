@@ -3,8 +3,10 @@
  *
  * Builds a parent/child tree from a flat list of registered projects by
  * inferring containment from filesystem paths. A project is considered a
- * child of another project when its path starts with the parent path followed
- * by a path separator.
+ * child of another project only when it lives inside the parent's
+ * `.octie/subprojects/` directory. Mere directory-prefix overlap (e.g. two
+ * unrelated projects under the same drive/root folder) must NOT create a
+ * parent/child relationship.
  */
 
 /**
@@ -29,7 +31,8 @@ function normalizePath(p: string): string {
 function isChildPath(parentPath: string, childPath: string): boolean {
   const parent = normalizePath(parentPath);
   const child = normalizePath(childPath);
-  return child !== parent && child.startsWith(parent + '/');
+  const expectedPrefix = `${parent}/.octie/subprojects/`;
+  return child !== parent && child.startsWith(expectedPrefix);
 }
 
 /**

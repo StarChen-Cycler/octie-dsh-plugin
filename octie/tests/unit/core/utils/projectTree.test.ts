@@ -121,4 +121,35 @@ describe('buildProjectTree', () => {
     expect(tree).toHaveLength(2);
     expect(tree.every((n) => n.children.length === 0)).toBe(true);
   });
+
+  it('does not nest projects that merely share a common ancestor directory', () => {
+    const projects = [
+      makeProject('/home/user/parent-folder', 'parent-folder'),
+      makeProject('/home/user/parent-folder/foo/project-a', 'project-a'),
+      makeProject('/home/user/parent-folder/bar/project-b', 'project-b'),
+    ];
+
+    const tree = buildProjectTree(projects);
+
+    expect(tree).toHaveLength(3);
+    expect(tree.every((n) => n.children.length === 0)).toBe(true);
+  });
+
+  it('does not nest a project inside a sibling with a shared name prefix', () => {
+    const projects = [
+      makeProject('/home/user/google-xprize-ai-planner-repo', 'google-xprize-ai-planner'),
+      makeProject('/home/user/google-xprize-ai-planner-repo-rewrite', 'google-xprize-ai-planner-rewrite'),
+      makeProject('/home/user/google-xprize-ai-planner-repo-rewrite/.octie/subprojects/frontend-visual-rewrite', 'frontend-visual-rewrite'),
+    ];
+
+    const tree = buildProjectTree(projects);
+
+    expect(tree).toHaveLength(2);
+    const rewriteRoot = tree.find(
+      (n) => n.project.path === '/home/user/google-xprize-ai-planner-repo-rewrite',
+    );
+    expect(rewriteRoot).toBeDefined();
+    expect(rewriteRoot!.children).toHaveLength(1);
+    expect(rewriteRoot!.children[0]!.project.name).toBe('frontend-visual-rewrite');
+  });
 });
