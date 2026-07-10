@@ -619,7 +619,7 @@ export interface GraphStatistics {
  * Web server configuration options
  */
 export interface ServerOptions {
-  /** Port to run server on (default: 3000) */
+  /** Port to run server on (default: 3456) */
   port?: number;
   /** Host to bind to (default: 'localhost') */
   host?: string;

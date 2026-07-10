@@ -36,7 +36,7 @@ const LAST_SERVER_URL_FILE = join(homedir(), '.octie', '.last-server-url');
  * Web server configuration options
  */
 export interface ServerOptions {
-  /** Port to run server on (default: 3000) */
+  /** Port to run server on (default: 3456) */
   port?: number;
   /** Host to bind to (default: 'localhost') */
   host?: string;
@@ -96,7 +96,7 @@ export class WebServer {
    */
   constructor(projectPath: string, options: ServerOptions = {}) {
     this._projectPath = projectPath;
-    this._port = options.port ?? 3000;
+    this._port = options.port ?? 3456;
     this._host = options.host ?? 'localhost';
     this._storage = new TaskStorage({ projectDir: projectPath });
 

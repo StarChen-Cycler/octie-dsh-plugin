@@ -55,7 +55,7 @@ octie approve abc1234
 ### 4. Start the UI
 
 ```bash
-octie serve              # Default: localhost:3000
+octie serve              # Default: localhost:3456
 octie serve -p 8080      # Custom port
 octie serve --open       # Auto-open browser
 ```
@@ -63,13 +63,13 @@ octie serve --open       # Auto-open browser
 Default server address:
 
 ```text
-http://localhost:3000
+http://localhost:3456
 ```
 
 The UI home page lists registered projects. A project-specific URL can also be opened with the encoded project path:
 
 ```text
-http://localhost:3000/?project=<absolute-project-path>
+http://localhost:3456/?project=<absolute-project-path>
 ```
 
 ## What is implemented

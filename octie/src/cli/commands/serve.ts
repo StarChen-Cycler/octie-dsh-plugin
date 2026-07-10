@@ -14,7 +14,7 @@ import { registerProject, isValidOctieProject } from '../../core/registry/index.
  */
 export const serveCommand = new Command('serve')
   .description('Start web UI server for task visualization')
-  .option('-p, --port <number>', 'Port to run server on', '3000')
+  .option('-p, --port <number>', 'Port to run server on', '3456')
   .option('-h, --host <host>', 'Host to bind to', 'localhost')
   .option('--open', 'Open browser automatically')
   .option('--no-cors', 'Disable CORS')
@@ -22,14 +22,14 @@ export const serveCommand = new Command('serve')
   .option('--project <path>', 'Path to Octie project directory')
   .addHelpText('after', `
 Examples:
-  $ octie serve                    Start server on default port 3000
+  $ octie serve                    Start server on default port 3456
   $ octie serve -p 8080           Use custom port
   $ octie serve --open             Open browser automatically
   $ octie serve --host 0.0.0.0    Allow external connections
   $ octie serve --no-logging       Disable request logging
   $ octie serve --project /path    Serve specific project
 
-Default: localhost:3000
+Default: localhost:3456
 `)
   .action(async (options) => {
     try {

@@ -405,7 +405,7 @@ octie export --output /path/to/output/tasks.md
 
 ## Web UI Issues
 
-### "Port 3000 already in use"
+### "Port 3456 already in use"
 
 **Problem**: Default port is occupied.
 
@@ -417,11 +417,11 @@ octie serve --port 3001
 
 # Or kill process using port
 # macOS/Linux
-lsof -i :3000
+lsof -i :3456
 kill -9 <PID>
 
 # Windows
-netstat -ano | findstr :3000
+netstat -ano | findstr :3456
 taskkill /PID <PID> /F
 ```
 
@@ -433,7 +433,7 @@ taskkill /PID <PID> /F
 
 1. **Check server is running**:
    ```bash
-   curl http://localhost:3000/health
+   curl http://localhost:3456/health
    ```
 
 2. **Check CORS settings**:
@@ -447,7 +447,7 @@ taskkill /PID <PID> /F
    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /path/to/node
 
    # Linux
-   sudo ufw allow 3000
+   sudo ufw allow 3456
    ```
 
 ## Data Recovery

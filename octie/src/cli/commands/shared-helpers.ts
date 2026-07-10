@@ -22,7 +22,7 @@ import { TaskStorage } from '../../core/storage/file-store.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import { parseList, saveGraph } from '../utils/helpers.js';
 
-const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3000';
+const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3456';
 const DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS = 750;
 
 // ponytail: matches server.ts — server writes its URL to this file on start,
