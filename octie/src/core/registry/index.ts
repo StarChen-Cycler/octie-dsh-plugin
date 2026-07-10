@@ -434,6 +434,92 @@ export function getProjectTaskCounts(
 }
 
 /**
+ * Discover immediate subprojects under a parent project's .octie/subprojects/.
+ * @param projectPath - Path to the parent project
+ * @returns Array of subproject name/path pairs for valid Octie projects
+ */
+export function discoverSubprojects(
+  projectPath: string,
+): Array<{ name: string; path: string }> {
+  const subprojectsDir = join(projectPath, '.octie', 'subprojects');
+  if (!existsSync(subprojectsDir)) {
+    return [];
+  }
+
+  const result: Array<{ name: string; path: string }> = [];
+  for (const entry of readdirSync(subprojectsDir)) {
+    const entryPath = join(subprojectsDir, entry);
+    try {
+      if (!statSync(entryPath).isDirectory()) {
+        continue;
+      }
+    } catch {
+      continue;
+    }
+
+    if (isValidOctieProject(entryPath)) {
+      result.push({ name: entry, path: entryPath });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Register valid subprojects that exist on disk but are missing from the registry.
+ * @param projectPath - Path to the parent project
+ * @returns Number of newly registered subprojects
+ */
+export function registerMissingSubprojects(projectPath: string): number {
+  const subprojects = discoverSubprojects(projectPath);
+  if (subprojects.length === 0) {
+    return 0;
+  }
+
+  try {
+    return withRegistryLock(() => {
+      const registry = loadRegistryInternal({ throwOnCorruption: true });
+      let registeredCount = 0;
+      const now = new Date().toISOString();
+
+      for (const { name, path: subprojectPath } of subprojects) {
+        // Skip already-registered subprojects to avoid churn.
+        const existingKey = findProjectKeyByPath(registry, subprojectPath);
+        if (existingKey) {
+          continue;
+        }
+
+        const metadata = getProjectMetadata(subprojectPath);
+        if (!metadata) {
+          continue;
+        }
+
+        const projectName = metadata.project_name || name;
+        const entry: RegistryProject = {
+          path: subprojectPath,
+          name: projectName,
+          registeredAt: now,
+          lastAccessed: now,
+          taskCount: getProjectTaskCount(subprojectPath),
+        };
+
+        const key = getAvailableProjectKey(registry, projectName);
+        registry.projects[key] = entry;
+        registeredCount += 1;
+      }
+
+      if (registeredCount > 0) {
+        saveRegistry(registry);
+      }
+
+      return registeredCount;
+    });
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Register or update a project in the registry
  * @param projectPath - Path to the project to register
  * @returns The registered project entry or null if invalid

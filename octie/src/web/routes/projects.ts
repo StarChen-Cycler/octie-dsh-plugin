@@ -13,6 +13,7 @@ import {
   loadRegistry,
   saveRegistry,
   getProjectTaskCounts,
+  registerMissingSubprojects,
   type RegistryProject,
 } from '../../core/registry/index.js';
 import { asyncHandler, sendSuccess, sendError } from '../utils/route-helpers.js';
@@ -36,6 +37,15 @@ export function registerProjectsRoutes(router: Router): void {
    * List all registered projects with existence status
    */
   router.get('/api/projects', asyncHandler(async (_req: Request, res: Response) => {
+    // Auto-register any valid subprojects that exist on disk but are missing
+    // from the global registry. This keeps the sidebar tree in sync with the
+    // actual project structure under .octie/subprojects/.
+    let initialProjects = getAllProjects();
+    for (const project of initialProjects) {
+      registerMissingSubprojects(project.path);
+    }
+
+    // Re-fetch so newly registered subprojects are included.
     const projects = getAllProjects();
 
     // Add existence status and task counts to each project
