@@ -16,7 +16,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
-import { WebServer } from '../../src/web/server.js';
+import { API_VERSION, WebServer } from '../../src/web/server.js';
 import { TaskStorage } from '../../src/core/storage/file-store.js';
 import { TaskNode } from '../../src/core/models/task-node.js';
 import { TaskGraphStore } from '../../src/core/graph/index.js';
@@ -38,7 +38,7 @@ describe('Web API Integration Tests', () => {
     graph = await storage.load();
 
     // Create WebServer instance (get app without starting server)
-    server = new WebServer(tempDir, { logging: false, cors: true });
+    server = new WebServer(tempDir, { logging: false });
     app = server.app;
 
     // Inject the graph into the server's internal state
@@ -145,7 +145,7 @@ describe('Web API Integration Tests', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.name).toBe('Octie API');
-      expect(response.body.data.version).toBe('1.0.0');
+      expect(response.body.data.version).toBe(API_VERSION);
       expect(response.body.data.endpoints).toBeDefined();
     });
   });
@@ -1046,25 +1046,80 @@ describe('Web API Integration Tests', () => {
   });
 
   // ==========================================
-  // CORS Headers
+  // Access Control and CORS
   // ==========================================
 
-  describe('CORS Headers', () => {
-    it('should include CORS headers in responses', async () => {
-      const response = await request(app)
-        .get('/api')
-        .expect(200);
+  describe('Access Control and CORS', () => {
+    it('rejects an unregistered project path', async () => {
+      const unregisteredDir = join(tmpdir(), `octie-unregistered-${uuidv4()}`);
+      const unregisteredStorage = new TaskStorage({ projectDir: unregisteredDir });
+      await unregisteredStorage.createProject('unregistered-project');
 
-      expect(response.headers['access-control-allow-origin']).toBe('*');
-      expect(response.headers['access-control-allow-methods']).toBeDefined();
+      try {
+        const response = await request(app)
+          .get(`/api/tasks?project=${encodeURIComponent(unregisteredDir)}`)
+          .expect(403);
+
+        expect(response.body.error.code).toBe('PROJECT_ACCESS_DENIED');
+      } finally {
+        rmSync(unregisteredDir, { recursive: true, force: true });
+      }
     });
 
-    it('should handle OPTIONS preflight requests', async () => {
-      const response = await request(app)
-        .options('/api/tasks')
-        .expect(204);
+    it('requires a token before constructing a non-local server', () => {
+      expect(() => new WebServer(tempDir, { host: '0.0.0.0', logging: false }))
+        .toThrow('An --api-token is required');
+    });
 
-      expect(response.headers['access-control-allow-origin']).toBe('*');
+    it('protects API routes when a token is configured', async () => {
+      const protectedServer = new WebServer(tempDir, {
+        host: '0.0.0.0',
+        apiToken: 'test-secret-token',
+        logging: false,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (protectedServer as any)._graph = graph;
+
+      await request(protectedServer.app).get('/api').expect(401);
+      await request(protectedServer.app)
+        .get('/api')
+        .set('X-Octie-Token', 'test-secret-token')
+        .expect(200);
+    });
+
+    it('does not enable cross-origin API access by default', async () => {
+      const response = await request(app)
+        .get('/api')
+        .set('Origin', 'https://untrusted.example')
+        .expect(200);
+
+      expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    it('only allows the explicitly configured CORS origin', async () => {
+      const origin = 'https://inspector.example';
+      const corsServer = new WebServer(tempDir, {
+        cors: true,
+        corsOrigin: origin,
+        logging: false,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (corsServer as any)._graph = graph;
+
+      const response = await request(corsServer.app)
+        .get('/api')
+        .set('Origin', origin)
+        .expect(200);
+      expect(response.headers['access-control-allow-origin']).toBe(origin);
+
+      await request(corsServer.app)
+        .options('/api/tasks')
+        .set('Origin', origin)
+        .expect(204);
+      await request(corsServer.app)
+        .options('/api/tasks')
+        .set('Origin', 'https://untrusted.example')
+        .expect(403);
     });
   });
 

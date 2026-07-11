@@ -264,6 +264,38 @@ describe('TaskStorage', () => {
       expect(loadedTask?.updated_at).toBe(originalUpdatedAt);
     });
 
+    it('rejects a stale graph save instead of losing another writer\'s changes', async () => {
+      await storage.createProject('Concurrent Project');
+      const firstWriter = await storage.load();
+      const staleWriter = await storage.load();
+
+      firstWriter.addNode(new TaskNode({
+        title: 'Implement first concurrent writer task',
+        description: 'Create the first independently loaded task graph mutation so a later stale save can be detected rather than overwrite this committed change.',
+        success_criteria: [{ id: uuidv4(), text: 'First mutation persists', completed: false }],
+        deliverables: [{ id: uuidv4(), text: 'src/first-writer.ts', completed: false }],
+      }));
+      staleWriter.addNode(new TaskNode({
+        title: 'Implement stale concurrent writer task',
+        description: 'Create an independently loaded graph mutation that must be rejected once another writer has committed a newer project revision.',
+        success_criteria: [{ id: uuidv4(), text: 'Stale mutation is rejected', completed: false }],
+        deliverables: [{ id: uuidv4(), text: 'src/stale-writer.ts', completed: false }],
+      }));
+
+      const results = await Promise.allSettled([
+        storage.save(firstWriter),
+        storage.save(staleWriter),
+      ]);
+      expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      expect(rejected?.reason).toMatchObject({ code: 'CONCURRENT_MODIFICATION' });
+
+      const persisted = await storage.load();
+      expect(persisted.size).toBe(1);
+    });
+
     it('should append immutable snapshot history on save', async () => {
       await storage.createProject('Snapshot Project');
 

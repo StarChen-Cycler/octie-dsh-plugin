@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { rmSync, existsSync, readdirSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,6 +22,11 @@ describe('init command', () => {
   let tempDir: string;
   let cliPath: string;
   let uniqueName: string; // Unique project name for this test run
+  let tempHome: string;
+  let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
+  let originalHomeDrive: string | undefined;
+  let originalHomePath: string | undefined;
 
   beforeEach(() => {
     // Create unique temp directory for each test
@@ -30,12 +35,36 @@ describe('init command', () => {
     uniqueName = `test-project-${uuidv4().substring(0, 8)}`;
     // Path to compiled CLI
     cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
+    tempHome = join(tmpdir(), `octie-init-home-${uuidv4()}`);
+    mkdirSync(tempHome, { recursive: true });
+    originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
+    originalHomeDrive = process.env.HOMEDRIVE;
+    originalHomePath = process.env.HOMEPATH;
+    process.env.HOME = tempHome;
+    process.env.USERPROFILE = tempHome;
+    process.env.HOMEDRIVE = tempHome.slice(0, 2);
+    process.env.HOMEPATH = tempHome.slice(2);
   });
 
   afterEach(async () => {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = originalUserProfile;
+    if (originalHomeDrive === undefined) delete process.env.HOMEDRIVE;
+    else process.env.HOMEDRIVE = originalHomeDrive;
+    if (originalHomePath === undefined) delete process.env.HOMEPATH;
+    else process.env.HOMEPATH = originalHomePath;
+
     // Clean up temp directory
     try {
       rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+    try {
+      rmSync(tempHome, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors
     }

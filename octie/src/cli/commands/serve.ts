@@ -17,7 +17,8 @@ export const serveCommand = new Command('serve')
   .option('-p, --port <number>', 'Port to run server on', '3456')
   .option('-h, --host <host>', 'Host to bind to', 'localhost')
   .option('--open', 'Open browser automatically')
-  .option('--no-cors', 'Disable CORS')
+  .option('--cors-origin <origin>', 'Explicit browser origin allowed for cross-origin API requests')
+  .option('--api-token <token>', 'API token (required with a non-local host)')
   .option('--no-logging', 'Disable request logging')
   .option('--project <path>', 'Path to Octie project directory')
   .addHelpText('after', `
@@ -26,6 +27,7 @@ Examples:
   $ octie serve -p 8080           Use custom port
   $ octie serve --open             Open browser automatically
   $ octie serve --host 0.0.0.0    Allow external connections
+  $ octie serve --host 0.0.0.0 --api-token <token>  Allow authenticated external connections
   $ octie serve --no-logging       Disable request logging
   $ octie serve --project /path    Serve specific project
 
@@ -46,7 +48,9 @@ Default: localhost:3456
         port: parseInt(options.port, 10),
         host: options.host,
         open: options.open,
-        cors: options.cors !== false,
+        cors: Boolean(options.corsOrigin),
+        corsOrigin: options.corsOrigin,
+        apiToken: options.apiToken,
         logging: options.logging !== false,
       };
 

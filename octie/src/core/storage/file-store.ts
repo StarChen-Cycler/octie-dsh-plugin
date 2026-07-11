@@ -17,6 +17,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { open, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   ProjectFile,
@@ -24,7 +25,7 @@ import type {
   ProjectMetadata,
   SnapshotHistoryEntry,
 } from '../../types/index.js';
-import { FileOperationError, ValidationError } from '../../types/index.js';
+import { ConcurrentModificationError, FileOperationError, ValidationError } from '../../types/index.js';
 import { AtomicFileWriter } from './atomic-write.js';
 import {
   inferSnapshotWriteContext,
@@ -44,6 +45,14 @@ const DEFAULT_PROJECT_FILE = 'project.json';
  */
 const OCTIE_DIR_NAME = '.octie';
 const DEFAULT_SNAPSHOT_RETENTION = 50;
+const PROJECT_LOCK_FILE = 'project.lock';
+const PROJECT_LOCK_STALE_MS = 30_000;
+const PROJECT_LOCK_TIMEOUT_MS = 5_000;
+const PROJECT_LOCK_RETRY_MS = 25;
+
+// A graph remembers the exact serialized project revision it was loaded from.
+// WeakMap keeps this concurrency metadata out of the persisted task model.
+const graphRevisions = new WeakMap<TaskGraphStore, string>();
 
 /**
  * Task Storage configuration
@@ -66,6 +75,8 @@ export interface TaskStorageConfig {
 export interface SaveGraphOptions {
   createBackup?: boolean;
   history?: SnapshotWriteContext;
+  /** Expected SHA-256 of the project file before writing. */
+  expectedRevision?: string;
 }
 
 /**
@@ -153,6 +164,10 @@ export class TaskStorage {
     return join(this.historyDirPath, 'history.ndjson');
   }
 
+  private get lockFilePath(): string {
+    return join(this.octieDirPath, PROJECT_LOCK_FILE);
+  }
+
   private get _historyStore(): ProjectHistoryStore {
     return new ProjectHistoryStore(this.octieDirPath, this._writer, this._snapshotRetention);
   }
@@ -190,11 +205,14 @@ export class TaskStorage {
 
     try {
       // Read and parse project file
-      const projectFile = await this._writer.readJSON<ProjectFile>(this.projectFilePath);
+      const serialized = await this._writer.read(this.projectFilePath);
+      const projectFile = JSON.parse(serialized) as ProjectFile;
 
       // Validate project file structure
       this._validateProjectFile(projectFile);
-      return this._createGraphFromProjectFile(projectFile);
+      const graph = this._createGraphFromProjectFile(projectFile);
+      graphRevisions.set(graph, this._computeHash(serialized));
+      return graph;
 
     } catch (error) {
       if (error instanceof FileOperationError) {
@@ -216,7 +234,15 @@ export class TaskStorage {
     graph: TaskGraphStore,
     options: SaveGraphOptions = {}
   ): Promise<void> {
+    await this._withProjectLock(async () => this._saveUnlocked(graph, options));
+  }
+
+  private async _saveUnlocked(
+    graph: TaskGraphStore,
+    options: SaveGraphOptions,
+  ): Promise<void> {
     const createBackup = options.createBackup ?? this._autoBackup;
+    const expectedRevision = options.expectedRevision ?? graphRevisions.get(graph);
     let projectFile: ProjectFile | undefined;
     let shouldSnapshot = false;
     let historyContext: SnapshotWriteContext | undefined;
@@ -249,12 +275,17 @@ export class TaskStorage {
         }
       }
 
+      if (expectedRevision !== undefined && previousHash !== expectedRevision) {
+        throw new ConcurrentModificationError(this.projectFilePath);
+      }
+
       // Write atomically
       await this._writer.write(this.projectFilePath, projectFile, {
         createBackup,
       });
 
       const currentHash = this._computeHash(serialized);
+      graphRevisions.set(graph, currentHash);
       shouldSnapshot = options.history?.forceSnapshot || previousHash !== currentHash;
       if (shouldSnapshot) {
         historyContext = {
@@ -263,6 +294,9 @@ export class TaskStorage {
         };
       }
     } catch (error) {
+      if (error instanceof ConcurrentModificationError) {
+        throw error;
+      }
       throw new FileOperationError(
         `Failed to save project: ${error instanceof Error ? error.message : String(error)}`,
         this.projectFilePath
@@ -280,6 +314,44 @@ export class TaskStorage {
         `Project saved, but snapshot history recording failed: ${error instanceof Error ? error.message : String(error)}`,
         this.historyFilePath,
       );
+    }
+  }
+
+  private async _withProjectLock<T>(operation: () => Promise<T>): Promise<T> {
+    await this.init();
+    const startedAt = Date.now();
+
+    while (true) {
+      try {
+        const handle = await open(this.lockFilePath, 'wx');
+        try {
+          return await operation();
+        } finally {
+          await handle.close();
+          await unlink(this.lockFilePath).catch(() => undefined);
+        }
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'EEXIST') {
+          throw error;
+        }
+
+        try {
+          const lockStats = await stat(this.lockFilePath);
+          if (Date.now() - lockStats.mtimeMs > PROJECT_LOCK_STALE_MS) {
+            await unlink(this.lockFilePath).catch(() => undefined);
+            continue;
+          }
+        } catch {
+          continue;
+        }
+
+        if (Date.now() - startedAt >= PROJECT_LOCK_TIMEOUT_MS) {
+          throw new FileOperationError('Timed out waiting for project write lock', this.lockFilePath);
+        }
+
+        await new Promise<void>(resolve => setTimeout(resolve, PROJECT_LOCK_RETRY_MS));
+      }
     }
   }
 

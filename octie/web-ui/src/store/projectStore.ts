@@ -42,7 +42,6 @@ interface ProjectState {
 
   // API actions
   fetchProjects: () => Promise<void>;
-  removeProject: (path: string) => Promise<void>;
 
   // URL helpers
   getProjectFromUrl: () => string | null;
@@ -87,27 +86,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({
         error: err instanceof Error ? err.message : 'Failed to fetch projects',
         loading: false,
-      });
-    }
-  },
-
-  removeProject: async (path) => {
-    try {
-      const encodedPath = encodeURIComponent(path);
-      const response = await fetch(`${API_BASE}/projects/${encodedPath}`, {
-        method: 'DELETE',
-      });
-      const data: ApiResponse<{ removed: boolean }> = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error?.message || 'Failed to remove project');
-      }
-
-      // Refresh project list
-      get().fetchProjects();
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to remove project',
       });
     }
   },

@@ -11,10 +11,11 @@ import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import type { Server as HttpServer } from 'node:http';
 import { createServer as httpCreateServer } from 'node:http';
-import { existsSync, watch, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, watch, writeFileSync, unlinkSync, readFileSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { TaskStorage } from '../core/storage/file-store.js';
 import type { TaskGraphStore } from '../core/graph/index.js';
@@ -23,6 +24,7 @@ import { registerGraphRoutes } from './routes/graph.js';
 import { registerProjectsRoutes } from './routes/projects.js';
 import { registerEventsRoutes, type SseBroadcast } from './routes/events.js';
 import { OctieError, ERROR_SUGGESTIONS } from '../types/index.js';
+import { loadRegistry } from '../core/registry/index.js';
 import { ZodError } from 'zod';
 
 // Get the directory of this module for static file paths
@@ -31,6 +33,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ponytail: single-file IPC — server writes its URL here, CLI reads it so
 // cache invalidation works regardless of port. If multiple servers run, last wins.
 const LAST_SERVER_URL_FILE = join(homedir(), '.octie', '.last-server-url');
+
+function readPackageVersion(): string {
+  const packagePath = join(__dirname, '../../package.json');
+  const packageJson = JSON.parse(readFileSync(packagePath, 'utf8')) as { version?: unknown };
+  return typeof packageJson.version === 'string' ? packageJson.version : 'unknown';
+}
+
+/** Runtime API version, always read from the package manifest. */
+export const API_VERSION = readPackageVersion();
 
 /**
  * Web server configuration options
@@ -42,8 +53,12 @@ export interface ServerOptions {
   host?: string;
   /** Open browser automatically (default: false) */
   open?: boolean;
-  /** Enable CORS (default: true) */
+  /** Enable CORS only for the explicit corsOrigin (default: false) */
   cors?: boolean;
+  /** Explicit browser origin permitted to call this API cross-origin */
+  corsOrigin?: string;
+  /** Required for all API requests when binding to a non-loopback host */
+  apiToken?: string;
   /** Enable request logging (default: true) */
   logging?: boolean;
 }
@@ -87,6 +102,8 @@ export class WebServer {
   private _shuttingDown = false;
   private _fsWatcher: FSWatcher | null = null;
   private _sseBroadcast: SseBroadcast | null = null;
+  private _apiToken?: string;
+  private _shutdownHandlersRegistered = false;
   private _graphCacheClearers: Array<(projectPath?: string) => void> = [];
 
   /**
@@ -98,6 +115,10 @@ export class WebServer {
     this._projectPath = projectPath;
     this._port = options.port ?? 3456;
     this._host = options.host ?? 'localhost';
+    this._apiToken = options.apiToken;
+    if (!this._isLoopbackHost(this._host) && !this._apiToken) {
+      throw new Error('An --api-token is required when serving Octie on a non-local host.');
+    }
     this._storage = new TaskStorage({ projectDir: projectPath });
 
     // Initialize Express app
@@ -112,8 +133,6 @@ export class WebServer {
     // Configure error handling
     this._configureErrorHandling();
 
-    // Setup graceful shutdown handlers
-    this._setupShutdownHandlers();
   }
 
   /**
@@ -127,8 +146,12 @@ export class WebServer {
     this._app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // CORS middleware (enabled by default)
-    if (options.cors !== false) {
-      this._app.use(this._corsMiddleware());
+    if (options.cors === true && options.corsOrigin) {
+      this._app.use(this._corsMiddleware(options.corsOrigin));
+    }
+
+    if (this._apiToken) {
+      this._app.use('/api', this._apiTokenMiddleware());
     }
 
     // Request logging middleware (enabled by default)
@@ -143,20 +166,100 @@ export class WebServer {
   /**
    * CORS middleware
    */
-  private _corsMiddleware(): RequestHandler {
-    return (_req: Request, res: Response, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+  private _corsMiddleware(allowedOrigin: string): RequestHandler {
+    return (req: Request, res: Response, next) => {
+      if (req.headers.origin !== allowedOrigin) {
+        if (req.method === 'OPTIONS') {
+          res.sendStatus(403);
+          return;
+        }
+        next();
+        return;
+      }
+
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+      res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Octie-Token');
       res.setHeader('Access-Control-Max-Age', '86400');
 
-      if (_req.method === 'OPTIONS') {
+      if (req.method === 'OPTIONS') {
         res.sendStatus(204);
         return;
       }
 
       next();
     };
+  }
+
+  private _apiTokenMiddleware(): RequestHandler {
+    return (req: Request, res: Response, next) => {
+      if (req.method === 'OPTIONS') {
+        next();
+        return;
+      }
+
+      const authorization = req.get('authorization');
+      const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
+      const providedToken = req.get('x-octie-token') || bearerToken;
+      if (!providedToken || !this._apiToken || !this._tokensMatch(providedToken, this._apiToken)) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'A valid Octie API token is required.',
+          },
+          timestamp: new Date().toISOString(),
+        } satisfies ApiResponse);
+        return;
+      }
+      next();
+    };
+  }
+
+  private _projectAccessMiddleware(): RequestHandler {
+    return (req: Request, res: Response, next) => {
+      const requestedProject = req.query.project;
+      if (requestedProject === undefined) {
+        next();
+        return;
+      }
+      if (typeof requestedProject !== 'string' || !requestedProject) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_PROJECT_PATH', message: 'Project path must be a non-empty string.' },
+          timestamp: new Date().toISOString(),
+        } satisfies ApiResponse);
+        return;
+      }
+
+      const canonicalPath = resolve(requestedProject);
+      const allowedPaths = new Set([
+        resolve(this._projectPath),
+        ...Object.values(loadRegistry().projects).map(project => resolve(project.path)),
+      ]);
+      if (!allowedPaths.has(canonicalPath)) {
+        res.status(403).json({
+          success: false,
+          error: { code: 'PROJECT_ACCESS_DENIED', message: 'This project is not registered for this Octie server.' },
+          timestamp: new Date().toISOString(),
+        } satisfies ApiResponse);
+        return;
+      }
+
+      (req as Request & { octieProjectPath?: string }).octieProjectPath = canonicalPath;
+      next();
+    };
+  }
+
+  private _isLoopbackHost(host: string): boolean {
+    return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host.toLowerCase());
+  }
+
+  private _tokensMatch(provided: string, expected: string): boolean {
+    const providedBuffer = Buffer.from(provided);
+    const expectedBuffer = Buffer.from(expected);
+    return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
   }
 
   /**
@@ -225,6 +328,9 @@ export class WebServer {
       }
     }
 
+    // Project query paths are only allowed for the served project or a registered project.
+    this._app.use('/api', this._projectAccessMiddleware());
+
     // Health check endpoint
     this._app.get('/health', (_req: Request, res: Response) => {
       res.json({
@@ -244,7 +350,7 @@ export class WebServer {
         success: true,
         data: {
           name: 'Octie API',
-          version: '1.0.0',
+          version: API_VERSION,
           description: 'Graph-based task management system API',
           endpoints: {
             health: 'GET /health',
@@ -387,6 +493,10 @@ export class WebServer {
    * Setup graceful shutdown handlers
    */
   private _setupShutdownHandlers(): void {
+    if (this._shutdownHandlersRegistered) {
+      return;
+    }
+    this._shutdownHandlersRegistered = true;
     const shutdown = async (signal: string) => {
       if (this._shuttingDown) {
         console.log('Force shutdown detected, exiting immediately');
@@ -429,6 +539,7 @@ export class WebServer {
 
     // Load graph
     this._graph = await this._storage.load();
+    this._setupShutdownHandlers();
 
     // Create HTTP server
     this._server = httpCreateServer(this._app);

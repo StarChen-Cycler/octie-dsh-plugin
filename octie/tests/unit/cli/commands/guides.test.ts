@@ -10,20 +10,35 @@ describe('guide flags', () => {
   const cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
   const distGuidesDir = join(process.cwd(), 'dist', 'cli', 'guides');
   let tempDir: string;
+  let tempHome: string;
 
   function runCli(command: string): string {
     return execSync(`node ${cliPath} ${command}`, {
       encoding: 'utf-8',
+      env: {
+        ...process.env,
+        HOME: tempHome,
+        USERPROFILE: tempHome,
+        HOMEDRIVE: tempHome.slice(0, 2),
+        HOMEPATH: tempHome.slice(2),
+      },
     });
   }
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `octie-guides-${uuidv4()}`);
+    tempHome = join(tmpdir(), `octie-guides-home-${uuidv4()}`);
+    mkdirSync(tempHome, { recursive: true });
   });
 
   afterEach(() => {
     try {
       rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors.
+    }
+    try {
+      rmSync(tempHome, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors.
     }

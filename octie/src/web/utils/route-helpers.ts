@@ -10,6 +10,11 @@ import type { Request, Response } from 'express';
 import { ERROR_SUGGESTIONS } from '../../types/index.js';
 import type { ApiResponse } from '../server.js';
 
+export interface ProjectScopedRequest extends Request {
+  /** Canonical path set by the server's project access middleware. */
+  octieProjectPath?: string;
+}
+
 /**
  * Async error handler wrapper
  * Catches async errors and passes them to Express error handling
@@ -58,6 +63,10 @@ export function sendError(
  * Extract project path from query params
  */
 export function getProjectPath(req: Request): string | undefined {
+  const authorizedPath = (req as ProjectScopedRequest).octieProjectPath;
+  if (authorizedPath) {
+    return authorizedPath;
+  }
   const project = req.query.project;
   return typeof project === 'string' ? project : undefined;
 }

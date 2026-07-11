@@ -4,8 +4,6 @@ import type {
   GraphData,
   ProjectStats,
   TaskQueryOptions,
-  TaskCreateInput,
-  TaskUpdateInput,
   ApiResponse,
 } from '../types';
 
@@ -31,14 +29,9 @@ interface TaskState {
   // API actions
   fetchTasks: () => Promise<void>;
   fetchTask: (id: string) => Promise<Task>;
-  createTask: (input: TaskCreateInput) => Promise<Task>;
-  updateTask: (id: string, input: TaskUpdateInput) => Promise<Task>;
-  deleteTask: (id: string, reconnect?: boolean) => Promise<void>;
-
   // Graph actions
   fetchGraph: () => Promise<void>;
   fetchStats: () => Promise<void>;
-  validateGraph: () => Promise<{ isValid: boolean; hasCycle: boolean; cycleStats?: unknown }>;
 }
 
 const API_BASE = '/api';
@@ -130,95 +123,6 @@ export const useTaskStore = create<TaskState>()((set, get) => {
     return result.data!;
   },
 
-  createTask: async (input) => {
-    set({ loading: true, error: null });
-    try {
-      const { currentProjectPath } = get();
-      const response = await fetch(buildUrl('/tasks', currentProjectPath), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-      const result: ApiResponse<Task> = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error?.message || 'Failed to create task');
-      }
-
-      set((state) => ({
-        tasks: [...state.tasks, result.data!],
-        loading: false,
-      }));
-
-      return result.data!;
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Unknown error',
-        loading: false,
-      });
-      throw error;
-    }
-  },
-
-  updateTask: async (id, input) => {
-    set({ loading: true, error: null });
-    try {
-      const { currentProjectPath } = get();
-      const response = await fetch(buildUrl(`/tasks/${id}`, currentProjectPath), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-      const result: ApiResponse<Task> = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error?.message || 'Failed to update task');
-      }
-
-      set((state) => ({
-        tasks: state.tasks.map((t) => (t.id === id ? result.data! : t)),
-        loading: false,
-      }));
-
-      return result.data!;
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Unknown error',
-        loading: false,
-      });
-      throw error;
-    }
-  },
-
-  deleteTask: async (id, reconnect = true) => {
-    set({ loading: true, error: null });
-    try {
-      const { currentProjectPath } = get();
-      const params = new URLSearchParams();
-      if (reconnect) params.set('reconnect', 'true');
-      const response = await fetch(buildUrl(`/tasks/${id}`, currentProjectPath, params), {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const result: ApiResponse<never> = await response.json();
-        throw new Error(result.error?.message || 'Failed to delete task');
-      }
-
-      set((state) => ({
-        tasks: state.tasks.filter((t) => t.id !== id),
-        selectedTaskId: state.selectedTaskId === id ? null : state.selectedTaskId,
-        loading: false,
-      }));
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Unknown error',
-        loading: false,
-      });
-      throw error;
-    }
-  },
-
   // Graph actions
   fetchGraph: async () => {
     set({ loading: true, error: null });
@@ -260,19 +164,5 @@ export const useTaskStore = create<TaskState>()((set, get) => {
     }
   },
 
-  validateGraph: async () => {
-    const { currentProjectPath } = get();
-    const response = await fetch(buildUrl('/graph/validate', currentProjectPath), {
-      method: 'POST',
-    });
-    const result: ApiResponse<{ isValid: boolean; hasCycle: boolean; cycleStats?: unknown }> =
-      await response.json();
-
-    if (!response.ok || !result.success) {
-      throw new Error(result.error?.message || 'Failed to validate graph');
-    }
-
-    return result.data!;
-  },
   };
 });

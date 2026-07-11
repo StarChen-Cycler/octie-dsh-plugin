@@ -107,29 +107,3 @@ export interface TaskQueryOptions {
   limit?: number;
   offset?: number;
 }
-
-export interface TaskCreateInput {
-  title: string;
-  description: string;
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  success_criteria: string[];
-  deliverables: string[];
-  blockers?: string[];
-  dependencies?: string[];
-  related_files?: string[];
-  notes?: string;
-}
-
-export interface TaskUpdateInput {
-  title?: string;
-  description?: string;
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  success_criteria?: Partial<SuccessCriterion>[];
-  deliverables?: Partial<Deliverable>[];
-  blockers?: string[];
-  dependencies?: string[];
-  related_files?: string[];
-  notes?: string;
-}

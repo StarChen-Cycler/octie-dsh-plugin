@@ -282,6 +282,7 @@ export const ERROR_STATUS_MAP: Record<string, number> = {
   INVALID_TASK_ID: 400,
   CIRCULAR_DEPENDENCY: 400,
   DUPLICATE_TASK: 409,
+  CONCURRENT_MODIFICATION: 409,
   // Server errors (5xx)
   FILE_OPERATION_ERROR: 500,
   STORAGE_ERROR: 500,
@@ -301,6 +302,7 @@ export const ERROR_SUGGESTIONS: Record<string, string> = {
   INVALID_TASK_ID: 'Task IDs must be valid UUIDs. Use `octie list` to find the correct task ID.',
   CIRCULAR_DEPENDENCY: 'Remove one of the edges in the cycle using `octie update <id> --unblock <blocker_id>`.',
   DUPLICATE_TASK: 'Use `octie list --search <query>` to find existing similar tasks.',
+  CONCURRENT_MODIFICATION: 'The project changed while this operation was running. Reload the project and retry the operation.',
   FILE_OPERATION_ERROR: 'Check file permissions and ensure the .octie directory is writable.',
   STORAGE_ERROR: 'Try restoring from backup with `octie import --file .octie/project.json.bak`.',
   INTERNAL_ERROR: 'Run with --verbose flag for more details or check the logs.',
@@ -391,6 +393,21 @@ export class FileOperationError extends OctieError {
       `Check file permissions and ensure the path is correct. If the file is corrupted, try restoring from backup: \`octie import --file .octie/project.json.bak\``
     );
     this.name = 'FileOperationError';
+  }
+}
+
+/**
+ * Error thrown when a project changed after a caller loaded it.
+ * Callers must reload before applying their mutation again so no write is lost.
+ */
+export class ConcurrentModificationError extends OctieError {
+  constructor(public filePath: string) {
+    super(
+      'Project changed since it was loaded',
+      'CONCURRENT_MODIFICATION',
+      'Reload the project and retry the operation so it applies to the latest task graph.'
+    );
+    this.name = 'ConcurrentModificationError';
   }
 }
 
