@@ -15,7 +15,7 @@ import { registerProject, isValidOctieProject } from '../../core/registry/index.
 export const serveCommand = new Command('serve')
   .description('Start web UI server for task visualization')
   .option('-p, --port <number>', 'Port to run server on', '3456')
-  .option('-h, --host <host>', 'Host to bind to', 'localhost')
+  .option('-h, --host <host>', 'Host to bind to', '127.0.0.1')
   .option('--open', 'Open browser automatically')
   .option('--cors-origin <origin>', 'Explicit browser origin allowed for cross-origin API requests')
   .option('--api-token <token>', 'API token (required with a non-local host)')
@@ -31,7 +31,7 @@ Examples:
   $ octie serve --no-logging       Disable request logging
   $ octie serve --project /path    Serve specific project
 
-Default: localhost:3456
+Default: 127.0.0.1:3456
 `)
   .action(async (options) => {
     try {

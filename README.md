@@ -63,13 +63,13 @@ octie serve --open       # Auto-open browser
 Default server address:
 
 ```text
-http://localhost:3456
+http://127.0.0.1:3456
 ```
 
 The UI home page lists registered projects. A project-specific URL can also be opened with the encoded project path:
 
 ```text
-http://localhost:3456/?project=<absolute-project-path>
+http://127.0.0.1:3456/?project=<absolute-project-path>
 ```
 
 ## What is implemented

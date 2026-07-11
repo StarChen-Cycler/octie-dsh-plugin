@@ -49,7 +49,7 @@ export const API_VERSION = readPackageVersion();
 export interface ServerOptions {
   /** Port to run server on (default: 3456) */
   port?: number;
-  /** Host to bind to (default: 'localhost') */
+  /** Host to bind to (default: '127.0.0.1') */
   host?: string;
   /** Open browser automatically (default: false) */
   open?: boolean;
@@ -114,7 +114,9 @@ export class WebServer {
   constructor(projectPath: string, options: ServerOptions = {}) {
     this._projectPath = projectPath;
     this._port = options.port ?? 3456;
-    this._host = options.host ?? 'localhost';
+    // Explicit IPv4 loopback avoids Windows environments where `localhost`
+    // resolves to an unusable IPv6 ::1 listener.
+    this._host = options.host ?? '127.0.0.1';
     this._apiToken = options.apiToken;
     if (!this._isLoopbackHost(this._host) && !this._apiToken) {
       throw new Error('An --api-token is required when serving Octie on a non-local host.');

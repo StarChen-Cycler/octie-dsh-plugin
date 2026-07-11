@@ -95,6 +95,10 @@ describe('Web API Integration Tests', () => {
   // ==========================================
 
   describe('Health and Info Endpoints', () => {
+    it('uses IPv4 loopback as the default bind address', () => {
+      expect(server.url).toBe('http://127.0.0.1:3456');
+    });
+
     it('GET / should serve web UI or redirect to API', async () => {
       const response = await request(app).get('/');
 
