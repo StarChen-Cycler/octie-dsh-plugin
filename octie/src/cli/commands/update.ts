@@ -127,8 +127,9 @@ export const updateCommand = new Command('update')
       .argParser((value: string, previous: string[]) => [...(previous || []), value])
   )
   .option('--complete-criterion <id>', 'Mark success criterion(s) as complete (supports: id, short-uuid, id1,id2, "id1","id2")', parseMultipleIds, [])
+  .option('--evidence <text>', 'Evidence recorded for the criterion/criteria completed via --complete-criterion in this call (optional)')
   .option('--remove-criterion <id>', 'Remove a success criterion by ID (NOTE: cannot remove completed items)')
-  .option('--blockers <ids>', 'Add blocker(s) (requires --dependency-explanation)')
+  .option('--blockers <id>', 'Add one blocker per call (requires --dependency-explanation; repeat the command for each additional blocker)', parseMultipleIds, [])
   .option('--unblock <id>', 'Remove a blocker (removes graph edge)')
   .option('--dependency-explanation <text>', 'Set/update dependencies explanation (required with --blockers)')
   .addOption(
@@ -238,9 +239,16 @@ export const updateCommand = new Command('update')
       if (options.completeCriterion && options.completeCriterion.length > 0) {
         for (const criterionIdOrPrefix of options.completeCriterion) {
           const fullId = resolveCriterionId(task, criterionIdOrPrefix);
-          task.completeCriterion(fullId);
+          task.completeCriterion(fullId, options.evidence);
         }
         updated = true;
+      }
+
+      // --evidence is only meaningful together with --complete-criterion
+      if (options.evidence && (!options.completeCriterion || options.completeCriterion.length === 0)) {
+        error('--evidence requires --complete-criterion in the same command.');
+        info('Example: octie update abc123 --complete-criterion def456 --evidence "0.86 ms median, n=810"');
+        process.exit(1);
       }
 
       // Remove criterion (supports short UUID)
@@ -277,7 +285,17 @@ export const updateCommand = new Command('update')
       const dependenciesText = options.dependencyExplanation ?? options.dependencies;
 
       // Add blocker (twin validation: requires --dependency-explanation)
-      const blockerId = options.blockers;
+      // One blocker per call: comma form and repeated flags are collected by
+      // parseMultipleIds and rejected explicitly, so each blocker gets its own
+      // --dependency-explanation line (and nothing is silently dropped).
+      const blockerIds: string[] = options.blockers || [];
+      if (blockerIds.length > 1) {
+        error('--blockers accepts one task ID per call. Add blockers one at a time, each with its own --dependency-explanation.');
+        info(`Received ${blockerIds.length} IDs: ${blockerIds.join(', ')}`);
+        info('Example: octie update abc123 --blockers def456 --dependency-explanation "Needs the API spec from def456"');
+        process.exit(1);
+      }
+      const blockerId = blockerIds[0];
       if (blockerId) {
         if (!dependenciesText) {
           error('When using --blockers, --dependency-explanation is required (twin feature).');
@@ -471,6 +489,14 @@ updateCommand.on('--help', () => {
   console.log(chalk.cyan('  --complete-need-fix <id>') + ': Mark issue as resolved.');
   console.log('    Supports short UUID (first 7-8 chars).');
   console.log('');
+  console.log(chalk.bold('Criterion Evidence (Optional):'));
+  console.log(chalk.cyan('  --evidence <text>') + ': Record evidence when completing success criteria.');
+  console.log('    Requires --complete-criterion in the same command.');
+  console.log('    Applies to all criteria completed in that call (use separate calls for per-criterion evidence).');
+  console.log('');
+  console.log(chalk.yellow('  Example:'));
+  console.log('    octie update abc --complete-criterion def456 --evidence "0.86 ms median, n=810"');
+  console.log('');
   console.log(chalk.yellow('  Example:'));
   console.log('    octie update abc --add-need-fix "Null pointer in edge case" \\');
   console.log('      --need-fix-source review --need-fix-file "src/auth.ts"');
@@ -478,6 +504,8 @@ updateCommand.on('--help', () => {
   console.log(chalk.bold('Blockers & Dependencies (Twin Feature):'));
   console.log(chalk.cyan('  --blockers <id>') + ': Add a blocker (creates graph edge).');
   console.log('                   REQUIRES --dependency-explanation (twin validation).');
+  console.log('                   ONE blocker per call; repeat the command per blocker');
+  console.log('                   so each gets its own explanation.');
   console.log('                   Prevents self-blocking and cycle creation.');
   console.log('');
   console.log(chalk.cyan('  --unblock <id>') + ': Remove a blocker (removes graph edge).');
@@ -501,6 +529,7 @@ updateCommand.on('--help', () => {
   console.log('');
   console.log(chalk.red('  Error Conditions:'));
   console.log('    --blockers without --dependency-explanation → Error');
+  console.log('    Multiple --blockers IDs in one call (comma form or repeated flags) → Error');
   console.log('    Self-blocking (task blocks itself) → Error');
   console.log('    Would create cycle → Error');
   console.log('    Cannot uncomplete/remove completed items → Error');

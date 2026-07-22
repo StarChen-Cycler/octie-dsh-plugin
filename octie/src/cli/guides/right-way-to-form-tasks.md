@@ -54,7 +54,7 @@ Do not create vague tasks like:
 ## `octie create` rules
 
 Use:
-- 1 action-oriented title
+- 1 action-oriented title (must contain an accepted action verb; full list: `octie create -h`)
 - 1 specific description
 - 1-10 success criteria
 - 1-10 deliverables
@@ -63,6 +63,8 @@ Success criteria should be:
 - quantitative
 - independently verifiable
 - pass/fail checkable
+
+A criterion with a subjective word (e.g. "clear", "fast") is accepted only when it also carries a measurable anchor: a number, unit, status code, file path, or a verifiable verb (passes, returns, exits, prints, ...). Without an anchor it is rejected at creation time.
 
 Deliverables should be:
 - concrete outputs such as files, endpoints, tests, schemas, docs, scripts, or migrations

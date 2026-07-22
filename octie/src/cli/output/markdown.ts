@@ -39,6 +39,9 @@ export function formatTaskMarkdown(task: TaskNode): string {
       if (sc.completed && sc.completed_at) {
         lines.push(`  - Completed: ${sc.completed_at}`);
       }
+      if (sc.evidence) {
+        lines.push(`  - Evidence: ${sc.evidence}`);
+      }
     }
     lines.push('');
   }

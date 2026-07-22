@@ -7,7 +7,7 @@ import Table from 'cli-table3';
 import chalk from 'chalk';
 import type { SnapshotHistoryEntry } from '../../types/index.js';
 import { TaskStorage } from '../../core/storage/file-store.js';
-import { getProjectPath, confirmPrompt, success, error, info } from '../utils/helpers.js';
+import { getProjectPath, confirmPrompt, success, error, info, resolveOutputFormat } from '../utils/helpers.js';
 
 function formatHistoryTable(entries: SnapshotHistoryEntry[]): string {
   if (entries.length === 0) {
@@ -102,8 +102,8 @@ Examples:
   .action(async (_options, command) => {
     try {
       const globalOpts = command.parent?.parent?.opts() || {};
-      const format = globalOpts.format || 'table';
       const projectPath = await getProjectPath(globalOpts.project);
+      const format = resolveOutputFormat(command, projectPath);
       const storage = new TaskStorage({ projectDir: projectPath });
       const entries = await storage.listHistory();
 

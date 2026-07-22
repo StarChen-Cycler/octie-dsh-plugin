@@ -149,6 +149,49 @@ describe('update command', () => {
     });
   });
 
+  describe('criterion evidence', () => {
+    it('should store evidence when completing a criterion with --evidence', async () => {
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" update ${testTaskId} --complete-criterion "${criterionId}" --evidence "0.86 ms median, n=810"`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('Task updated');
+
+      const graph = await storage.load();
+      const task = graph.getNode(testTaskId);
+      const criterion = task?.success_criteria.find(c => c.id === criterionId);
+      expect(criterion?.completed).toBe(true);
+      expect(criterion?.evidence).toBe('0.86 ms median, n=810');
+    });
+
+    it('should reject --evidence without --complete-criterion', () => {
+      let errorMsg = '';
+      let exitCode = 0;
+      try {
+        execSync(
+          `node ${cliPath} --project "${tempDir}" update ${testTaskId} --evidence "some proof"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        );
+      } catch (err: any) {
+        exitCode = err.status;
+        errorMsg = err.stderr?.toString() || err.stdout?.toString() || '';
+      }
+
+      expect(exitCode).toBe(1);
+      expect(errorMsg).toContain('--evidence requires --complete-criterion');
+    });
+
+    it('should leave pre-evidence criteria without an evidence key on load', async () => {
+      // The beforeEach fixture writes a criterion with no evidence field (pre-evidence format)
+      const graph = await storage.load();
+      const task = graph.getNode(testTaskId);
+      const criterion = task?.success_criteria.find(c => c.id === criterionId);
+      expect(criterion).toBeDefined();
+      expect(criterion?.evidence).toBeUndefined();
+    });
+  });
+
   describe('deliverable completion', () => {
     it('should add new deliverable', async () => {
       const output = execSync(
@@ -216,6 +259,83 @@ describe('update command', () => {
       const task = updatedGraph.getNode(testTaskId);
       expect(task?.blockers).toContain(blockerTaskId);
       expect(task?.dependencies).toContain('Needs output from blocker task');
+    });
+
+    /**
+     * Create two blocker tasks and return their IDs
+     */
+    async function seedTwoBlockers(): Promise<{ blockerA: string; blockerB: string }> {
+      const graph = await storage.load();
+      const blockerA = uuidv4();
+      const blockerB = uuidv4();
+      for (const [id, title] of [[blockerA, 'Blocker task A'], [blockerB, 'Blocker task B']] as const) {
+        graph.addNode(new TaskNode({
+          id,
+          title,
+          description: 'Valid description that is long enough to meet minimum requirements',
+          status: 'ready',
+          priority: 'top',
+          success_criteria: [{ id: uuidv4(), text: 'Complete', completed: false }],
+          deliverables: [{ id: uuidv4(), text: 'output.ts', completed: false }],
+          blockers: [],
+          dependencies: '',
+          related_files: [],
+          notes: '',
+          c7_verified: [],
+          sub_items: [],
+          edges: [],
+        }));
+      }
+      await storage.save(graph);
+      return { blockerA, blockerB };
+    }
+
+    it('should reject comma-separated --blockers with a one-per-call error', async () => {
+      const { blockerA, blockerB } = await seedTwoBlockers();
+
+      let exitCode = 0;
+      let errorMsg = '';
+      try {
+        execSync(
+          `node ${cliPath} --project "${tempDir}" update ${testTaskId} --blockers "${blockerA},${blockerB}" --dependency-explanation "Needs both outputs"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        );
+      } catch (err: any) {
+        exitCode = err.status;
+        errorMsg = (err.stderr?.toString() || '') + (err.stdout?.toString() || '');
+      }
+
+      expect(exitCode).toBe(1);
+      expect(errorMsg).toContain('one task ID per call');
+      expect(errorMsg).toContain('Received 2 IDs');
+
+      // Nothing was applied
+      const after = await storage.load();
+      expect(after.getNode(testTaskId)?.blockers.length).toBe(0);
+    });
+
+    it('should reject repeated --blockers flags instead of silently keeping the last', async () => {
+      const { blockerA, blockerB } = await seedTwoBlockers();
+
+      let exitCode = 0;
+      let errorMsg = '';
+      try {
+        execSync(
+          `node ${cliPath} --project "${tempDir}" update ${testTaskId} --blockers "${blockerA}" --blockers "${blockerB}" --dependency-explanation "Needs both outputs"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        );
+      } catch (err: any) {
+        exitCode = err.status;
+        errorMsg = (err.stderr?.toString() || '') + (err.stdout?.toString() || '');
+      }
+
+      expect(exitCode).toBe(1);
+      expect(errorMsg).toContain('one task ID per call');
+      expect(errorMsg).toContain('Received 2 IDs');
+
+      // Nothing was applied
+      const after = await storage.load();
+      expect(after.getNode(testTaskId)?.blockers.length).toBe(0);
     });
   });
 

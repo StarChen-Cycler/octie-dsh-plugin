@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { getProjectPath, loadGraph, error } from '../utils/helpers.js';
+import { getProjectPath, loadGraph, error, resolveOutputFormat } from '../utils/helpers.js';
 import { formatTaskMarkdown } from '../output/markdown.js';
 import { formatTaskJSON, parseFields } from '../output/json.js';
 import { formatTaskDetailTable } from '../output/table.js';
@@ -51,10 +51,10 @@ Global Options:
     try {
       // Get global options
       const globalOpts = command.parent?.opts() || {};
-      const format = globalOpts.format || 'table';
 
       // Load project
       const projectPath = await getProjectPath(globalOpts.project);
+      const format = resolveOutputFormat(command, projectPath);
       const graph = await loadGraph(projectPath);
 
       // Find task (supports full UUID or short prefix)

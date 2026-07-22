@@ -9,7 +9,7 @@ import { Command } from 'commander';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { getProjectPath, loadGraph, error, info } from '../utils/helpers.js';
+import { getProjectPath, loadGraph, error, info, resolveOutputFormat } from '../utils/helpers.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import { TaskStorage } from '../../core/storage/file-store.js';
 import { isValidOctieProject } from '../../core/registry/index.js';
@@ -202,8 +202,8 @@ Examples:
   .action(async (_options, command) => {
     try {
       const globalOpts = command.parent?.opts() || {};
-      const format = globalOpts.format || 'table';
       const projectPath = await getProjectPath(globalOpts.project);
+      const format = resolveOutputFormat(command, projectPath);
 
       // Load root project.
       const rootStorage = new TaskStorage({ projectDir: projectPath });

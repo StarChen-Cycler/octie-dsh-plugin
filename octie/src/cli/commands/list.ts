@@ -6,7 +6,7 @@ import { Command, Option } from 'commander';
 import Table from 'cli-table3';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import { TaskNode } from '../../core/models/task-node.js';
-import { getProjectPath, loadGraph, formatStatus, formatPriority } from '../utils/helpers.js';
+import { getProjectPath, loadGraph, formatStatus, formatPriority, resolveOutputFormat, toTaskSummary, formatTaskSummaryMarkdown } from '../utils/helpers.js';
 import chalk from 'chalk';
 import { formatTaskMarkdown } from '../output/markdown.js';
 
@@ -83,6 +83,7 @@ export const listCommand = new Command('list')
   )
   .option('--graph', 'Show graph structure')
   .option('--tree', 'Show tree view')
+  .option('--summary', 'Compact one-line-per-task output (id, title, status, priority, blockers; md and json formats)')
   .addHelpText('after', `
 Status Values:
   ready       - Task has no blockers and no work started
@@ -103,15 +104,16 @@ Examples:
   $ octie list --graph                      Show graph relationships
   $ octie list --tree                       Show tree view
   $ octie list --format json                Output as JSON
+  $ octie list --summary --format md        Compact one-line-per-task markdown
 `)
   .action(async (options, command) => {
     try {
       // Get global options
       const globalOpts = command.parent?.opts() || {};
-      const format = globalOpts.format || 'table';
 
       // Load project
       const projectPath = await getProjectPath(globalOpts.project);
+      const format = resolveOutputFormat(command, projectPath);
       const graph = await loadGraph(projectPath);
 
       // Apply filters
@@ -168,16 +170,20 @@ Examples:
       // Format output
       switch (format) {
         case 'json':
-          console.log(JSON.stringify(tasks, null, 2));
+          console.log(JSON.stringify(options.summary ? tasks.map(toTaskSummary) : tasks, null, 2));
           break;
 
         case 'md':
           console.log(`# Tasks (${tasks.length})\n`);
           for (const task of tasks) {
-            console.log(formatTaskMarkdown(task));
-            console.log('');
-            console.log('---');
-            console.log('');
+            if (options.summary) {
+              console.log(formatTaskSummaryMarkdown(task));
+            } else {
+              console.log(formatTaskMarkdown(task));
+              console.log('');
+              console.log('---');
+              console.log('');
+            }
           }
           break;
 

@@ -13,7 +13,7 @@ import { Command, Option } from 'commander';
 import { loadRegistry, registerProject } from '../../core/registry/index.js';
 import type { ProjectRegistry } from '../../core/registry/index.js';
 import { touchProject } from '../../core/registry/index.js';
-import { TaskNode } from '../../core/models/task-node.js';
+import { TaskNode, ACTION_VERBS } from '../../core/models/task-node.js';
 import type {
   C7Verification,
   TaskPriority,
@@ -175,10 +175,13 @@ export function displayAtomicTaskPolicy(): void {
   console.log('\x1b[90m  • "Fix NPE in AuthService.login method" (atomic bug fix)\x1b[0m');
   console.log('');
   console.log('\x1b[1mValidation Rules:\x1b[0m');
-  console.log('  • Title: 1-200 chars, must contain action verb');
+  console.log('  • Title: 1-200 chars, must contain action verb (full list below)');
   console.log('  • Description: 50-10000 chars, must be specific');
-  console.log('  • Success Criteria: 1-10 items, must be quantitative');
+  console.log('  • Success Criteria: 1-10 items, must be quantitative (subjective words require a measurable anchor: number, unit, status code, file path, or verifiable verb)');
   console.log('  • Deliverables: 1-10 items, must be specific outputs');
+  console.log('');
+  console.log(`\x1b[1mAccepted Action Verbs (${ACTION_VERBS.length}):\x1b[0m`);
+  console.log('  ' + ACTION_VERBS.join(', '));
   console.log('');
   console.log('\x1b[33mIf your task is rejected as non-atomic:\x1b[0m');
   console.log('  → Split it into smaller, focused tasks');

@@ -13,6 +13,14 @@ Before finding work, make sure:
 
 Always inspect current state directly from Octie.
 
+Tip: set the default output format once per project instead of passing `--format md` on every call:
+
+```bash
+octie config set format md
+```
+
+An explicit `--format` flag always overrides the configured default.
+
 Start with:
 
 ```bash
@@ -35,6 +43,13 @@ octie list --graph
 octie find --without-blockers --format md
 octie find --orphans --format md
 octie find --leaves --format md
+```
+
+Use compact one-line-per-task output when scanning many tasks:
+
+```bash
+octie list --summary --format md
+octie find --search "<text>" --summary --format md
 ```
 
 Use focused search when needed:

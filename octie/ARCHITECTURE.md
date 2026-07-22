@@ -79,6 +79,7 @@ class TaskNode {
 - **Atomic Task Validation**: Ensures tasks are specific, measurable, and executable
 - **Auto-timestamp Management**: System-managed timestamps that cannot be manually set
 - **Status Transitions**: Validated state machine for status changes
+- **Criterion Evidence**: Completed criteria may carry optional `evidence` text (benchmarks, test output) recorded via `octie update --complete-criterion <id> --evidence "<text>"`
 
 ### TaskGraphStore (`src/core/graph/index.ts`)
 

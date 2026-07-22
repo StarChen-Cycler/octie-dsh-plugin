@@ -14,7 +14,7 @@ import Table from 'cli-table3';
 import chalk from 'chalk';
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import type { TaskNode } from '../../core/models/task-node.js';
-import { getProjectPath, loadGraph, formatStatus, formatPriority } from '../utils/helpers.js';
+import { getProjectPath, loadGraph, formatStatus, formatPriority, resolveOutputFormat, toTaskSummary, formatTaskSummaryMarkdown } from '../utils/helpers.js';
 import { normalizeGitBashPath } from './shared-helpers.js';
 
 /**
@@ -30,6 +30,7 @@ interface FindOptions {
   leaves?: boolean;
   status?: string;
   priority?: string;
+  summary?: boolean;
 }
 
 /**
@@ -202,16 +203,16 @@ function applyFilters(graph: TaskGraphStore, options: FindOptions): TaskNode[] {
 /**
  * Output results in the specified format
  */
-function outputResults(tasks: TaskNode[], format: string): void {
+function outputResults(tasks: TaskNode[], format: string, summary: boolean = false): void {
   switch (format) {
     case 'json':
-      console.log(JSON.stringify(tasks, null, 2));
+      console.log(JSON.stringify(summary ? tasks.map(toTaskSummary) : tasks, null, 2));
       break;
 
     case 'md':
       console.log(`# Search Results (${tasks.length})\n`);
       for (const task of tasks) {
-        console.log(formatTaskAsMarkdown(task));
+        console.log(summary ? formatTaskSummaryMarkdown(task) : formatTaskAsMarkdown(task));
       }
       break;
 
@@ -255,6 +256,7 @@ export const findCommand = new Command('find')
   .option('--without-blockers', 'Show tasks with no blockers (ready to start)')
   .option('--orphans', 'Show tasks with no relationships (no edges)')
   .option('--leaves', 'Show tasks with no outgoing edges (end tasks)')
+  .option('--summary', 'Compact one-line-per-task output (id, title, status, priority, blockers; md and json formats)')
   .option('--status <status>', 'Filter by status (ready|in_progress|in_review|completed|blocked)')
   .option('-p, --priority <priority>', 'Filter by priority (top|second|later)')
   .addHelpText('after', `
@@ -271,22 +273,23 @@ Examples:
 Output formats:
   $ octie find --title "auth" --format json    Output as JSON
   $ octie find --search "test" --format md     Output as Markdown
+  $ octie find --summary --format md          Compact one-line-per-task markdown
 `)
   .action(async (options: FindOptions, command) => {
     try {
       // Get global options
       const globalOpts = command.parent?.opts() || {};
-      const format = globalOpts.format || 'table';
 
       // Load project
       const projectPath = await getProjectPath(globalOpts.project);
+      const format = resolveOutputFormat(command, projectPath);
       const graph = await loadGraph(projectPath);
 
       // Apply filters
       const tasks = applyFilters(graph, options);
 
       // Output results
-      outputResults(tasks, format);
+      outputResults(tasks, format, options.summary);
 
       process.exit(0);
     } catch (err) {

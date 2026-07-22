@@ -72,12 +72,12 @@ octie create \
 
 ## `octie update` dependency rule
 
-When adding blockers to an existing task, `--blockers` and `--dependency-explanation` must be provided together.
+When adding a blocker to an existing task, `--blockers` and `--dependency-explanation` must be provided together. Add blockers one per call so each blocker gets its own explanation; repeat the command for additional blockers.
 
 ```bash
 octie update <id> \
-  --blockers <id1>,<id2> \
-  --dependency-explanation "<specific reason this task needs those deliverables>"
+  --blockers <id1> \
+  --dependency-explanation "<specific reason this task needs that deliverable>"
 ```
 
 ## Quality checks

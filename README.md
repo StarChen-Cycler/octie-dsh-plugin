@@ -48,6 +48,7 @@ octie list
 octie get abc1234 --format md
 octie find --without-blockers --priority top
 octie update abc1234 --complete-criterion def5678
+octie update abc1234 --complete-criterion def5678 --evidence "0.86 ms median, n=810"
 octie update abc1234 --add-need-fix "Handle invalid token refresh path"
 octie approve abc1234
 ```
@@ -148,7 +149,7 @@ These commands are registered in the current CLI:
 | `create` | Create an atomic task |
 | `list` | List tasks, including `--graph` and `--tree` views |
 | `get` | Show one task in `table`, `json`, or `md` format |
-| `update` | Update priority, items, blockers, notes, related files, C7 verification, and `need_fix` items |
+| `update` | Update priority, items, blockers, notes, related files, C7 verification, `need_fix` items, and optional criterion `--evidence` |
 | `approve` | Approve an `in_review` task |
 | `find` | Search tasks by title, text, file, library verification, or graph shape |
 | `delete` | Delete tasks with optional `--reconnect` or `--cascade` |
@@ -160,6 +161,7 @@ These commands are registered in the current CLI:
 | `export` | Export as JSON or Markdown |
 | `import` | Import JSON or Markdown, optionally merging |
 | `serve` | Start the web server and UI |
+| `config` | Get/set project config, e.g. sticky default output `format` (`octie config set format md`) |
 
 Examples:
 

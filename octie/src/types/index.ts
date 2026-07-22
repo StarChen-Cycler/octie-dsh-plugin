@@ -43,6 +43,8 @@ export interface SuccessCriterion {
   completed: boolean;
   /** ISO 8601 timestamp when criterion was marked complete */
   completed_at?: string;
+  /** Optional evidence recorded at completion (e.g. benchmark numbers, test output excerpts) */
+  evidence?: string;
 }
 
 /**

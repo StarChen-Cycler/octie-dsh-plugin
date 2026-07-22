@@ -29,8 +29,9 @@ import {
 
 /**
  * Action verbs that indicate specific, executable tasks
+ * Exported so CLI surfaces (rejection errors, policy help) can print the full list.
  */
-const ACTION_VERBS = [
+export const ACTION_VERBS = [
   'implement',
   'create',
   'add',
@@ -284,6 +285,35 @@ const SUBJECTIVE_WORDS = [
 ];
 
 /**
+ * Patterns that make a criterion measurable/verifiable even when it
+ * contains a subjective word. A criterion with at least one anchor is
+ * checkable as written; one without any anchor is vague.
+ */
+const QUANTITATIVE_ANCHOR_PATTERNS: RegExp[] = [
+  /\d/, // any digit: counts, percentages, versions, durations, status codes
+  /\.(ts|tsx|js|jsx|mjs|cjs|json|md|py|yaml|yml|toml|css|html|svg|png|jpe?g|sh|sql|txt|csv)\b/i, // file paths / extensions
+  /\b(passes|passed|returns?|exits?|lists?|includes?|contains?|matches|emits?|displays?|shows?|prints?|responds?|throws?|fails?)\b/i, // verifiable verbs
+];
+
+/**
+ * Check whether criterion text carries a measurable/verifiable anchor
+ */
+function hasQuantitativeAnchor(text: string): boolean {
+  return QUANTITATIVE_ANCHOR_PATTERNS.some(pattern => pattern.test(text));
+}
+
+/**
+ * Find the first subjective word matched by token prefix matching
+ */
+function findSubjectiveWord(tokens: string[]): string | undefined {
+  for (const token of tokens) {
+    const hit = SUBJECTIVE_WORDS.find(word => token.startsWith(word));
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+/**
  * Validate atomic task requirements
  *
  * Atomic tasks MUST be:
@@ -314,7 +344,7 @@ export function validateAtomicTask(taskData: {
 
   if (!isUnicodeTitle && !hasActionVerb) {
     violations.push(
-      'Title should contain an action verb (implement, create, fix, add, write, test, etc.)'
+      `Title should contain an action verb. Accepted verbs (${ACTION_VERBS.length}): ${ACTION_VERBS.join(', ')}`
     );
   }
 
@@ -373,19 +403,20 @@ export function validateAtomicTask(taskData: {
   // Tokenize and prefix-match to avoid substring false positives.
   // e.g., "nuclear" contains "clear" → NOT flagged (prefix doesn't match)
   //       "properly" starts with "proper" → flagged (vague)
-  const hasVagueCriteria = taskData.success_criteria.some(criterion => {
+  // A subjective word is only a violation when the criterion ALSO lacks a
+  // measurable anchor (digit, file path, verifiable verb) — e.g. "validator
+  // prints a clear warning for empty input" is checkable and passes, while
+  // "make it fast and good" is rejected.
+  for (const criterion of taskData.success_criteria) {
     const textLower = criterion.text.toLowerCase();
     // Split into word tokens (sequences of letters)
     const tokens = textLower.match(/[a-z]+/g) || [];
-    return tokens.some(token =>
-      SUBJECTIVE_WORDS.some(word => token.startsWith(word))
-    );
-  });
-
-  if (hasVagueCriteria) {
-    violations.push(
-      'Success criteria must be quantitative and measurable. Avoid subjective terms like "good", "better", "proper", "clean", "fast", "efficient", "responsive". Instead use specific metrics: "returns 200 status", "completes in < 100ms", "passes all unit tests", "has 100% code coverage".'
-    );
+    const subjectiveWord = findSubjectiveWord(tokens);
+    if (subjectiveWord && !hasQuantitativeAnchor(textLower)) {
+      violations.push(
+        `Success criterion "${criterion.text.substring(0, 80)}" contains the subjective word "${subjectiveWord}" and has no measurable anchor. Add a metric (number, unit, status code, file path) or a verifiable verb (passes, returns, exits, lists, includes, matches, emits, displays, shows, prints, responds, throws, fails).`
+      );
+    }
   }
 
   // Check criteria aren't empty or just whitespace
@@ -754,14 +785,18 @@ export class TaskNode implements TaskNodeType {
   /**
    * Mark a success criterion as complete
    * @param criterionId - ID of the criterion to mark complete
+   * @param evidence - Optional evidence recorded at completion (e.g. benchmark numbers)
    */
-  completeCriterion(criterionId: string): void {
+  completeCriterion(criterionId: string, evidence?: string): void {
     const criterion = this.success_criteria.find(c => c.id === criterionId);
     if (!criterion) {
       throw new ValidationError(`Success criterion with ID '${criterionId}' not found.`, 'success_criteria');
     }
     criterion.completed = true;
     criterion.completed_at = new Date().toISOString();
+    if (evidence !== undefined) {
+      criterion.evidence = evidence;
+    }
     this._touch();
     this._checkCompletion();
     this.recalculateStatus(); // Auto-transition status based on state

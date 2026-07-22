@@ -564,6 +564,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        evidence:
+          type: string
+          description: Optional evidence recorded at completion (e.g. benchmark numbers, test output excerpts)
 
     Deliverable:
       type: object

@@ -4,9 +4,58 @@
 
 import chalk from 'chalk';
 import path from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import type { Command } from 'commander';
 import { findProjectPath, TaskStorage } from '../../core/storage/file-store.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
+import type { TaskNode } from '../../core/models/task-node.js';
 import { OctieError } from '../../types/index.js';
+
+/**
+ * Valid CLI output formats
+ */
+export const OUTPUT_FORMATS = ['json', 'md', 'table'] as const;
+
+/**
+ * Resolve the effective output format for a command
+ *
+ * Precedence:
+ * 1. Explicit --format flag (or env) passed by the user
+ * 2. "format" key in <projectPath>/.octie/config.json
+ * 3. 'table' default
+ *
+ * @param command - The executing (sub)command; the root program is found by walking parents
+ * @param projectPath - Resolved Octie project path (contains .octie/)
+ */
+export function resolveOutputFormat(command: Command, projectPath: string): string {
+  // Walk up to the root program where the global --format option is defined
+  let program: Command = command;
+  while (program.parent) {
+    program = program.parent;
+  }
+
+  const source = typeof program.getOptionValueSource === 'function'
+    ? program.getOptionValueSource('format')
+    : undefined;
+  if (source === 'cli' || source === 'env') {
+    return program.opts().format || 'table';
+  }
+
+  // --format not explicitly passed: fall back to project config
+  try {
+    const configPath = path.join(projectPath, '.octie', 'config.json');
+    if (existsSync(configPath)) {
+      const config = JSON.parse(readFileSync(configPath, 'utf-8')) as { format?: unknown };
+      if (typeof config.format === 'string' && (OUTPUT_FORMATS as readonly string[]).includes(config.format)) {
+        return config.format;
+      }
+    }
+  } catch {
+    // Malformed or unreadable config: fall through to default
+  }
+
+  return 'table';
+}
 
 /**
  * Get the project path from options or auto-detect
@@ -254,5 +303,40 @@ export async function confirmPrompt(message: string): Promise<boolean> {
   } finally {
     rl.close();
   }
+}
+
+/**
+ * Compact task summary projection for --summary output
+ */
+export interface TaskSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  blockers: string[];
+}
+
+/**
+ * Project a task to its 5-field summary shape
+ */
+export function toTaskSummary(task: TaskNode): TaskSummary {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    blockers: task.blockers,
+  };
+}
+
+/**
+ * Render one task as a compact one-line markdown summary
+ */
+export function formatTaskSummaryMarkdown(task: TaskNode): string {
+  const checkbox = task.status === 'completed' ? '[x]' : '[ ]';
+  const blockedBy = task.blockers.length > 0
+    ? ` · blocked by: ${task.blockers.map(id => `#${id.substring(0, 8)}`).join(', ')}`
+    : '';
+  return `- ${checkbox} **${task.title}** (#${task.id.substring(0, 8)}) · ${task.status} · ${task.priority}${blockedBy}`;
 }
 

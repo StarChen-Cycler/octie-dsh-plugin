@@ -313,4 +313,43 @@ describe('list command', () => {
       expect(output).toMatch(/`[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}`/);
     });
   });
+
+  describe('--summary mode', () => {
+    it('should print compact one-line-per-task markdown without descriptions', () => {
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" list --summary --format md`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('# Tasks (3)');
+      // Compact line: checkbox + title + short id + status + priority
+      expect(output).toMatch(/- \[ \] \*\*Implement login endpoint\*\* \(#[a-z0-9]{8}\) · ready · top/);
+      // Full details must NOT be rendered
+      expect(output).not.toContain('### Description');
+      expect(output).not.toContain('### Success Criteria');
+    });
+
+    it('should print exactly 5 fields per task in summary json', () => {
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" list --summary --format json`,
+        { encoding: 'utf-8' }
+      );
+
+      const tasks = JSON.parse(output);
+      expect(tasks.length).toBe(3);
+      for (const task of tasks) {
+        expect(Object.keys(task).sort()).toEqual(['blockers', 'id', 'priority', 'status', 'title']);
+      }
+    });
+
+    it('should render full task details without --summary (default unchanged)', () => {
+      const output = execSync(
+        `node ${cliPath} --project "${tempDir}" list --format md`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('### Description');
+      expect(output).toContain('### Success Criteria');
+    });
+  });
 });

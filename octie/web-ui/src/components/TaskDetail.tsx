@@ -137,12 +137,22 @@ function TaskDetail({ task }: TaskDetailProps) {
                     </svg>
                   )}
                 </div>
-                <span
-                  className={criterion.completed ? 'line-through' : ''}
-                  style={{ color: criterion.completed ? 'var(--text-muted)' : 'var(--text-secondary)' }}
-                >
-                  {criterion.text}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <span
+                    className={criterion.completed ? 'line-through' : ''}
+                    style={{ color: criterion.completed ? 'var(--text-muted)' : 'var(--text-secondary)' }}
+                  >
+                    {criterion.text}
+                  </span>
+                  {criterion.evidence && (
+                    <div
+                      className="text-xs mt-0.5"
+                      style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      Evidence: {criterion.evidence}
+                    </div>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

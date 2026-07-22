@@ -67,8 +67,7 @@ export const createCommand = addTaskCreationOptions(
             console.log(chalk.red('  ✗ ') + violation);
           }
           console.log('');
-          info('See atomic task policy below for guidance');
-          displayAtomicTaskPolicy();
+          info("Run 'octie create -h' to see the full atomic task policy.");
         }
         process.exit(1);
       }
@@ -77,8 +76,7 @@ export const createCommand = addTaskCreationOptions(
         error(err.message);
         if (err.message.includes('atomic') || err.message.includes('vague')) {
           console.log('');
-          info('See atomic task policy above for guidance');
-          displayAtomicTaskPolicy();
+          info("Run 'octie create -h' to see the full atomic task policy.");
         }
       } else {
         error('Failed to create task');

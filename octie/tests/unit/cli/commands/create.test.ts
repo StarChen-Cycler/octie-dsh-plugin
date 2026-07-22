@@ -638,6 +638,57 @@ describe('create command', () => {
     });
   });
 
+  describe('rejection layout (CLI integration)', () => {
+    let cliTempDir: string;
+    let cliStorage: TaskStorage;
+    let cliPath: string;
+
+    beforeEach(async () => {
+      cliTempDir = join(tmpdir(), `octie-cli-layout-${uuidv4()}`);
+      cliStorage = new TaskStorage({ projectDir: cliTempDir });
+      await cliStorage.createProject('cli-layout-project');
+      cliPath = join(process.cwd(), 'dist', 'cli', 'index.js');
+    });
+
+    afterEach(() => {
+      try {
+        rmSync(cliTempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should print violations without the policy wall and point to octie create -h', () => {
+      let stdout = '';
+      let stderr = '';
+      try {
+        execSync(
+          `node ${cliPath} --project "${cliTempDir}" create ` +
+          `--title "Authentication System Module" ` +
+          `--description "Create an authentication system module that handles credential validation and token issuance for the login flow of the application." ` +
+          `--success-criterion "Endpoint returns 200 for valid credentials" ` +
+          `--deliverable "src/auth/module.ts"`,
+          { encoding: 'utf-8', stdio: 'pipe' }
+        );
+        expect.unreachable('create should have been rejected (no action verb in title)');
+      } catch (err) {
+        const execErr = err as { status?: number; stdout?: string; stderr?: string };
+        expect(execErr.status).toBe(1);
+        stdout = execErr.stdout ?? '';
+        stderr = execErr.stderr ?? '';
+      }
+
+      const combined = stdout + stderr;
+      // Violations block is present and names the actual problem
+      expect(combined).toContain('Specific issues found:');
+      expect(combined).toContain('action verb');
+      // Policy wall-of-text is suppressed on rejection (available via -h)
+      expect(combined).not.toContain('ATOMIC TASK POLICY');
+      // Pointer to the on-request policy is present
+      expect(combined).toContain("octie create -h");
+    });
+  });
+
   describe('notes file option (CLI integration)', () => {
     let cliTempDir: string;
     let cliStorage: TaskStorage;

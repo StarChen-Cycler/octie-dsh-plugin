@@ -50,6 +50,9 @@ export function formatTaskDetailTable(task: TaskNode, fields?: string[] | null):
       const symbol = sc.completed ? chalk.green('✓') : chalk.gray('○');
       const idDisplay = chalk.gray(`(${sc.id.substring(0, 8)})`);
       lines.push(`  ${symbol} ${sc.text} ${idDisplay}`);
+      if (sc.evidence) {
+        lines.push(chalk.gray(`      Evidence: ${sc.evidence}`));
+      }
     }
     lines.push('');
   }

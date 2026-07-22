@@ -32,7 +32,18 @@ Use notes for:
 - notable changes — record meaningful decisions, scope shifts, or important observations
 - supporting context that does not belong in criteria or deliverables
 
-⚠️ Add notes proactively. If something notable occurs during task work — an insight, a pivot, a surprising finding — run `octie add-note <id> "<note>"` to capture it. Notes are the living context of a task; sparse notes mean lost knowledge.
+⚠️ Add notes proactively. If something notable occurs during task work — an insight, a pivot, a surprising finding — run `octie update <id> --notes "<note>"` to capture it. Notes are the living context of a task; sparse notes mean lost knowledge.
+
+Use criterion evidence for:
+- proof that a specific success criterion was met (benchmark numbers, test output excerpts, measured values)
+
+Record evidence at completion time, not in notes:
+
+```bash
+octie update <id> --complete-criterion <criterion-id> --evidence "0.86 ms median, n=810"
+```
+
+Evidence stays attached to the criterion it proves; notes are for context, not per-criterion verification data.
 
 Use C7 verification for:
 - external documentation-backed implementation patterns

@@ -414,5 +414,31 @@ describe('find command', () => {
 
       expect(output).toContain('No tasks found');
     });
+
+    it('should print compact one-line-per-task markdown with --summary', () => {
+      const output = execSync(
+        `node "${cliPath}" find --title "JWT" --project "${tempDir}" --summary --format md`,
+        { encoding: 'utf-8' }
+      );
+
+      expect(output).toContain('# Search Results');
+      expect(output).toMatch(/- \[ \] \*\*Implement JWT authentication\*\* \(#[a-z0-9]{8}\) · /);
+      // Full details must NOT be rendered
+      expect(output).not.toContain('**ID**:');
+      expect(output).not.toContain('### Description');
+    });
+
+    it('should print exactly 5 fields per task in summary json', () => {
+      const output = execSync(
+        `node "${cliPath}" find --title "JWT" --project "${tempDir}" --summary --format json`,
+        { encoding: 'utf-8' }
+      );
+
+      const tasks = JSON.parse(output);
+      expect(tasks.length).toBeGreaterThan(0);
+      for (const task of tasks) {
+        expect(Object.keys(task).sort()).toEqual(['blockers', 'id', 'priority', 'status', 'title']);
+      }
+    });
   });
 });

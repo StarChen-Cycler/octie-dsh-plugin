@@ -36,6 +36,9 @@ Mark completed items with:
 octie update <id> --complete-criterion <criterion-id>
 octie update <id> --complete-deliverable <deliverable-id>
 octie update <id> --complete-need-fix <need-fix-id>
+
+# Optional: record evidence when completing a criterion
+octie update <id> --complete-criterion <criterion-id> --evidence "0.86 ms median, n=810"
 ```
 
 Add blocking issues found during work with:

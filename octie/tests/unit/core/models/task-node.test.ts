@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
-import { TaskNode, validateAtomicTask } from '../../../../src/core/models/task-node.js';
+import { TaskNode, validateAtomicTask, ACTION_VERBS } from '../../../../src/core/models/task-node.js';
 import { ValidationError, AtomicTaskViolationError, ImmutabilityViolationError } from '../../../../src/types/index.js';
 
 describe('TaskNode', () => {
@@ -247,6 +247,31 @@ describe('TaskNode', () => {
       }).toThrow(AtomicTaskViolationError);
     });
 
+    it('should include every ACTION_VERBS entry in the verb-missing violation message', () => {
+      let caught: AtomicTaskViolationError | undefined;
+      try {
+        new TaskNode({
+          title: 'Authentication System Module', // No action verb
+          description: 'Create POST /auth/login endpoint that validates credentials and returns JWT token. The endpoint should use bcrypt for password hashing and return a 200 status with valid JWT on correct credentials.',
+          success_criteria: [
+            { id: uuidv4(), text: 'Endpoint returns 200', completed: false },
+          ],
+          deliverables: [
+            { id: uuidv4(), text: 'src/api/auth/login.ts', completed: false },
+          ],
+        });
+      } catch (err) {
+        caught = err as AtomicTaskViolationError;
+      }
+
+      expect(caught).toBeInstanceOf(AtomicTaskViolationError);
+      const verbViolation = caught!.violations.find(v => v.includes('action verb'));
+      expect(verbViolation).toBeDefined();
+      for (const verb of ACTION_VERBS) {
+        expect(verbViolation).toContain(verb);
+      }
+    });
+
     it('should throw AtomicTaskViolationError for title too short "fix"', () => {
       expect(() => {
         new TaskNode({
@@ -276,6 +301,58 @@ describe('TaskNode', () => {
           ],
         });
       }).toThrow(AtomicTaskViolationError);
+    });
+
+    it('should pass validation for anchored criteria containing subjective words', () => {
+      const anchoredCases = [
+        'validator prints a clear warning for empty input',
+        'endpoint responds with a fast 200 in under 100ms',
+        'results saved to clean-output.md',
+      ];
+      for (const text of anchoredCases) {
+        expect(() => {
+          validateAtomicTask({
+            title: 'Implement login endpoint',
+            description: 'Create POST /auth/login endpoint that validates credentials and returns JWT token with bcrypt hashing.',
+            success_criteria: [
+              { id: uuidv4(), text, completed: false },
+            ],
+            deliverables: [
+              { id: uuidv4(), text: 'src/api/auth/login.ts', completed: false },
+            ],
+          });
+        }).not.toThrow();
+      }
+    });
+
+    it('should reject subjective criteria that have no measurable anchor and name the word', () => {
+      const rejectCases: Array<{ text: string; word: string }> = [
+        { text: 'make the output good and efficient', word: 'good' },
+        { text: 'code should be clean', word: 'clean' },
+      ];
+      for (const { text, word } of rejectCases) {
+        let caught: AtomicTaskViolationError | undefined;
+        try {
+          validateAtomicTask({
+            title: 'Implement login endpoint',
+            description: 'Create POST /auth/login endpoint that validates credentials and returns JWT token with bcrypt hashing.',
+            success_criteria: [
+              { id: uuidv4(), text, completed: false },
+            ],
+            deliverables: [
+              { id: uuidv4(), text: 'src/api/auth/login.ts', completed: false },
+            ],
+          });
+        } catch (err) {
+          caught = err as AtomicTaskViolationError;
+        }
+
+        expect(caught).toBeInstanceOf(AtomicTaskViolationError);
+        const violation = caught!.violations.find(v => v.includes('subjective word'));
+        expect(violation).toBeDefined();
+        expect(violation).toContain(`"${word}"`);
+        expect(violation).toContain('no measurable anchor');
+      }
     });
 
     it('should throw AtomicTaskViolationError for vague success criteria', () => {

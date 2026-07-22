@@ -8,6 +8,7 @@ export interface SuccessCriterion {
   text: string;
   completed: boolean;
   completed_at?: string;
+  evidence?: string;
 }
 
 export interface Deliverable {

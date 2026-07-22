@@ -27,6 +27,7 @@ import {
 } from './commands/guides.js';
 import { handoffCommand } from './commands/handoff.js';
 import { panelCommand } from './commands/panel.js';
+import { configCommand } from './commands/config.js';
 import { registerApproveCommand } from './commands/approve.js';
 import { formatError } from './utils/helpers.js';
 import {
@@ -92,7 +93,7 @@ function createProgram(): Command {
   // Global options
   program
     .option('--project <path>', 'Path to Octie project directory')
-    .option('--format <format>', 'Output format: json, md, table', 'table')
+    .option('--format <format>', 'Output format: json, md, table (overrides .octie/config.json format; default: table)', 'table')
     .option('--verbose', 'Enable verbose output')
     .option('--quiet', 'Suppress non-error output')
     .configureHelp({
@@ -143,6 +144,7 @@ function main(): void {
   program.addCommand(wireCommand);
   program.addCommand(handoffCommand);
   program.addCommand(panelCommand);
+  program.addCommand(configCommand);
   registerApproveCommand(program);
 
   // Parse arguments

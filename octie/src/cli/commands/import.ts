@@ -160,7 +160,7 @@ function extractFilePath(line: string): string | null {
  * ### Notes
  * Additional notes...
  */
-function parseMarkdownTasks(content: string): ParsedMarkdownTask[] {
+export function parseMarkdownTasks(content: string): ParsedMarkdownTask[] {
   const tasks: ParsedMarkdownTask[] = [];
   const lines = content.split('\n');
 
@@ -236,6 +236,13 @@ function parseMarkdownTasks(content: string): ParsedMarkdownTask[] {
             if (lt.startsWith('### ') || lt === '---') break;
             // Skip timestamp lines like "  - Completed: 2026-02-16T18:11:52.088Z"
             if (lt.match(/^\s*-\s*Completed:\s*\d{4}-\d{2}-\d{2}T/)) {
+              k++;
+              continue;
+            }
+            // Attach evidence lines to the most recent criterion: "  - Evidence: ..."
+            const evidenceMatch = lt.match(/^-\s*Evidence:\s*(.+)$/);
+            if (evidenceMatch && evidenceMatch[1] && success_criteria.length > 0) {
+              success_criteria[success_criteria.length - 1]!.evidence = evidenceMatch[1].trim();
               k++;
               continue;
             }

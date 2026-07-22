@@ -62,7 +62,7 @@ Create the child backlog in this order:
 
 Use these rules:
 - each child task must still be atomic
-- titles need strong action verbs
+- titles need strong action verbs (full accepted list: `octie create -h`)
 - criteria must be measurable
 - notes should restate preserved contracts when drift risk is high
 - the guardrail task should be the single ready entry task
