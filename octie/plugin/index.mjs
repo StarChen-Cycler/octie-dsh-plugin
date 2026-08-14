@@ -189,14 +189,18 @@ function stringParam(required, description) {
   return { type: 'string', required: !!required, description };
 }
 
-function makeTool(service, name, description, parameters, execute) {
+function makeTool(service, name, description, parameters, execute, options = {}) {
   return {
     name,
     description,
     parameters,
     output: { schema: { type: 'string' }, render: renderJson },
     async execute(args) {
-      const project = await resolveProject(service, args && args.project);
+      // octie_init carries its own path/name and must not resolve a project
+      // up front (there is nothing open yet on the very first call).
+      const project = options.resolveProject === false
+        ? undefined
+        : await resolveProject(service, args && args.project);
       return execute(args || {}, project);
     },
   };
@@ -207,7 +211,8 @@ function buildTools(service) {
     makeTool(service, 'octie_init',
       'Initialize a new Octie project at a path and open it as the current project.',
       { name: stringParam(true, 'Unique project name'), path: stringParam(false, 'Project directory (default: current working directory)') },
-      async (args) => service.init(args.name, { path: args.path })),
+      async (args) => service.init(args.name, { path: args.path }),
+      { resolveProject: false }),
     makeTool(service, 'octie_create',
       'Create an atomic task in the Octie graph. Enforces atomic validation (action-verb title, quantitative success criteria, specific deliverables).',
       {
