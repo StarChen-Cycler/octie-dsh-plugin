@@ -94,6 +94,36 @@ function ensureRegistryDir(): void {
 }
 
 /**
+ * Prune stale registry entries whose project paths no longer exist.
+ *
+ * The global registry can accumulate entries from deleted projects,
+ * renamed folders, and tooling that registers temp projects. This removes
+ * entries whose path is gone and persists the change only when something
+ * was removed.
+ *
+ * @param registry - Optional registry to prune (defaults to loading the live one)
+ * @returns Summary of removed entries and the resulting size
+ */
+export interface PruneRegistryResult {
+  removed: Array<{ key: string; name: string; path: string }>;
+  kept: number;
+}
+
+export function pruneStaleProjects(registry: ProjectRegistry = loadRegistry()): PruneRegistryResult {
+  const removed: PruneRegistryResult['removed'] = [];
+  for (const [key, entry] of Object.entries(registry.projects)) {
+    if (!existsSync(entry.path)) {
+      removed.push({ key, name: entry.name, path: entry.path });
+      delete registry.projects[key];
+    }
+  }
+  if (removed.length > 0) {
+    saveRegistry(registry);
+  }
+  return { removed, kept: Object.keys(registry.projects).length };
+}
+
+/**
  * Load the global project registry
  * Creates an empty registry if one doesn't exist
  * @returns Project registry object

@@ -18,7 +18,7 @@ import type { TaskGraphStore } from '../core/graph/index.js';
 import type { CreateTaskInput, ProjectHandle } from './types.js';
 
 const DEFAULT_OCTIE_SERVER_URL = 'http://localhost:3456';
-const DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS = 750;
+const DEFAULT_CACHE_INVALIDATION_TIMEOUT_MS = 250;
 const LAST_SERVER_URL_FILE = join(homedir(), '.octie', '.last-server-url');
 
 export class CliPreparationError extends Error {
@@ -233,7 +233,14 @@ export function preflightTaskCreation(
 }
 
 export async function invalidateProjectCache(projectPath: string): Promise<void> {
-  const serverUrl = process.env.OCTIE_SERVER_URL || readLastServerUrl() || DEFAULT_OCTIE_SERVER_URL;
+  // Skip the probe entirely when no server has ever run for this user:
+  // no env override and no server-url file means nothing can be caching,
+  // and probing localhost:3456 costs latency in every scripted command.
+  const envServerUrl = process.env.OCTIE_SERVER_URL;
+  const lastServerUrl = readLastServerUrl();
+  if (!envServerUrl && !lastServerUrl) return;
+
+  const serverUrl = envServerUrl || lastServerUrl || DEFAULT_OCTIE_SERVER_URL;
   const rawTimeoutMs = Number(process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(rawTimeoutMs) && rawTimeoutMs > 0
     ? rawTimeoutMs

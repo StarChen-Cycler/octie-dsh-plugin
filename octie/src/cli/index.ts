@@ -28,6 +28,7 @@ import {
 import { handoffCommand } from './commands/handoff.js';
 import { panelCommand } from './commands/panel.js';
 import { configCommand } from './commands/config.js';
+import { registryCommand } from './commands/registry.js';
 import { registerApproveCommand } from './commands/approve.js';
 import { formatError } from './utils/helpers.js';
 import {
@@ -145,6 +146,7 @@ function main(): void {
   program.addCommand(handoffCommand);
   program.addCommand(panelCommand);
   program.addCommand(configCommand);
+  program.addCommand(registryCommand);
   registerApproveCommand(program);
 
   // Parse arguments

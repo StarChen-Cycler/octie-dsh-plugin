@@ -6,14 +6,24 @@
  *  - OctieService provides all 17 methods from design doc section 9.4
  *  - 13 octie_* tools registered with JSON parameters
  *  - functional smoke: init -> create -> list -> events through the tools
+ *
+ * The global registry reads ~/.octie/projects.json; node:os.homedir is
+ * mocked (repo registry-test pattern) so tests never touch the real one.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
 import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { apply, OctieService, TOOL_NAMES, SERVICE_NAME, name, inject } from '../../../plugin/index.mjs';
+
+let homedirTarget = '';
+
+vi.doMock('node:os', async () => {
+  const actual = await vi.importActual<typeof import('node:os')>('node:os');
+  return { ...actual, homedir: () => homedirTarget };
+});
 
 const SERVICE_METHODS = [
   'init', 'open', 'createTask', 'listTasks', 'getTask', 'updateTask', 'approveTask',
@@ -55,26 +65,24 @@ function makeMockCtx(): { ctx: MockCtx; wrapper: any } {
 
 describe('octie-dsh bundle Node half', () => {
   let tempDir: string;
-  let tempHome: string;
-  let oldHome: string | undefined;
-  let oldUserProfile: string | undefined;
+
+  beforeAll(() => {
+    homedirTarget = join(tmpdir(), `octie-plugin-home-${uuidv4()}`);
+    mkdirSync(homedirTarget, { recursive: true });
+  });
+
+  afterAll(() => {
+    vi.doUnmock('node:os');
+    try { rmSync(homedirTarget, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `octie-plugin-test-${uuidv4()}`);
-    tempHome = join(tmpdir(), `octie-plugin-home-${uuidv4()}`);
     mkdirSync(tempDir, { recursive: true });
-    mkdirSync(tempHome, { recursive: true });
-    oldHome = process.env.HOME;
-    oldUserProfile = process.env.USERPROFILE;
-    process.env.HOME = tempHome;
-    process.env.USERPROFILE = tempHome;
   });
 
   afterEach(() => {
-    process.env.HOME = oldHome;
-    process.env.USERPROFILE = oldUserProfile;
     try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
-    try { rmSync(tempHome, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
   it('named-exports name, inject and apply', () => {
@@ -110,7 +118,8 @@ describe('octie-dsh bundle Node half', () => {
     const tools: Record<string, any> = {};
     for (const tool of ctx.registered as any[]) tools[tool.name] = tool;
 
-    const handle = await tools.octie_init.execute({ name: 'smoke-project', path: tempDir });
+    const projectName = `smoke-${uuidv4().slice(0, 8)}`;
+    const handle = await tools.octie_init.execute({ name: projectName, path: tempDir });
     expect(handle.path).toBe(tempDir);
 
     const created = await tools.octie_create.execute({
@@ -139,7 +148,7 @@ describe('octie-dsh bundle Node half', () => {
     const service = ctx.provided[SERVICE_NAME] as OctieService;
     const events: Array<Record<string, unknown>> = [];
     service.onChange(e => events.push(e as Record<string, unknown>));
-    await service.init('onchange-project', { path: tempDir });
+    await service.init(`onchange-${uuidv4().slice(0, 8)}`, { path: tempDir });
     await service.createTask({
       title: 'Implement onChange task',
       description: 'Verify the onChange subscription fires for other plugins consuming the octie service.',

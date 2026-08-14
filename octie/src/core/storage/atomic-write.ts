@@ -38,6 +38,40 @@ export interface AtomicWriterConfig {
 }
 
 /**
+ * Retry a transient-rename operation with backoff.
+ *
+ * On Windows, rename over an existing file can fail with EPERM/EBUSY when
+ * an AV scanner, backup stream, or OS metadata cache holds a transient
+ * handle on the target. Retries absorb locks up to ~3s; non-transient
+ * errors fail fast.
+ *
+ * Exported as a pure helper so retry policy is unit-testable.
+ */
+export async function renameWithRetry(
+  op: () => Promise<void>,
+  options: { maxRetries?: number; baseDelayMs?: number } = {},
+): Promise<number> {
+  const maxRetries = options.maxRetries ?? 5;
+  const baseDelayMs = options.baseDelayMs ?? 100;
+  let delay = baseDelayMs;
+  let attempts = 0;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    attempts = attempt + 1;
+    try {
+      await op();
+      return attempts;
+    } catch (err: any) {
+      if (attempt === maxRetries) throw err;
+      // Only retry on Windows transient lock errors; fail fast otherwise
+      if (err.code !== 'EPERM' && err.code !== 'EBUSY') throw err;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, 1600);
+    }
+  }
+  return attempts;
+}
+
+/**
  * Atomic File Writer class
  *
  * Provides safe file write operations using atomic rename strategy.
@@ -146,31 +180,16 @@ export class AtomicFileWriter {
   /**
    * Rename with retry on Windows EPERM
    *
-   * On Windows, fs.rename over an existing file can fail with EPERM
-   * when the target has a transient open handle (AV scanner, backup
-   * stream not fully flushed, OS metadata cache). Retry a few times
-   * with increasing backoff.
+   * Retries transient EPERM/EBUSY renames up to 5× with backoff
+   * (100ms doubling, capped at 1.6s) — absorbs AV/backup lock windows.
    *
    * @private
    */
   private async _renameWithRetry(
     tempPath: string,
     filePath: string,
-    maxRetries: number = 3,
   ): Promise<void> {
-    let delay = 50; // ms, doubles each retry
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        await fs.rename(tempPath, filePath);
-        return;
-      } catch (err: any) {
-        if (attempt === maxRetries) throw err;
-        // Only retry on Windows EPERM/EBUSY; fail fast on other errors
-        if (err.code !== 'EPERM' && err.code !== 'EBUSY') throw err;
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2;
-      }
-    }
+    await renameWithRetry(() => fs.rename(tempPath, filePath));
   }
 
   /**
