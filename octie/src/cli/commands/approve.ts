@@ -5,20 +5,20 @@
  * This is the ONLY manual status transition in the new system:
  * in_review → completed
  *
+ * The engine lives in the service layer (`approveTaskWithPropagation`);
+ * this command keeps only UX: error branches, output, exit codes.
+ *
  * @module cli/commands/approve
  */
 
 import { Command } from 'commander';
 import { ValidationError } from '../../types/index.js';
-import { getProjectPath, loadGraph, saveGraph } from '../utils/helpers.js';
-import { invalidateProjectCache } from './shared-helpers.js';
+import { getProjectPath } from '../utils/helpers.js';
+import { approveTaskWithPropagation } from '../../service/tasks.js';
 import chalk from 'chalk';
 
 /**
  * Approve a task in review
- *
- * This command transitions a task from 'in_review' to 'completed' status.
- * This is the ONLY manual status transition in the new automatic status system.
  *
  * @param taskId - Task ID or prefix to approve
  * @param options - Command options
@@ -31,43 +31,8 @@ export async function approveCommand(
     // Find project path
     const projectPath = await getProjectPath(options.project);
 
-    // Load the graph
-    const graph = await loadGraph(projectPath);
-
-    // Find the task by ID or prefix
-    const task = graph.getNodeByIdOrPrefix(taskId);
-    if (!task) {
-      console.error(chalk.red(`Error: Task with ID '${taskId}' not found.`));
-      process.exit(1);
-    }
-
-    // Check if task is in review status
-    if (task.status !== 'in_review') {
-      console.error(
-        chalk.red(`Error: Cannot approve task in '${task.status}' status.`)
-      );
-      console.error(
-        chalk.yellow('Task must be in \'in_review\' status to be approved.')
-      );
-      console.error(
-        chalk.gray(
-          'Tip: Complete all success criteria, deliverables, and need_fix items to transition to in_review.'
-        )
-      );
-      process.exit(1);
-    }
-
-    // Approve the task
-    task.approve();
-
-    // Propagate status changes through the graph starting from this task
-    // This updates the starting node (if needed) and all descendants
-    const propagateResult = graph.propagateStatus(task.id);
-    const updatedTaskIds = propagateResult.updatedTasks;
-
-    // Save the graph
-    await saveGraph(projectPath, graph);
-    await invalidateProjectCache(projectPath);
+    // Engine call: load → validate → approve → propagate → save
+    const { task, propagatedCount } = await approveTaskWithPropagation(projectPath, taskId);
 
     // Output success message
     console.log(chalk.green(`✓ Task approved: ${task.id}`));
@@ -78,8 +43,8 @@ export async function approveCommand(
     }
 
     // Report if any dependent tasks were unblocked
-    if (updatedTaskIds.length > 0) {
-      console.log(chalk.cyan(`  Unblocked tasks: ${updatedTaskIds.length}`));
+    if (propagatedCount > 0) {
+      console.log(chalk.cyan(`  Unblocked tasks: ${propagatedCount}`));
     }
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -87,6 +52,25 @@ export async function approveCommand(
       if (error.suggestion) {
         console.error(chalk.yellow(`Suggestion: ${error.suggestion}`));
       }
+      process.exit(1);
+    }
+    if (error instanceof Error && error.message.startsWith("Task with ID '")) {
+      console.error(chalk.red(`Error: ${error.message}`));
+      process.exit(1);
+    }
+    if (error instanceof Error && error.message.startsWith("Cannot approve task in '")) {
+      const status = /Cannot approve task in '(.+?)' status\./.exec(error.message)?.[1] ?? 'unknown';
+      console.error(
+        chalk.red(`Error: Cannot approve task in '${status}' status.`)
+      );
+      console.error(
+        chalk.yellow('Task must be in \'in_review\' status to be approved.')
+      );
+      console.error(
+        chalk.gray(
+          'Tip: Complete all success criteria, deliverables, and need_fix items to transition to in_review.'
+        )
+      );
       process.exit(1);
     }
     throw error;

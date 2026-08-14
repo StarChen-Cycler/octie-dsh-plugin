@@ -1,104 +1,15 @@
 /**
  * Update command - Update an existing task
+ *
+ * The engine lives in the service layer (`updateTaskWithPropagation`);
+ * this command keeps only UX: option parsing, error branches, output.
  */
 
 import { Command, Option } from 'commander';
-import { getProjectPath, loadGraph, saveGraph, success, error, info, parseMultipleIds } from '../utils/helpers.js';
-import { invalidateProjectCache } from './shared-helpers.js';
+import { getProjectPath, success, error, info, parseMultipleIds } from '../utils/helpers.js';
+import { CliPreparationError, updateTaskWithPropagation } from '../../service/index.js';
+import type { UpdateTaskPatch } from '../../service/types.js';
 import chalk from 'chalk';
-import { randomUUID } from 'node:crypto';
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import type { TaskNode } from '../../core/models/task-node.js';
-import { wouldCreateCycle } from '../../core/graph/algorithms.js';
-import { normalizeGitBashPath } from './shared-helpers.js';
-
-/**
- * Resolve a short UUID to a full criterion ID within a task
- * @param task - The task containing success criteria
- * @param idOrPrefix - Full UUID or short prefix
- * @returns Full UUID if found, or throws error
- */
-function resolveCriterionId(task: TaskNode, idOrPrefix: string): string {
-  // First try exact match
-  const exactMatch = task.success_criteria.find(c => c.id === idOrPrefix);
-  if (exactMatch) return exactMatch.id;
-
-  // Try prefix match (case-insensitive)
-  const lowerPrefix = idOrPrefix.toLowerCase();
-  const matches = task.success_criteria.filter(c =>
-    c.id.toLowerCase().startsWith(lowerPrefix)
-  );
-
-  if (matches.length === 0) {
-    throw new Error(`Success criterion with ID '${idOrPrefix}' not found.`);
-  }
-
-  if (matches.length > 1) {
-    const matchIds = matches.map(c => c.id.substring(0, 8)).join(', ');
-    throw new Error(`Ambiguous criterion ID '${idOrPrefix}'. Matches: ${matchIds}`);
-  }
-
-  return matches[0]!.id;
-}
-
-/**
- * Resolve a short UUID to a full deliverable ID within a task
- * @param task - The task containing deliverables
- * @param idOrPrefix - Full UUID or short prefix
- * @returns Full UUID if found, or throws error
- */
-function resolveDeliverableId(task: TaskNode, idOrPrefix: string): string {
-  // First try exact match
-  const exactMatch = task.deliverables.find(d => d.id === idOrPrefix);
-  if (exactMatch) return exactMatch.id;
-
-  // Try prefix match (case-insensitive)
-  const lowerPrefix = idOrPrefix.toLowerCase();
-  const matches = task.deliverables.filter(d =>
-    d.id.toLowerCase().startsWith(lowerPrefix)
-  );
-
-  if (matches.length === 0) {
-    throw new Error(`Deliverable with ID '${idOrPrefix}' not found.`);
-  }
-
-  if (matches.length > 1) {
-    const matchIds = matches.map(d => d.id.substring(0, 8)).join(', ');
-    throw new Error(`Ambiguous deliverable ID '${idOrPrefix}'. Matches: ${matchIds}`);
-  }
-
-  return matches[0]!.id;
-}
-
-/**
- * Resolve a short UUID to a full need_fix ID within a task
- * @param task - The task containing need_fix items
- * @param idOrPrefix - Full UUID or short prefix
- * @returns Full UUID if found, or throws error
- */
-function resolveNeedFixId(task: TaskNode, idOrPrefix: string): string {
-  // First try exact match
-  const exactMatch = task.need_fix.find(f => f.id === idOrPrefix);
-  if (exactMatch) return exactMatch.id;
-
-  // Try prefix match (case-insensitive)
-  const lowerPrefix = idOrPrefix.toLowerCase();
-  const matches = task.need_fix.filter(f =>
-    f.id.toLowerCase().startsWith(lowerPrefix)
-  );
-
-  if (matches.length === 0) {
-    throw new Error(`Need_fix item with ID '${idOrPrefix}' not found.`);
-  }
-
-  if (matches.length > 1) {
-    const matchIds = matches.map(f => f.id.substring(0, 8)).join(', ');
-    throw new Error(`Ambiguous need_fix ID '${idOrPrefix}'. Matches: ${matchIds}`);
-  }
-
-  return matches[0]!.id;
-}
 
 /**
  * Create the update command
@@ -181,113 +92,8 @@ export const updateCommand = new Command('update')
       // Get global options
       const globalOpts = command.parent?.opts() || {};
       const projectPath = await getProjectPath(globalOpts.project);
-      const graph = await loadGraph(projectPath);
 
-      const task = graph.getNodeByIdOrPrefix(id);
-      if (!task) {
-        error(`Task not found: ${id}`);
-        process.exit(1);
-      }
-
-      let updated = false;
-
-      // Update priority
-      if (options.priority) {
-        task.setPriority(options.priority);
-        updated = true;
-      }
-
-      // Add deliverable(s) - supports multiple values
-      const deliverables = options.addDeliverable || [];
-      for (const text of deliverables) {
-        task.addDeliverable({
-          id: randomUUID(),
-          text: text,
-          completed: false,
-        });
-        updated = true;
-      }
-
-      // Complete deliverable(s) - now supports multiple IDs with short UUID support
-      if (options.completeDeliverable && options.completeDeliverable.length > 0) {
-        for (const deliverableIdOrPrefix of options.completeDeliverable) {
-          const fullId = resolveDeliverableId(task, deliverableIdOrPrefix);
-          task.completeDeliverable(fullId);
-        }
-        updated = true;
-      }
-
-      // Remove deliverable (supports short UUID)
-      if (options.removeDeliverable) {
-        const fullId = resolveDeliverableId(task, options.removeDeliverable);
-        task.removeDeliverable(fullId);
-        updated = true;
-      }
-
-      // Add success criterion(s) - supports multiple values
-      const successCriteria = options.addSuccessCriterion || [];
-      for (const text of successCriteria) {
-        task.addSuccessCriterion({
-          id: randomUUID(),
-          text: text,
-          completed: false,
-        });
-        updated = true;
-      }
-
-      // Complete criterion/criteria - now supports multiple IDs with short UUID support
-      if (options.completeCriterion && options.completeCriterion.length > 0) {
-        for (const criterionIdOrPrefix of options.completeCriterion) {
-          const fullId = resolveCriterionId(task, criterionIdOrPrefix);
-          task.completeCriterion(fullId, options.evidence);
-        }
-        updated = true;
-      }
-
-      // --evidence is only meaningful together with --complete-criterion
-      if (options.evidence && (!options.completeCriterion || options.completeCriterion.length === 0)) {
-        error('--evidence requires --complete-criterion in the same command.');
-        info('Example: octie update abc123 --complete-criterion def456 --evidence "0.86 ms median, n=810"');
-        process.exit(1);
-      }
-
-      // Remove criterion (supports short UUID)
-      if (options.removeCriterion) {
-        const fullId = resolveCriterionId(task, options.removeCriterion);
-        task.removeSuccessCriterion(fullId);
-        updated = true;
-      }
-
-      // Add need_fix item(s) (blocking issue) - supports multiple values
-      const needFixItems = options.addNeedFix || [];
-      if (needFixItems.length > 0) {
-        const source = options.needFixSource || 'review';
-        if (!['review', 'runtime', 'regression'].includes(source)) {
-          error(`Invalid --need-fix-source: '${source}'. Must be one of: review, runtime, regression`);
-          process.exit(1);
-        }
-        for (const text of needFixItems) {
-          task.addNeedFix(text, {
-            file_path: options.needFixFile,
-            source: source as 'review' | 'runtime' | 'regression',
-          });
-        }
-        updated = true;
-      }
-
-      // Complete need_fix item (supports short UUID)
-      if (options.completeNeedFix) {
-        const fullId = resolveNeedFixId(task, options.completeNeedFix);
-        task.completeNeedFix(fullId);
-        updated = true;
-      }
-
-      const dependenciesText = options.dependencyExplanation ?? options.dependencies;
-
-      // Add blocker (twin validation: requires --dependency-explanation)
-      // One blocker per call: comma form and repeated flags are collected by
-      // parseMultipleIds and rejected explicitly, so each blocker gets its own
-      // --dependency-explanation line (and nothing is silently dropped).
+      // Multi-blocker guard (CLI parsing rule, mirrors previous behavior)
       const blockerIds: string[] = options.blockers || [];
       if (blockerIds.length > 1) {
         error('--blockers accepts one task ID per call. Add blockers one at a time, each with its own --dependency-explanation.');
@@ -295,163 +101,49 @@ export const updateCommand = new Command('update')
         info('Example: octie update abc123 --blockers def456 --dependency-explanation "Needs the API spec from def456"');
         process.exit(1);
       }
-      const blockerId = blockerIds[0];
-      if (blockerId) {
-        if (!dependenciesText) {
-          error('When using --blockers, --dependency-explanation is required (twin feature).');
-          info(`Current dependencies: "${task.dependencies || '(none)'}"`);
-          info('Example: --blockers abc123 --dependency-explanation "Needs API spec from abc123"');
-          process.exit(1);
-        }
-        // Resolve short UUID to full UUID
-        const blockerTask = graph.getNodeByIdOrPrefix(blockerId);
-        if (!blockerTask) {
-          error(`Task with ID '${blockerId}' not found`);
-          process.exit(1);
-        }
-        // Check for self-blocking
-        if (blockerTask.id === task.id) {
-          error('A task cannot block itself.');
-          process.exit(1);
-        }
-        // Check if adding this blocker would create a cycle
-        if (wouldCreateCycle(graph, blockerTask.id, task.id)) {
-          error(`Adding blocker '${blockerTask.id.substring(0, 8)}' would create a cycle.`);
-          info('Cycles are not allowed in the task graph. Use "octie graph cycles" to see existing cycles.');
-          process.exit(1);
-        }
-        task.addBlocker(blockerTask.id);
-        graph.addEdge(blockerTask.id, task.id);
-        // Update dependencies explanation (append to existing)
-        const existingDeps = task.dependencies || '';
-        task.setDependencies(existingDeps ? `${existingDeps}\n${dependenciesText}` : dependenciesText);
-        updated = true;
+
+      const dependenciesText: string | undefined = options.dependencyExplanation ?? options.dependencies;
+      const patch: UpdateTaskPatch = {
+        priority: options.priority,
+        addDeliverables: options.addDeliverable,
+        completeDeliverables: options.completeDeliverable,
+        removeDeliverables: options.removeDeliverable ? [options.removeDeliverable] : undefined,
+        addSuccessCriteria: options.addSuccessCriterion,
+        completeCriteria: options.completeCriterion,
+        removeCriteria: options.removeCriterion ? [options.removeCriterion] : undefined,
+        evidence: options.evidence,
+        addNeedFix: (options.addNeedFix || []).map((text: string) => ({
+          text,
+          source: options.needFixSource,
+          file: options.needFixFile,
+        })),
+        completeNeedFix: options.completeNeedFix ? [options.completeNeedFix] : undefined,
+        blockers: blockerIds.length === 1
+          ? { id: blockerIds[0]!, explanation: dependenciesText ?? '' }
+          : undefined,
+        unblock: options.unblock,
+        clearDependencies: options.clearDependencies,
+        dependencies: blockerIds.length === 1 ? undefined : dependenciesText,
+        addRelatedFiles: options.addRelatedFile,
+        removeRelatedFiles: options.removeRelatedFile ? [options.removeRelatedFile] : undefined,
+        c7Verified: options.verifyC7,
+        removeC7Verified: options.removeC7Verified ? [options.removeC7Verified] : undefined,
+        notes: options.notes,
+        notesFile: options.notesFile,
+      };
+
+      const { propagatedCount, infoMessages } = await updateTaskWithPropagation(projectPath, id, patch);
+
+      // Success-path info lines (e.g. unblock auto-cleared dependencies)
+      for (const message of infoMessages) {
+        info(message);
       }
-
-      // Remove blocker
-      if (options.unblock) {
-        // Resolve short UUID to full UUID
-        const unblockTask = graph.getNodeByIdOrPrefix(options.unblock);
-        if (!unblockTask) {
-          error(`Task with ID '${options.unblock}' not found`);
-          process.exit(1);
-        }
-        task.removeBlocker(unblockTask.id);
-        graph.removeEdge(unblockTask.id, task.id);
-        // If no more blockers, clear dependencies automatically
-        if (task.blockers.length === 0) {
-          task.clearDependencies();
-          info('No more blockers - dependencies explanation cleared automatically.');
-        }
-        updated = true;
-      }
-
-      // Set/update dependencies explanation
-      if (dependenciesText && !options.blockers) {
-        // Standalone dependency explanation update (must have blockers)
-        if (task.blockers.length === 0) {
-          error('Cannot set dependencies explanation without blockers.');
-          info('Use --blockers to add a blocker first, or provide both --blockers and --dependency-explanation together.');
-          process.exit(1);
-        }
-        task.setDependencies(dependenciesText);
-        updated = true;
-      }
-
-      // Clear dependencies (for explicit clearing when last blocker removed)
-      if (options.clearDependencies) {
-        task.clearDependencies();
-        updated = true;
-      }
-
-      // Add related file(s) - supports multiple values
-      const relatedFiles = options.addRelatedFile || [];
-      for (const file of relatedFiles) {
-        task.addRelatedFile(file);
-        updated = true;
-      }
-
-      // Remove related file
-      if (options.removeRelatedFile) {
-        task.removeRelatedFile(options.removeRelatedFile);
-        updated = true;
-      }
-
-      // Add C7 verification(s) - supports multiple values
-      const c7Entries = options.verifyC7 || [];
-      for (const entry of c7Entries) {
-        const cleanEntry = normalizeGitBashPath(entry);
-
-        // Now parse the library-id:notes format
-        const colonIndex = cleanEntry.indexOf(':');
-        if (colonIndex === -1) {
-          task.addC7Verification({
-            library_id: cleanEntry.trim(),
-            verified_at: new Date().toISOString(),
-          });
-        } else {
-          task.addC7Verification({
-            library_id: cleanEntry.substring(0, colonIndex).trim(),
-            verified_at: new Date().toISOString(),
-            notes: cleanEntry.substring(colonIndex + 1).trim(),
-          });
-        }
-        updated = true;
-      }
-
-      // Remove C7 verification
-      if (options.removeC7Verified) {
-        const libraryId = normalizeGitBashPath(options.removeC7Verified as string);
-        task.removeC7Verification(libraryId);
-        updated = true;
-      }
-
-      // Append notes (supports multiple --notes flags)
-      if (options.notes && options.notes.length > 0) {
-        for (const note of options.notes) {
-          task.appendNotes(note);
-        }
-        updated = true;
-      }
-
-      // Append notes from file
-      if (options.notesFile) {
-        const notesPath = resolve(options.notesFile);
-        if (!existsSync(notesPath)) {
-          error(`Notes file not found: ${notesPath}`);
-          process.exit(1);
-        }
-        try {
-          const fileContent = readFileSync(notesPath, 'utf-8').trim();
-          task.appendNotes(fileContent);
-          updated = true;
-        } catch (err) {
-          error(`Failed to read notes file: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          process.exit(1);
-        }
-      }
-
-      if (!updated) {
-        error('No updates specified');
-        process.exit(1);
-      }
-
-      // Update in graph
-      graph.updateNode(task);
-
-      // Propagate status changes through the graph starting from this task
-      // This handles blocker changes and their effects on dependent tasks
-      const propagateResult = graph.propagateStatus(task.id);
-
-      // Save
-      await saveGraph(projectPath, graph);
-      await invalidateProjectCache(projectPath);
 
       success(`Task updated: ${chalk.cyan(id)}`);
 
       // Report if any dependent tasks were affected by propagation
-      if (propagateResult.updatedTasks.length > 0) {
-        info(chalk.cyan(`  Propagated to ${propagateResult.updatedTasks.length} dependent task(s)`));
+      if (propagatedCount > 0) {
+        info(chalk.cyan(`  Propagated to ${propagatedCount} dependent task(s)`));
       }
 
       process.exit(0);
@@ -460,6 +152,11 @@ export const updateCommand = new Command('update')
         error(err.message);
       } else {
         error('Failed to update task');
+      }
+      if (err instanceof CliPreparationError) {
+        for (const message of err.infoMessages) {
+          info(message);
+        }
       }
       process.exit(1);
     }

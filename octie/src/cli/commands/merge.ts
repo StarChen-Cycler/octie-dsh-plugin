@@ -1,12 +1,14 @@
 /**
  * Merge command - Merge two tasks into one
+ *
+ * The engine lives in the service layer (`mergePreview` + `mergeTask`);
+ * this command keeps only UX: preview, confirmation, output, exit codes.
  */
 
 import { Command } from 'commander';
-import { getProjectPath, loadGraph, saveGraph, success, error, info, confirmPrompt } from '../utils/helpers.js';
-import { invalidateProjectCache } from './shared-helpers.js';
+import { getProjectPath, success, error, info, confirmPrompt } from '../utils/helpers.js';
+import { mergePreview, mergeTask } from '../../service/index.js';
 import chalk from 'chalk';
-import { mergeTasks } from '../../core/graph/operations.js';
 
 /**
  * Create the merge command
@@ -48,30 +50,10 @@ Warning:
       // Get global options
       const globalOpts = command.parent?.opts() || {};
       const projectPath = await getProjectPath(globalOpts.project);
-      const graph = await loadGraph(projectPath);
 
-      // Support short UUID prefix lookup
-      const sourceTask = graph.getNodeByIdOrPrefix(sourceId);
-      const targetTask = graph.getNodeByIdOrPrefix(targetId);
-
-      if (!sourceTask) {
-        error(`Source task not found: ${sourceId}`);
-        process.exit(1);
-      }
-
-      if (!targetTask) {
-        error(`Target task not found: ${targetId}`);
-        process.exit(1);
-      }
-
-      // Use full IDs for all subsequent operations
-      const fullSourceId = sourceTask.id;
-      const fullTargetId = targetTask.id;
-
-      if (fullSourceId === fullTargetId) {
-        error('Cannot merge a task with itself');
-        process.exit(1);
-      }
+      const preview = await mergePreview(projectPath, sourceId, targetId);
+      const fullSourceId = preview.source.id;
+      const fullTargetId = preview.target.id;
 
       // Show preview
       console.log('');
@@ -79,20 +61,20 @@ Warning:
       console.log('');
 
       console.log(chalk.gray('Source task (will be deleted):'));
-      console.log(`  ${chalk.cyan(fullSourceId.substring(0, 8))} - ${sourceTask.title}`);
-      console.log(`  Criteria: ${sourceTask.success_criteria.length}`);
-      console.log(`  Deliverables: ${sourceTask.deliverables.length}`);
+      console.log(`  ${chalk.cyan(fullSourceId.substring(0, 8))} - ${preview.source.title}`);
+      console.log(`  Criteria: ${preview.source.criteriaCount}`);
+      console.log(`  Deliverables: ${preview.source.deliverablesCount}`);
       console.log('');
 
       console.log(chalk.gray('Target task (will receive merged content):'));
-      console.log(`  ${chalk.cyan(fullTargetId.substring(0, 8))} - ${targetTask.title}`);
-      console.log(`  Criteria: ${targetTask.success_criteria.length}`);
-      console.log(`  Deliverables: ${targetTask.deliverables.length}`);
+      console.log(`  ${chalk.cyan(fullTargetId.substring(0, 8))} - ${preview.target.title}`);
+      console.log(`  Criteria: ${preview.target.criteriaCount}`);
+      console.log(`  Deliverables: ${preview.target.deliverablesCount}`);
       console.log('');
 
       console.log(chalk.yellow('After merge:'));
-      console.log(`  Combined criteria: ${sourceTask.success_criteria.length + targetTask.success_criteria.length}`);
-      console.log(`  Combined deliverables: ${sourceTask.deliverables.length + targetTask.deliverables.length}`);
+      console.log(`  Combined criteria: ${preview.source.criteriaCount + preview.target.criteriaCount}`);
+      console.log(`  Combined deliverables: ${preview.source.deliverablesCount + preview.target.deliverablesCount}`);
       console.log('');
 
       // Confirm
@@ -106,17 +88,13 @@ Warning:
       }
 
       // Perform merge and capture affected tasks for user feedback
-      const mergeResult = mergeTasks(graph, fullSourceId, fullTargetId);
-
-      // Save
-      await saveGraph(projectPath, graph);
-      await invalidateProjectCache(projectPath);
+      const mergeResult = await mergeTask(projectPath, sourceId, targetId);
 
       success(`Tasks merged`);
-      info(`Source deleted: ${chalk.cyan(fullSourceId.substring(0, 8))}`);
-      info(`Target updated: ${chalk.cyan(fullTargetId.substring(0, 8))}`);
-      if (mergeResult.updatedTasks.length > 1) {
-        info(`Statuses recalculated: ${mergeResult.updatedTasks.length - 1} affected task(s)`);
+      info(`Source deleted: ${chalk.cyan(mergeResult.sourceId.substring(0, 8))}`);
+      info(`Target updated: ${chalk.cyan(mergeResult.targetId.substring(0, 8))}`);
+      if (mergeResult.affectedCount > 1) {
+        info(`Statuses recalculated: ${mergeResult.affectedCount - 1} affected task(s)`);
       }
 
       process.exit(0);

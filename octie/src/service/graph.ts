@@ -11,7 +11,7 @@ import { detectCycle, validateReferences } from '../core/graph/cycle.js';
 import { topologicalSort } from '../core/graph/sort.js';
 import { getConnectedComponents } from '../core/graph/traversal.js';
 import { touchProject } from '../core/registry/index.js';
-import { invalidateProjectCache } from './engine.js';
+import { CliPreparationError, invalidateProjectCache } from './engine.js';
 import type { GraphStats, GraphValidation, WireOpts } from './types.js';
 
 export interface WireResult {
@@ -43,13 +43,22 @@ export async function wireTask(
   if (bId === cId) throw new Error('Cannot wire a task before itself.');
   if (aId === cId) throw new Error('--after and --before must be different tasks.');
   if (!graph.hasEdge(aId, cId)) {
-    throw new Error('No edge exists between the --after and --before tasks; they must already be connected.');
+    throw new CliPreparationError(`No edge exists from ${aId} to ${cId}.`, [
+      'The --after and --before tasks must already be connected.',
+      'Use \'octie list --graph\' to view current task relationships.',
+    ]);
   }
   if (!taskC.blockers.includes(aId)) {
-    throw new Error('The --before task must have --after as a blocker.');
+    throw new CliPreparationError(`${cId} is not blocked by ${aId}.`, [
+      'The --before task must have --after as a blocker.',
+    ]);
   }
-  if (graph.hasEdge(bId, cId)) throw new Error('The inserted task already blocks the --before task (duplicate edge).');
-  if (graph.hasEdge(aId, bId)) throw new Error('The --after task already blocks the inserted task (duplicate edge).');
+  if (graph.hasEdge(bId, cId)) {
+    throw new CliPreparationError(`${bId} already blocks ${cId}.`, ['Cannot create a duplicate edge.']);
+  }
+  if (graph.hasEdge(aId, bId)) {
+    throw new CliPreparationError(`${aId} already blocks ${bId}.`, ['Cannot create a duplicate edge.']);
+  }
 
   taskB.addBlocker(aId);
   graph.addEdge(aId, bId);
@@ -73,11 +82,42 @@ export async function wireTask(
   return { before: [aId, cId], after: [aId, bId, cId], taskId: bId };
 }
 
+export async function mergePreview(
+  projectPath: string,
+  source: string,
+  target: string,
+): Promise<{
+  source: { id: string; title: string; criteriaCount: number; deliverablesCount: number };
+  target: { id: string; title: string; criteriaCount: number; deliverablesCount: number };
+}> {
+  const storage = new TaskStorage({ projectDir: projectPath });
+  const graph = await storage.load();
+  const sourceTask = graph.getNodeByIdOrPrefix(source);
+  if (!sourceTask) throw new Error(`Source task not found: ${source}`);
+  const targetTask = graph.getNodeByIdOrPrefix(target);
+  if (!targetTask) throw new Error(`Target task not found: ${target}`);
+  if (sourceTask.id === targetTask.id) throw new Error('Cannot merge a task with itself');
+  return {
+    source: {
+      id: sourceTask.id,
+      title: sourceTask.title,
+      criteriaCount: sourceTask.success_criteria.length,
+      deliverablesCount: sourceTask.deliverables.length,
+    },
+    target: {
+      id: targetTask.id,
+      title: targetTask.title,
+      criteriaCount: targetTask.success_criteria.length,
+      deliverablesCount: targetTask.deliverables.length,
+    },
+  };
+}
+
 export async function mergeTask(
   projectPath: string,
   source: string,
   target: string,
-): Promise<{ sourceId: string; targetId: string }> {
+): Promise<{ sourceId: string; targetId: string; affectedCount: number }> {
   const storage = new TaskStorage({ projectDir: projectPath });
   const graph = await storage.load();
   const sourceTask = graph.getNodeByIdOrPrefix(source);
@@ -86,10 +126,33 @@ export async function mergeTask(
   if (!targetTask) throw new Error(`Target task not found: ${target}`);
   if (sourceTask.id === targetTask.id) throw new Error('Cannot merge a task with itself');
 
-  mergeTasks(graph, sourceTask.id, targetTask.id);
+  const mergeResult = mergeTasks(graph, sourceTask.id, targetTask.id);
   await storage.save(graph);
   await invalidateProjectCache(projectPath);
-  return { sourceId: sourceTask.id, targetId: targetTask.id };
+  return { sourceId: sourceTask.id, targetId: targetTask.id, affectedCount: mergeResult.updatedTasks.length };
+}
+
+export async function deletePreview(
+  projectPath: string,
+  id: string,
+): Promise<{
+  task: { id: string; title: string };
+  dependents: Array<{ id: string; title: string }>;
+  blockers: Array<{ id: string; title: string }>;
+}> {
+  const storage = new TaskStorage({ projectDir: projectPath });
+  const graph = await storage.load();
+  const task = graph.getNodeByIdOrPrefix(id);
+  if (!task) throw new Error(`Task not found: ${id}`);
+  const dependents = graph.getOutgoingEdges(task.id).map(depId => {
+    const t = graph.getNode(depId);
+    return { id: depId, title: t?.title ?? '' };
+  });
+  const blockers = graph.getIncomingEdges(task.id).map(blockerId => {
+    const t = graph.getNode(blockerId);
+    return { id: blockerId, title: t?.title ?? '' };
+  });
+  return { task: { id: task.id, title: task.title }, dependents, blockers };
 }
 
 export async function deleteTask(

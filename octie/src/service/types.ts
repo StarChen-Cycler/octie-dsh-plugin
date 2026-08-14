@@ -85,15 +85,25 @@ export interface FindFilter extends ListFilter {
 
 export interface UpdateTaskPatch {
   priority?: TaskPriority;
-  completeCriteria?: string[];
-  completeDeliverables?: string[];
-  completeNeedFix?: string[];
-  addNeedFix?: Array<{ text: string; source?: 'review' | 'runtime' | 'regression'; file?: string }>;
-  addSuccessCriteria?: string[];
   addDeliverables?: string[];
-  notes?: string;
+  completeDeliverables?: string[];
+  removeDeliverables?: string[];
+  addSuccessCriteria?: string[];
+  completeCriteria?: string[];
+  removeCriteria?: string[];
+  evidence?: string;
+  addNeedFix?: Array<{ text: string; source?: 'review' | 'runtime' | 'regression'; file?: string }>;
+  completeNeedFix?: string[];
   blockers?: { id: string; explanation: string };
   unblock?: string;
+  clearDependencies?: boolean;
+  dependencies?: string;
+  addRelatedFiles?: string[];
+  removeRelatedFiles?: string[];
+  c7Verified?: string[];
+  removeC7Verified?: string[];
+  notes?: string | string[];
+  notesFile?: string;
 }
 
 export interface WireOpts {

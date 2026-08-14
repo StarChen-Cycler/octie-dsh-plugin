@@ -1,16 +1,16 @@
 /**
  * Wire command - Insert an existing task between two connected tasks
  *
- * This command wires an existing task (B) into a blocker chain:
  * Before: A → C (A blocks C)
  * After:  A → B → C (A blocks B, B blocks C)
  *
- * It uses the existing blocker manipulation patterns and twin validation system.
+ * The engine lives in the service layer (`wireTask`); this command keeps
+ * only UX: validation error branches, output, exit codes.
  */
 
 import { Command } from 'commander';
-import { getProjectPath, loadGraph, saveGraph, success, error, info } from '../utils/helpers.js';
-import { invalidateProjectCache } from './shared-helpers.js';
+import { getProjectPath, success, error, info } from '../utils/helpers.js';
+import { CliPreparationError, wireTask } from '../../service/index.js';
 import chalk from 'chalk';
 
 /**
@@ -28,113 +28,17 @@ export const wireCommand = new Command('wire')
       // Get global options
       const globalOpts = command.parent?.opts() || {};
       const projectPath = await getProjectPath(globalOpts.project);
-      const graph = await loadGraph(projectPath);
 
-      // Resolve task IDs (support short UUIDs)
-      const taskB = graph.getNodeByIdOrPrefix(taskId);
-      if (!taskB) {
-        error(`Task not found: ${taskId}`);
-        process.exit(1);
-      }
+      const result = await wireTask(projectPath, taskId, {
+        after: options.after,
+        before: options.before,
+        depOnAfter: options.depOnAfter,
+        depOnBefore: options.depOnBefore,
+      });
 
-      const taskA = graph.getNodeByIdOrPrefix(options.after);
-      if (!taskA) {
-        error(`--after task not found: ${options.after}`);
-        process.exit(1);
-      }
-
-      const taskC = graph.getNodeByIdOrPrefix(options.before);
-      if (!taskC) {
-        error(`--before task not found: ${options.before}`);
-        process.exit(1);
-      }
-
-      // Use resolved full IDs
-      const bId = taskB.id;
-      const aId = taskA.id;
-      const cId = taskC.id;
-
-      // Validation 1: B cannot be the same as A or C
-      if (bId === aId) {
-        error('Cannot wire a task after itself.');
-        process.exit(1);
-      }
-      if (bId === cId) {
-        error('Cannot wire a task before itself.');
-        process.exit(1);
-      }
-
-      // Validation 2: A and C must be different
-      if (aId === cId) {
-        error('--after and --before must be different tasks.');
-        process.exit(1);
-      }
-
-      // Validation 3: Edge A→C must exist
-      if (!graph.hasEdge(aId, cId)) {
-        error(`No edge exists from ${chalk.cyan(aId)} to ${chalk.cyan(cId)}.`);
-        info('The --after and --before tasks must already be connected.');
-        info(`Use 'octie list --graph' to view current task relationships.`);
-        process.exit(1);
-      }
-
-      // Validation 4: C must have A as a blocker
-      if (!taskC.blockers.includes(aId)) {
-        error(`${chalk.cyan(cId)} is not blocked by ${chalk.cyan(aId)}.`);
-        info('The --before task must have --after as a blocker.');
-        process.exit(1);
-      }
-
-      // Validation 5: B should not already block C (would create duplicate edge)
-      if (graph.hasEdge(bId, cId)) {
-        error(`${chalk.cyan(bId)} already blocks ${chalk.cyan(cId)}.`);
-        info('Cannot create a duplicate edge.');
-        process.exit(1);
-      }
-
-      // Validation 6: A should not already block B (would create duplicate edge)
-      if (graph.hasEdge(aId, bId)) {
-        error(`${chalk.cyan(aId)} already blocks ${chalk.cyan(bId)}.`);
-        info('Cannot create a duplicate edge.');
-        process.exit(1);
-      }
-
-      // === WIRING OPERATION ===
-
-      // Step 1: Add A as blocker to B (with twin: dependencies)
-      taskB.addBlocker(aId);
-      graph.addEdge(aId, bId);
-      const existingDepsB = taskB.dependencies || '';
-      taskB.setDependencies(existingDepsB
-        ? `${existingDepsB}\n${options.depOnAfter}`
-        : options.depOnAfter);
-
-      // Step 2: Transfer C's blocker from A to B
-      // First, remove A from C's blockers and remove edge A→C
-      taskC.removeBlocker(aId);
-      graph.removeEdge(aId, cId);
-
-      // Then, add B as blocker to C and add edge B→C
-      taskC.addBlocker(bId);
-      graph.addEdge(bId, cId);
-
-      // Replace C's dependencies with the new explanation for B
-      // (since the dependency on A is replaced with dependency on B)
-      taskC.setDependencies(options.depOnBefore);
-
-      // Step 3: Update nodes in graph
-      graph.updateNode(taskB);
-      graph.updateNode(taskC);
-
-      // Step 4: Propagate status changes from both affected tasks
-      // Task B may become blocked or ready based on A's status
-      graph.propagateStatus(taskB.id);
-      // Task C's status depends on B's new status
-      graph.propagateStatus(taskC.id);
-
-      // Step 5: Save
-      await saveGraph(projectPath, graph);
-      await invalidateProjectCache(projectPath);
+      const aId = result.before[0]!;
+      const bId = result.taskId;
+      const cId = result.before[1]!;
 
       // Success message
       success(`Wired ${chalk.cyan(bId)} between ${chalk.cyan(aId)} and ${chalk.cyan(cId)}`);
@@ -151,6 +55,11 @@ export const wireCommand = new Command('wire')
         error(err.message);
       } else {
         error('Failed to wire task');
+      }
+      if (err instanceof CliPreparationError) {
+        for (const message of err.infoMessages) {
+          info(message);
+        }
       }
       process.exit(1);
     }

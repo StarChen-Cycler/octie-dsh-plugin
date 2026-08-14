@@ -1,13 +1,14 @@
 /**
  * Delete command - Delete a task from the graph
+ *
+ * The engine lives in the service layer (`deletePreview` + `deleteTask`);
+ * this command keeps only UX: impact display, confirmation, output.
  */
 
 import { Command } from 'commander';
-import { getProjectPath, loadGraph, saveGraph, success, error, info, warning, confirmPrompt } from '../utils/helpers.js';
-import { invalidateProjectCache } from './shared-helpers.js';
-import { touchProject } from '../../core/registry/index.js';
+import { getProjectPath, success, error, info, warning, confirmPrompt } from '../utils/helpers.js';
+import { deletePreview, deleteTask } from '../../service/index.js';
 import chalk from 'chalk';
-import { cutNode, cascadeDelete } from '../../core/graph/operations.js';
 
 /**
  * Create the delete command
@@ -53,45 +54,28 @@ Examples:
       // Get global options
       const globalOpts = command.parent?.opts() || {};
       const projectPath = await getProjectPath(globalOpts.project);
-      const graph = await loadGraph(projectPath);
 
-      // Support short UUID prefix lookup
-      const task = graph.getNodeByIdOrPrefix(id);
-      if (!task) {
-        error(`Task not found: ${id}`);
-        process.exit(1);
-      }
-
-      // Use the full ID for all subsequent operations
-      const fullId = task.id;
+      const preview = await deletePreview(projectPath, id);
+      const fullId = preview.task.id;
 
       // Show impact
-      const dependents = graph.getOutgoingEdges(fullId);
-      const blockers = graph.getIncomingEdges(fullId);
-
       console.log('');
       console.log(chalk.bold('Task to delete:'));
-      console.log(`  ${chalk.cyan(fullId.substring(0, 8))} - ${task.title}`);
+      console.log(`  ${chalk.cyan(fullId.substring(0, 8))} - ${preview.task.title}`);
       console.log('');
 
-      if (dependents.length > 0) {
-        warning(`This task is blocking ${dependents.length} other task(s):`);
-        for (const depId of dependents) {
-          const depTask = graph.getNode(depId);
-          if (depTask) {
-            console.log(`  - ${chalk.cyan(depId.substring(0, 8))} - ${depTask.title}`);
-          }
+      if (preview.dependents.length > 0) {
+        warning(`This task is blocking ${preview.dependents.length} other task(s):`);
+        for (const dep of preview.dependents) {
+          console.log(`  - ${chalk.cyan(dep.id.substring(0, 8))} - ${dep.title}`);
         }
         console.log('');
       }
 
-      if (blockers.length > 0) {
-        info(`This task is blocked by ${blockers.length} task(s):`);
-        for (const blockerId of blockers) {
-          const blockerTask = graph.getNode(blockerId);
-          if (blockerTask) {
-            console.log(`  - ${chalk.cyan(blockerId.substring(0, 8))} - ${blockerTask.title}`);
-          }
+      if (preview.blockers.length > 0) {
+        info(`This task is blocked by ${preview.blockers.length} task(s):`);
+        for (const blocker of preview.blockers) {
+          console.log(`  - ${chalk.cyan(blocker.id.substring(0, 8))} - ${blocker.title}`);
         }
         console.log('');
       }
@@ -106,62 +90,23 @@ Examples:
         }
       }
 
-      // Create backup before deletion
-      warning('Creating backup before deletion...');
-      // Backup is automatic on save
+      const mode = options.reconnect ? 'reconnect' : options.cascade ? 'cascade' : 'simple';
 
-      // Perform deletion
-      if (options.reconnect) {
+      if (mode === 'reconnect') {
         info('Reconnecting edges...');
-        const affectedTaskIds = cutNode(graph, fullId);
-        for (const affectedId of affectedTaskIds) {
-          graph.propagateStatus(affectedId);
-        }
-      } else if (options.cascade) {
+      } else if (mode === 'cascade') {
         info('Cascading deletion to dependents...');
-        const deletedIds = cascadeDelete(graph, fullId);
-
-        // Save
-        await saveGraph(projectPath, graph);
-
-        // Update registry task count
-        touchProject(projectPath);
-        await invalidateProjectCache(projectPath);
-
-        success(`Deleted ${deletedIds.length} task(s): ${deletedIds.map(id => id.substring(0, 8)).join(', ')}`);
-        process.exit(0);
-      } else {
-        // Simple removal - clean up blocker references from dependent tasks
-        // Get tasks that this task is blocking (outgoing edges)
-        const dependentTasks = graph.getOutgoingEdges(fullId);
-        const affectedTaskIds: string[] = [];
-
-        for (const depId of dependentTasks) {
-          const depTask = graph.getNode(depId);
-          if (depTask && depTask.blockers.includes(fullId)) {
-            depTask.removeBlocker(fullId);
-            affectedTaskIds.push(depId);
-          }
-        }
-
-        // Remove the node (this also removes graph edges)
-        graph.removeNode(fullId);
-
-        // Propagate status changes from all affected tasks
-        // This handles the case where removing a blocker unblocks children
-        for (const affectedId of affectedTaskIds) {
-          graph.propagateStatus(affectedId);
-        }
       }
 
-      // Save
-      await saveGraph(projectPath, graph);
+      // Perform deletion (backup + atomic save inside the engine)
+      const result = await deleteTask(projectPath, id, mode);
 
-      // Update registry task count
-      touchProject(projectPath);
-      await invalidateProjectCache(projectPath);
+      if (mode === 'cascade') {
+        success(`Deleted ${result.deletedIds.length} task(s): ${result.deletedIds.map(d => d.substring(0, 8)).join(', ')}`);
+        process.exit(0);
+      }
 
-      success(`Task deleted: ${chalk.cyan(fullId.substring(0, 8))}`);
+      success(`Task deleted: ${chalk.cyan(result.deletedIds[0]!.substring(0, 8))}`);
 
       process.exit(0);
     } catch (err) {
