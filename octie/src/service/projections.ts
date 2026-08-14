@@ -24,7 +24,7 @@ function projectCriterion(c: {
     text: c.text,
     completed: c.completed,
     completed_at: c.completed_at ?? null,
-    evidence: c.evidence,
+    ...(c.evidence ? { evidence: c.evidence } : {}),
   };
 }
 
@@ -52,8 +52,8 @@ function projectNeedFix(f: {
   return {
     id: f.id,
     text: f.text,
-    source: f.source,
-    file_path: f.file_path,
+    ...(f.source ? { source: f.source } : {}),
+    ...(f.file_path ? { file_path: f.file_path } : {}),
     completed: f.completed,
   };
 }
@@ -88,12 +88,12 @@ export function toTaskProjection(task: TaskNode): TaskProjection {
     assignee: task.assignee ?? null,
     edges: [...(task.edges ?? [])],
     blockers: [...task.blockers],
-    dependencies: task.dependencies,
+    dependencies: task.dependencies ?? '',
     sub_items: [...task.sub_items],
     related_files: [...task.related_files],
-    notes: task.notes,
-    created_at: task.created_at,
-    updated_at: task.updated_at,
+    notes: task.notes ?? '',
+    created_at: task.created_at ?? '',
+    updated_at: task.updated_at ?? '',
     completed_at: task.completed_at ?? null,
   };
 }

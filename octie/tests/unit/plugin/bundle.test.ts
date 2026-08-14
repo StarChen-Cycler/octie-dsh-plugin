@@ -63,6 +63,27 @@ function makeMockCtx(): { ctx: MockCtx; wrapper: any } {
   return { ctx: mock, wrapper };
 }
 
+/**
+ * Mirrors DSH's tool-output contract: objects, arrays, strings, numbers,
+ * booleans and null are lossless JSON; `undefined`, functions, Date, Map/Set
+ * and class instances are not. Regression guard for the projection fix.
+ */
+function isLosslessJson(value: unknown, path = '$'): boolean {
+  if (value === null) return true;
+  const t = typeof value;
+  if (t === 'string' || t === 'boolean') return true;
+  if (t === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every((x, i) => isLosslessJson(x, `${path}[${i}]`));
+  if (t === 'object' && (value as object).constructor === Object) {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) return false;
+      if (!isLosslessJson(v, `${path}.${k}`)) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 describe('octie-dsh bundle Node half', () => {
   let tempDir: string;
 
@@ -112,6 +133,21 @@ describe('octie-dsh bundle Node half', () => {
     }
   });
 
+  it('every tool exposes a valid JSON Schema and (non-init) a project param', () => {
+    const { ctx, wrapper } = makeMockCtx();
+    apply(wrapper);
+    for (const tool of ctx.registered as any[]) {
+      const p = tool.parameters;
+      expect(p.type, `${tool.name} parameters.type`).toBe('object');
+      expect(p.properties && typeof p.properties === 'object', `${tool.name} parameters.properties`).toBe(true);
+      expect(p.required === undefined || Array.isArray(p.required), `${tool.name} parameters.required`).toBe(true);
+      expect(tool.output && typeof tool.output.schema === 'object', `${tool.name} output.schema`).toBe(true);
+      if (tool.name !== 'octie_init') {
+        expect(Object.prototype.hasOwnProperty.call(p.properties, 'project'), `${tool.name} has project param`).toBe(true);
+      }
+    }
+  });
+
   it('functional smoke: init -> create -> list -> events', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);
@@ -131,10 +167,21 @@ describe('octie-dsh bundle Node half', () => {
     });
     expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(created.status).toBe('ready');
+    expect(isLosslessJson(created), 'octie_create output must be lossless JSON').toBe(true);
 
     const listed = await tools.octie_list.execute({ status: 'ready' });
     expect(listed.length).toBe(1);
     expect(listed[0].title).toBe('Implement smoke task');
+    expect(isLosslessJson(listed), 'octie_list output must be lossless JSON').toBe(true);
+
+    const fetched = await tools.octie_get.execute({ id: created.id });
+    expect(fetched.id).toBe(created.id);
+    expect(isLosslessJson(fetched), 'octie_get output must be lossless JSON').toBe(true);
+
+    // project override targets the same project via an explicit path
+    const listedByProject = await tools.octie_list.execute({ project: tempDir });
+    expect(listedByProject.length).toBe(1);
+    expect(isLosslessJson(listedByProject), 'octie_list(project) output must be lossless JSON').toBe(true);
 
     const approvedFailure = await tools.octie_approve.execute({ id: created.id }).catch(e => e);
     expect(approvedFailure).toBeInstanceOf(Error); // not in_review -> must fail, never corrupt state

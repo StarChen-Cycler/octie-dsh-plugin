@@ -180,21 +180,57 @@ export class OctieService {
 }
 
 function resolveProject(service, project) {
-  if (typeof project === 'string' && project.trim()) return Promise.resolve(project.trim());
+  // An explicit `project` path opens (and validates) that project, becoming
+  // the current handle so every service method below operates on it.
+  if (typeof project === 'string' && project.trim()) {
+    return openProject(project.trim()).then(handle => { service.current = handle; return handle.path; });
+  }
   if (service.current && service.current.path) return Promise.resolve(service.current.path);
   return openProject().then(handle => { service.current = handle; return handle.path; });
+}
+
+// Shared `project` parameter attached to every non-init tool so the model can
+// target any existing project in one call (falls back to the open project).
+function projectParam() {
+  return stringParam(false, 'Project directory path (default: the currently open project)');
 }
 
 function stringParam(required, description) {
   return { type: 'string', required: !!required, description };
 }
 
+/**
+ * Convert the per-parameter spec map into the JSON Schema object the model
+ * API requires: `{ type: 'object', properties, required? }`. Each spec value
+ * keeps its JSON Schema fields (type, description, enum, items); its boolean
+ * `required` flag is lifted into the top-level `required` array.
+ */
+function objectSchema(spec) {
+  const properties = {};
+  const required = [];
+  for (const [key, value] of Object.entries(spec)) {
+    const { required: isRequired, ...property } = value;
+    properties[key] = property;
+    if (isRequired) required.push(key);
+  }
+  const schema = { type: 'object', properties };
+  if (required.length > 0) schema.required = required;
+  return schema;
+}
+
 function makeTool(service, name, description, parameters, execute, options = {}) {
+  // Every non-init tool accepts an optional `project` path so the model can
+  // target any existing project in one call; octie_init uses `path` instead.
+  const fullParameters = options.resolveProject === false
+    ? parameters
+    : { ...parameters, project: projectParam() };
   return {
     name,
     description,
-    parameters,
-    output: { schema: { type: 'string' }, render: renderJson },
+    parameters: objectSchema(fullParameters),
+    // Annotation-only schema: every tool returns an owned JSON projection
+    // (objects, arrays, strings), so the canonical value is unconstrained.
+    output: { schema: {}, render: renderJson },
     async execute(args) {
       // octie_init carries its own path/name and must not resolve a project
       // up front (there is nothing open yet on the very first call).
