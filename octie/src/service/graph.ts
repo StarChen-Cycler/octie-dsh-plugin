@@ -195,6 +195,28 @@ export async function deleteTask(
   return { deletedIds: [fullId] };
 }
 
+export async function graphStructure(projectPath: string): Promise<{
+  incoming: Record<string, string[]>;
+  outgoing: Record<string, string[]>;
+  roots: string[];
+  nodes: Array<{ id: string; title: string; status: string }>;
+}> {
+  const storage = new TaskStorage({ projectDir: projectPath });
+  const graph = await storage.load();
+  const ids = graph.getAllTasks().map(t => t.id);
+  const incoming: Record<string, string[]> = {};
+  const outgoing: Record<string, string[]> = {};
+  for (const id of ids) {
+    incoming[id] = graph.getIncomingEdges(id);
+    outgoing[id] = graph.getOutgoingEdges(id);
+  }
+  const nodes = ids.map(id => {
+    const t = graph.getNode(id);
+    return { id, title: t?.title ?? '', status: t?.status ?? 'ready' };
+  });
+  return { incoming, outgoing, roots: graph.getRootTasks(), nodes };
+}
+
 export async function graphStats(projectPath: string): Promise<GraphStats> {
   const storage = new TaskStorage({ projectDir: projectPath });
   const graph = await storage.load();

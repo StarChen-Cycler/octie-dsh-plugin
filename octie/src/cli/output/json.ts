@@ -2,8 +2,8 @@
  * JSON output formatters for tasks and projects
  */
 
-import { TaskNode } from '../../core/models/task-node.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
+import type { TaskProjection } from '../../service/types.js';
 
 /**
  * Schema reference for Octie project files
@@ -44,8 +44,8 @@ export function parseFields(fieldsArg: string | undefined): string[] | null {
  * Format a single task as JSON
  * Pretty-printed with 2-space indentation
  */
-export function formatTaskJSON(task: TaskNode, fields?: string[] | null): string {
-  const data = task.toJSON();
+export function formatTaskJSON(task: TaskProjection, fields?: string[] | null): string {
+  const data = task as unknown as Record<string, unknown>;
   if (!fields || fields.length === 0) {
     return JSON.stringify(data, null, 2);
   }

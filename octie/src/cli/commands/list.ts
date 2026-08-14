@@ -1,19 +1,22 @@
 /**
  * List command - List tasks with filtering options
+ *
+ * The data layer lives in the service layer (`listTasksFull`,
+ * `graphStructure`); this command keeps only rendering and exit codes.
  */
 
 import { Command, Option } from 'commander';
 import Table from 'cli-table3';
-import type { TaskGraphStore } from '../../core/graph/index.js';
-import { TaskNode } from '../../core/models/task-node.js';
-import { getProjectPath, loadGraph, formatStatus, formatPriority, resolveOutputFormat, toTaskSummary, formatTaskSummaryMarkdown } from '../utils/helpers.js';
+import { getProjectPath, formatStatus, formatPriority, resolveOutputFormat } from '../utils/helpers.js';
+import { listTasksFull, graphStructure } from '../../service/index.js';
+import type { TaskProjection } from '../../service/types.js';
 import chalk from 'chalk';
 import { formatTaskMarkdown } from '../output/markdown.js';
 
 /**
  * Format task as table row
  */
-function formatTaskAsRow(task: TaskNode, showId: boolean = true, titleMaxWidth: number = 80): string[] {
+function formatTaskAsRow(task: TaskProjection, showId: boolean = true, titleMaxWidth: number = 80): string[] {
   const row: string[] = [];
 
   if (showId) {
@@ -23,38 +26,54 @@ function formatTaskAsRow(task: TaskNode, showId: boolean = true, titleMaxWidth: 
   row.push(
     formatStatus(task.status),
     formatPriority(task.priority),
-    // ponytail: let table colWidths handle truncation; no need to substring here
-    // unless titleMaxWidth is unreasonably small
     titleMaxWidth < 30 ? task.title.substring(0, titleMaxWidth) : task.title
   );
 
   return row;
 }
 
+function toSummary(task: TaskProjection) {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    blockers: task.blockers,
+  };
+}
+
+function summaryMarkdown(task: TaskProjection): string {
+  const checkbox = task.status === 'completed' ? '[x]' : '[ ]';
+  const blockedBy = task.blockers.length > 0
+    ? ` · blocked by: ${task.blockers.map(id => `#${id.substring(0, 8)}`).join(', ')}`
+    : '';
+  return `- ${checkbox} **${task.title}** (#${task.id.substring(0, 8)}) · ${task.status} · ${task.priority}${blockedBy}`;
+}
+
 /**
  * Build and render tree structure for display
  */
-function buildAndRenderTree(graph: TaskGraphStore, rootTasks: string[]): string {
+function buildAndRenderTree(
+  structure: Awaited<ReturnType<typeof graphStructure>>,
+  rootTasks: string[],
+): string {
+  const nodesById = new Map(structure.nodes.map(n => [n.id, n]));
   const lines: string[] = [];
   const visited = new Set<string>();
 
   function renderNode(taskId: string, prefix: string, isLast: boolean): void {
-    if (visited.has(taskId)) {
-      return;
-    }
+    if (visited.has(taskId)) return;
     visited.add(taskId);
 
-    const task = graph.getNode(taskId);
-    if (!task) return;
+    const node = nodesById.get(taskId);
+    if (!node) return;
 
     const connector = isLast ? '└── ' : '├── ';
-    lines.push(prefix + connector + `${task.title} ${chalk.gray(`(${task.status})`)}`);
+    lines.push(prefix + connector + `${node.title} ${chalk.gray(`(${node.status})`)}`);
 
-    const dependents = graph.getOutgoingEdges(taskId);
-    const dependentCount = dependents.length;
-
+    const dependents = structure.outgoing[taskId] ?? [];
     dependents.forEach((depId, index) => {
-      const isLastChild = index === dependentCount - 1;
+      const isLastChild = index === dependents.length - 1;
       const newPrefix = prefix + (isLast ? '    ' : '│   ');
       renderNode(depId, newPrefix, isLastChild);
     });
@@ -111,20 +130,13 @@ Examples:
       // Get global options
       const globalOpts = command.parent?.opts() || {};
 
-      // Load project
+      // Load project and filtered tasks from the service layer
       const projectPath = await getProjectPath(globalOpts.project);
       const format = resolveOutputFormat(command, projectPath);
-      const graph = await loadGraph(projectPath);
-
-      // Apply filters
-      let tasks = graph.getAllTasks();
-
-      if (options.status) {
-        tasks = tasks.filter(task => task.status === options.status);
-      }
-      if (options.priority) {
-        tasks = tasks.filter(task => task.priority === options.priority);
-      }
+      const tasks = await listTasksFull(projectPath, {
+        status: options.status,
+        priority: options.priority,
+      });
 
       if (tasks.length === 0) {
         console.log(chalk.yellow('No tasks found'));
@@ -133,12 +145,14 @@ Examples:
 
       // Graph structure view
       if (options.graph) {
+        const structure = await graphStructure(projectPath);
+
         console.log(chalk.bold('Graph Structure:'));
         console.log('');
 
         for (const task of tasks) {
-          const incoming = graph.getIncomingEdges(task.id);
-          const outgoing = graph.getOutgoingEdges(task.id);
+          const incoming = structure.incoming[task.id] ?? [];
+          const outgoing = structure.outgoing[task.id] ?? [];
 
           console.log(chalk.cyan(task.id.substring(0, 8)), '-', task.title);
 
@@ -158,8 +172,8 @@ Examples:
 
       // Tree view
       if (options.tree) {
-        const rootTasks = graph.getRootTasks();
-        const treeOutput = buildAndRenderTree(graph, rootTasks);
+        const structure = await graphStructure(projectPath);
+        const treeOutput = buildAndRenderTree(structure, structure.roots);
 
         console.log(chalk.bold('Task Tree:'));
         console.log('');
@@ -170,14 +184,14 @@ Examples:
       // Format output
       switch (format) {
         case 'json':
-          console.log(JSON.stringify(options.summary ? tasks.map(toTaskSummary) : tasks, null, 2));
+          console.log(JSON.stringify(options.summary ? tasks.map(toSummary) : tasks, null, 2));
           break;
 
         case 'md':
           console.log(`# Tasks (${tasks.length})\n`);
           for (const task of tasks) {
             if (options.summary) {
-              console.log(formatTaskSummaryMarkdown(task));
+              console.log(summaryMarkdown(task));
             } else {
               console.log(formatTaskMarkdown(task));
               console.log('');
@@ -189,14 +203,11 @@ Examples:
 
         case 'table':
         default: {
-          // ponytail: adaptive column widths — ID and Priority are fixed,
-          // Status gets enough room for "in_progress" (11 chars),
-          // Title gets the rest of the terminal
+          // Adaptive column widths
           const termWidth = process.stdout.columns || 80;
           const idWidth = 10;
           const statusWidth = 13;
           const priorityWidth = 10;
-          // ~3 chars padding per column (left+right) + 1 separator per column
           const overhead = 4 * 3 + 4;
           const titleWidth = Math.max(30, termWidth - idWidth - statusWidth - priorityWidth - overhead);
 

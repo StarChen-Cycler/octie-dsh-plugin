@@ -1,9 +1,13 @@
 /**
  * Get command - Retrieve and display task details
+ *
+ * The data layer lives in the service layer (`getTask`); this command
+ * keeps only rendering, field filtering, and exit codes.
  */
 
 import { Command } from 'commander';
-import { getProjectPath, loadGraph, error, resolveOutputFormat } from '../utils/helpers.js';
+import { getProjectPath, error, resolveOutputFormat } from '../utils/helpers.js';
+import { getTask } from '../../service/index.js';
 import { formatTaskMarkdown } from '../output/markdown.js';
 import { formatTaskJSON, parseFields } from '../output/json.js';
 import { formatTaskDetailTable } from '../output/table.js';
@@ -52,13 +56,10 @@ Global Options:
       // Get global options
       const globalOpts = command.parent?.opts() || {};
 
-      // Load project
+      // Load project and task from the service layer
       const projectPath = await getProjectPath(globalOpts.project);
       const format = resolveOutputFormat(command, projectPath);
-      const graph = await loadGraph(projectPath);
-
-      // Find task (supports full UUID or short prefix)
-      const task = graph.getNodeByIdOrPrefix(id);
+      const task = await getTask(projectPath, id);
 
       if (!task) {
         error(chalk.red(`Task not found: ${id}`));

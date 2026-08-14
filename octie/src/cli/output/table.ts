@@ -2,7 +2,7 @@
  * Table output formatters for tasks
  */
 
-import { TaskNode } from '../../core/models/task-node.js';
+import type { TaskProjection } from '../../service/types.js';
 import Table from 'cli-table3';
 import { formatStatus, formatPriority } from '../utils/helpers.js';
 import chalk from 'chalk';
@@ -12,7 +12,7 @@ import chalk from 'chalk';
  * @param task - The task to format
  * @param fields - Optional list of field names to include (null = all)
  */
-export function formatTaskDetailTable(task: TaskNode, fields?: string[] | null): string {
+export function formatTaskDetailTable(task: TaskProjection, fields?: string[] | null): string {
   const show = (name: string) => !fields || fields.includes(name);
   const lines: string[] = [];
 

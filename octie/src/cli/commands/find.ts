@@ -1,21 +1,16 @@
 /**
  * Find command - Search and filter tasks with advanced options
  *
- * Provides powerful search capabilities:
- * - Title substring matching
- * - Full-text search across description, notes, criteria, deliverables
- * - File reference search
- * - C7 verification library search
- * - Special filters: without-blockers, orphans, leaves
+ * The data layer lives in the service layer (`findTasksFull`); this
+ * command keeps only rendering, and exit codes.
  */
 
 import { Command } from 'commander';
 import Table from 'cli-table3';
 import chalk from 'chalk';
-import type { TaskGraphStore } from '../../core/graph/index.js';
-import type { TaskNode } from '../../core/models/task-node.js';
-import { getProjectPath, loadGraph, formatStatus, formatPriority, resolveOutputFormat, toTaskSummary, formatTaskSummaryMarkdown } from '../utils/helpers.js';
-import { normalizeGitBashPath } from './shared-helpers.js';
+import { getProjectPath, formatStatus, formatPriority, resolveOutputFormat } from '../utils/helpers.js';
+import { findTasksFull } from '../../service/index.js';
+import type { FindFilter, TaskProjection } from '../../service/types.js';
 
 /**
  * Search options interface
@@ -36,7 +31,7 @@ interface FindOptions {
 /**
  * Format task as table row
  */
-function formatTaskAsRow(task: TaskNode, showId: boolean = true): string[] {
+function formatTaskAsRow(task: TaskProjection, showId: boolean = true): string[] {
   const row: string[] = [];
 
   if (showId) {
@@ -55,7 +50,7 @@ function formatTaskAsRow(task: TaskNode, showId: boolean = true): string[] {
 /**
  * Format task as markdown (brief for list view)
  */
-function formatTaskAsMarkdown(task: TaskNode): string {
+function formatTaskAsMarkdown(task: TaskProjection): string {
   const checkbox = task.status === 'completed' ? '[x]' : '[ ]';
   const status = formatStatus(task.status);
   const priority = formatPriority(task.priority);
@@ -67,152 +62,37 @@ function formatTaskAsMarkdown(task: TaskNode): string {
          `**Description**: ${task.description.substring(0, 100)}...\n`;
 }
 
-/**
- * Check if task matches title pattern (case-insensitive substring)
- */
-function matchesTitle(task: TaskNode, pattern: string): boolean {
-  return task.title.toLowerCase().includes(pattern.toLowerCase());
+function summaryMarkdown(task: TaskProjection): string {
+  const checkbox = task.status === 'completed' ? '[x]' : '[ ]';
+  const blockedBy = task.blockers.length > 0
+    ? ` · blocked by: ${task.blockers.map(id => `#${id.substring(0, 8)}`).join(', ')}`
+    : '';
+  return `- ${checkbox} **${task.title}** (#${task.id.substring(0, 8)}) · ${task.status} · ${task.priority}${blockedBy}`;
 }
 
-/**
- * Check if task contains search text in various fields
- */
-function matchesSearch(task: TaskNode, query: string): boolean {
-  const queryLower = query.toLowerCase();
-
-  // Search in title
-  if (task.title.toLowerCase().includes(queryLower)) return true;
-
-  // Search in description
-  if (task.description.toLowerCase().includes(queryLower)) return true;
-
-  // Search in notes
-  if (task.notes.toLowerCase().includes(queryLower)) return true;
-
-  // Search in success criteria
-  if (task.success_criteria.some(sc => sc.text.toLowerCase().includes(queryLower))) return true;
-
-  // Search in deliverables
-  if (task.deliverables.some(d => d.text.toLowerCase().includes(queryLower))) return true;
-
-  return false;
-}
-
-/**
- * Check if task has a specific related file
- */
-function matchesFile(task: TaskNode, filePath: string): boolean {
-  return task.related_files.some(f =>
-    f.toLowerCase().includes(filePath.toLowerCase())
-  );
-}
-
-/**
- * Check if task has C7 verification from specific library
- */
-function matchesC7Verification(task: TaskNode, libraryId: string): boolean {
-  const libraryLower = libraryId.toLowerCase();
-  return task.c7_verified.some(v =>
-    v.library_id.toLowerCase().includes(libraryLower)
-  );
-}
-
-/**
- * Check if task has no blockers
- */
-function hasNoBlockers(task: TaskNode): boolean {
-  return task.blockers.length === 0;
-}
-
-/**
- * Apply all filters and return matching tasks
- */
-function applyFilters(graph: TaskGraphStore, options: FindOptions): TaskNode[] {
-  let taskIds: Set<string> | null = null;
-  let tasks = graph.getAllTasks();
-
-  // If --orphans flag is set, filter to orphan tasks only
-  if (options.orphans) {
-    const orphanIds = graph.getOrphanTasks();
-    if (taskIds === null) {
-      taskIds = new Set(orphanIds);
-    } else {
-      taskIds = new Set(orphanIds.filter(id => taskIds!.has(id)));
-    }
-  }
-
-  // If --leaves flag is set, filter to leaf tasks only
-  if (options.leaves) {
-    const leafIds = graph.getLeafTasks();
-    if (taskIds === null) {
-      taskIds = new Set(leafIds);
-    } else {
-      taskIds = new Set(leafIds.filter(id => taskIds!.has(id)));
-    }
-  }
-
-  // If --without-blockers flag is set, filter to tasks with no blockers
-  if (options.withoutBlockers) {
-    const noBlockerIds = tasks.filter(t => hasNoBlockers(t)).map(t => t.id);
-    if (taskIds === null) {
-      taskIds = new Set(noBlockerIds);
-    } else {
-      taskIds = new Set(noBlockerIds.filter(id => taskIds!.has(id)));
-    }
-  }
-
-  // If taskIds has been constrained by flags, filter tasks
-  if (taskIds !== null) {
-    tasks = tasks.filter(t => taskIds!.has(t.id));
-  }
-
-  // Apply --title filter
-  if (options.title) {
-    tasks = tasks.filter(t => matchesTitle(t, options.title!));
-  }
-
-  // Apply --search filter (full-text search)
-  if (options.search) {
-    tasks = tasks.filter(t => matchesSearch(t, options.search!));
-  }
-
-  // Apply --has-file filter
-  if (options.hasFile) {
-    tasks = tasks.filter(t => matchesFile(t, options.hasFile!));
-  }
-
-  // Apply --verified filter (C7 verification library)
-  if (options.verified) {
-    const libraryId = normalizeGitBashPath(options.verified);
-    tasks = tasks.filter(t => matchesC7Verification(t, libraryId));
-  }
-
-  // Apply --status filter
-  if (options.status) {
-    tasks = tasks.filter(t => t.status === options.status);
-  }
-
-  // Apply --priority filter
-  if (options.priority) {
-    tasks = tasks.filter(t => t.priority === options.priority);
-  }
-
-  return tasks;
+function toSummary(task: TaskProjection) {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    blockers: task.blockers,
+  };
 }
 
 /**
  * Output results in the specified format
  */
-function outputResults(tasks: TaskNode[], format: string, summary: boolean = false): void {
+function outputResults(tasks: TaskProjection[], format: string, summary: boolean = false): void {
   switch (format) {
     case 'json':
-      console.log(JSON.stringify(summary ? tasks.map(toTaskSummary) : tasks, null, 2));
+      console.log(JSON.stringify(summary ? tasks.map(toSummary) : tasks, null, 2));
       break;
 
     case 'md':
       console.log(`# Search Results (${tasks.length})\n`);
       for (const task of tasks) {
-        console.log(summary ? formatTaskSummaryMarkdown(task) : formatTaskAsMarkdown(task));
+        console.log(summary ? summaryMarkdown(task) : formatTaskAsMarkdown(task));
       }
       break;
 
@@ -280,13 +160,21 @@ Output formats:
       // Get global options
       const globalOpts = command.parent?.opts() || {};
 
-      // Load project
+      // Load project and matching tasks from the service layer
       const projectPath = await getProjectPath(globalOpts.project);
       const format = resolveOutputFormat(command, projectPath);
-      const graph = await loadGraph(projectPath);
-
-      // Apply filters
-      const tasks = applyFilters(graph, options);
+      const filter: FindFilter = {
+        title: options.title,
+        search: options.search,
+        hasFile: options.hasFile,
+        verified: options.verified,
+        withoutBlockers: options.withoutBlockers,
+        orphans: options.orphans,
+        leaves: options.leaves,
+        status: options.status as FindFilter['status'],
+        priority: options.priority as FindFilter['priority'],
+      };
+      const tasks = await findTasksFull(projectPath, filter);
 
       // Output results
       outputResults(tasks, format, options.summary);

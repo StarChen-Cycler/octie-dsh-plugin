@@ -66,6 +66,16 @@ export async function listTasks(projectPath: string, filter: ListFilter = {}): P
   return tasks.map(toTaskSummary);
 }
 
+/** Like listTasks but returns full projections for CLI rendering. */
+export async function listTasksFull(projectPath: string, filter: ListFilter = {}): Promise<TaskProjection[]> {
+  const storage = new TaskStorage({ projectDir: projectPath });
+  const graph = await storage.load();
+  let tasks = graph.getAllTasks();
+  if (filter.status) tasks = tasks.filter(t => t.status === filter.status);
+  if (filter.priority) tasks = tasks.filter(t => t.priority === filter.priority);
+  return tasks.map(toTaskProjection);
+}
+
 export async function getTask(projectPath: string, id: string): Promise<TaskProjection | null> {
   const storage = new TaskStorage({ projectDir: projectPath });
   const graph = await storage.load();
@@ -92,6 +102,15 @@ function matchesFile(task: TaskNode, filePath: string): boolean {
 }
 
 export async function findTasks(projectPath: string, filter: FindFilter = {}): Promise<TaskSummary[]> {
+  return findTasksInternal(projectPath, filter, false) as Promise<TaskSummary[]>;
+}
+
+/** Like findTasks but returns full projections for CLI rendering. */
+export async function findTasksFull(projectPath: string, filter: FindFilter = {}): Promise<TaskProjection[]> {
+  return findTasksInternal(projectPath, filter, true) as Promise<TaskProjection[]>;
+}
+
+async function findTasksInternal(projectPath: string, filter: FindFilter, full: boolean): Promise<TaskProjection[]> {
   const storage = new TaskStorage({ projectDir: projectPath });
   const graph = await storage.load();
   let tasks = graph.getAllTasks();
@@ -111,12 +130,12 @@ export async function findTasks(projectPath: string, filter: FindFilter = {}): P
   if (filter.search) tasks = tasks.filter(t => matchesSearch(t, filter.search!));
   if (filter.hasFile) tasks = tasks.filter(t => matchesFile(t, filter.hasFile!));
   if (filter.verified) {
-    const lib = filter.verified.toLowerCase();
+    const lib = normalizeGitBashPath(filter.verified).toLowerCase();
     tasks = tasks.filter(t => t.c7_verified.some(v => v.library_id.toLowerCase().includes(lib)));
   }
   if (filter.status) tasks = tasks.filter(t => t.status === filter.status);
   if (filter.priority) tasks = tasks.filter(t => t.priority === filter.priority);
-  return tasks.map(toTaskSummary);
+  return tasks.map(full ? toTaskProjection : toTaskSummary as never);
 }
 
 function resolveWithin<T extends { id: string }>(

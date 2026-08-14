@@ -2,15 +2,16 @@
  * Markdown output formatters for tasks and projects
  */
 
-import { TaskNode } from '../../core/models/task-node.js';
 import type { TaskGraphStore } from '../../core/graph/index.js';
+import type { TaskProjection } from '../../service/types.js';
+import { toTaskProjection } from '../../service/projections.js';
 import { formatStatus, formatPriority } from '../utils/helpers.js';
 
 /**
  * Format a single task as markdown
  * Format: ## [ ] Title: Description
  */
-export function formatTaskMarkdown(task: TaskNode): string {
+export function formatTaskMarkdown(task: TaskProjection): string {
   const lines: string[] = [];
 
   // Header with checkbox
@@ -229,7 +230,7 @@ export function formatProjectMarkdown(graph: TaskGraphStore): string {
   }
 
   for (const task of sortedTasks) {
-    lines.push(formatTaskMarkdown(task));
+    lines.push(formatTaskMarkdown(toTaskProjection(task)));
     lines.push('');
     lines.push('---');
     lines.push('');

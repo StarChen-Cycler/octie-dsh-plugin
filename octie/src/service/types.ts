@@ -18,6 +18,7 @@ export interface DeliverableProjection {
   id: string;
   text: string;
   completed: boolean;
+  file_path?: string;
 }
 
 export interface NeedFixProjection {
@@ -36,11 +37,20 @@ export interface TaskSummary {
   blockers: string[];
 }
 
+export interface C7VerificationProjection {
+  library_id: string;
+  verified_at: string;
+  notes?: string;
+}
+
 export interface TaskProjection extends TaskSummary {
   description: string;
   success_criteria: CriterionProjection[];
   deliverables: DeliverableProjection[];
   need_fix: NeedFixProjection[];
+  c7_verified: C7VerificationProjection[];
+  assignee: string | null;
+  edges: string[];
   sub_items: string[];
   related_files: string[];
   notes: string;

@@ -32,8 +32,14 @@ function projectDeliverable(d: {
   id: string;
   text: string;
   completed: boolean;
+  file_path?: string;
 }): DeliverableProjection {
-  return { id: d.id, text: d.text, completed: d.completed };
+  return {
+    id: d.id,
+    text: d.text,
+    completed: d.completed,
+    ...(d.file_path ? { file_path: d.file_path } : {}),
+  };
 }
 
 function projectNeedFix(f: {
@@ -74,6 +80,13 @@ export function toTaskProjection(task: TaskNode): TaskProjection {
     success_criteria: task.success_criteria.map(projectCriterion),
     deliverables: task.deliverables.map(projectDeliverable),
     need_fix: task.need_fix.map(projectNeedFix),
+    c7_verified: task.c7_verified.map(c7 => ({
+      library_id: c7.library_id,
+      verified_at: c7.verified_at,
+      ...(c7.notes !== undefined ? { notes: c7.notes } : {}),
+    })),
+    assignee: task.assignee ?? null,
+    edges: [...(task.edges ?? [])],
     blockers: [...task.blockers],
     dependencies: task.dependencies,
     sub_items: [...task.sub_items],
