@@ -12,6 +12,10 @@
  * owned JSON projection — no live graph objects ever cross the boundary.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 import {
   openProject,
   createTask,
@@ -399,6 +403,49 @@ function buildTools(service) {
   ];
 }
 
+/**
+ * The bundled `octie` usage skill. Registered through the optional `skills`
+ * service so the model can load this playbook (invariants, patterns, pitfalls)
+ * on demand via the `skill` tool — the user installs nothing extra. The body is
+ * read from `octie/skills/octie/SKILL.md`, shipped in the npm package (`files`),
+ * so that file stays the single source of truth.
+ */
+const SKILL_NAME = 'octie';
+const SKILL_DESCRIPTION = 'Use the octie task-graph component (octie_* tools, the `octie` Cordis service, octie/* events) to plan, track, and maintain a durable DAG of atomic tasks. Covers the tool\'s invariants (derived status, approve gate, blocker twin), a pattern library of usage recipes, pitfalls, and how to contribute new usage patterns.';
+const SKILL_WHEN_TO_USE = 'Working with Octie tasks, task graphs, atomic task planning, or combining Octie with CodeGraph, C7, interview specs, or subagents.';
+
+function stripFrontmatter(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  if (lines[0] === undefined || lines[0].trim() !== '---') return markdown;
+  const end = lines.findIndex((line, i) => i > 0 && line.trim() === '---');
+  if (end === -1) return markdown;
+  return lines.slice(end + 1).join('\n').replace(/^\n+/, '');
+}
+
+function loadSkillContent() {
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const raw = readFileSync(join(dir, '..', 'skills', 'octie', 'SKILL.md'), 'utf8');
+    return stripFrontmatter(raw);
+  } catch {
+    return undefined; // skill file unavailable (e.g. not packaged) — skip registration
+  }
+}
+
+function registerSkill(ctx, disposers) {
+  const skills = ctx.get('skills');
+  if (skills === undefined || typeof skills.register !== 'function') return;
+  const content = loadSkillContent();
+  if (content === undefined) return;
+  disposers.push(skills.register({
+    name: SKILL_NAME,
+    description: SKILL_DESCRIPTION,
+    whenToUse: SKILL_WHEN_TO_USE,
+    source: 'bundled',
+    content,
+  }));
+}
+
 export function apply(ctx) {
   const service = new OctieService(ctx);
   const disposers = [];
@@ -414,9 +461,12 @@ export function apply(ctx) {
     disposers.push(ctx.tools.register(tool));
   }
 
+  // Register the bundled usage skill so the model can load it on demand.
+  registerSkill(ctx, disposers);
+
   ctx.effect(() => () => {
     for (const dispose of disposers) {
       try { dispose(); } catch { /* best-effort teardown */ }
     }
-  }, 'octie-dsh: service + tools');
+  }, 'octie-dsh: service + tools + skill');
 }

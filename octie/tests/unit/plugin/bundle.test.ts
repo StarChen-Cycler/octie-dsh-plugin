@@ -148,6 +148,31 @@ describe('octie-dsh bundle Node half', () => {
     }
   });
 
+  it('registers the bundled octie usage skill when the skills service is present', () => {
+    const skillRegs: any[] = [];
+    const skillsMock = {
+      register: (def: any) => { skillRegs.push(def); return () => {}; },
+    };
+    const wrapper: any = {
+      tools: { register: () => () => {} },
+      provide: () => () => {},
+      emit: () => {},
+      on: () => () => {},
+      get: (name: string) => (name === 'skills' ? skillsMock : undefined),
+      effect: (cb: () => any) => { cb(); return () => {}; },
+    };
+    apply(wrapper);
+
+    expect(skillRegs).toHaveLength(1);
+    const skill = skillRegs[0];
+    expect(skill.name).toBe('octie');
+    expect(skill.source).toBe('bundled');
+    expect(typeof skill.content).toBe('string');
+    expect(skill.content.length).toBeGreaterThan(100);
+    expect(skill.content).toContain('# Octie');
+    expect(skill.description.length).toBeGreaterThan(0);
+  });
+
   it('functional smoke: init -> create -> list -> events', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

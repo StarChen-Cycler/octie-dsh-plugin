@@ -161,7 +161,39 @@ npm run test:core          # 快测：service + plugin + core + shared-helpers
 
 ---
 
-## 6. 一句话记忆
+## 6. 技能注入（让模型「会用」API）
+
+工具 schema 只教模型「怎么调」（签名 / 参数 / 返回）。octie 的「使用心法」（不变式 /
+模式库 / 陷阱）太长，塞不进 description，也不该每轮都进 prompt（烧 token）。正解是注册成
+一个**技能（skill）**，让模型在真正要干活时用 `skill` 工具按需加载。
+
+DSH 有 `ctx.skills` 服务（`@deepseek-ai/dsh-skill` 的 `SkillRegistry`）。bundle 插件在
+`apply()` 里注册即可，用户无需手动往 `.agents/skills/` 拷文件：
+
+```js
+const skills = ctx.get('skills')            // 可选服务，别硬 inject
+if (skills !== undefined) {
+  disposers.push(skills.register({
+    name: 'octie',                          // kebab-case，唯一
+    description: '...',                     // 目录里显示的短描述
+    whenToUse: '...',                       // 可选：路由提示
+    source: 'bundled',                      // 来源标签（prompt 可见）
+    content: '<markdown 正文，不含 frontmatter>',
+    // invocation 省略 = 默认 { modelInvocable: true, userInvocable: true }
+  }))
+}
+```
+
+octie 的实现：正文放在包内 `octie/skills/octie/SKILL.md`（`package.json` 的 `files` 已含
+`skills`），`apply()` 里用 `readFileSync` + `import.meta.url` 读文件、`stripFrontmatter()`
+去掉 YAML frontmatter，再 `register()`。这样 SKILL.md 保持单一事实来源，且随 npm 包分发。
+
+三条通道别混：**工具 description（总是、短）｜ skill（按需、长心法）｜ prompt 段（总是、
+硬规则、有 token 成本）**。
+
+---
+
+## 7. 一句话记忆
 
 > **动态插件 = `defineTool`（裸映射，自动转 schema）；bundle 插件 = `ctx.tools.register`（完整 JSON Schema，原样透传）。**
 > **工具返回值永远是 lossless JSON——不许有 `undefined`。**

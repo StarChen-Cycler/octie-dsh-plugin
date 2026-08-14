@@ -25,6 +25,7 @@
     "dist",
     "bin",
     "plugin",
+    "skills",
     "cordis.patch.yml",
     "!dist/**/*.js.map",
     "!dist/**/*.d.ts.map",
