@@ -2,8 +2,15 @@
   "name": "octie-cli",
   "version": "1.1.0",
   "description": "A graph-based task management system with CLI and web UI for atomic, verifiable tasks",
-  "main": "dist/core/index.js",
-  "types": "dist/core/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "octie": "./bin/octie.cjs"
   },
