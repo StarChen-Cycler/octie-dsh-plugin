@@ -38,6 +38,7 @@
     "dev": "tsc --watch",
     "dev:web": "cd web-ui && npm run dev",
     "test": "vitest run",
+    "test:core": "vitest run tests/service tests/unit/plugin tests/unit/core tests/unit/cli/commands/shared-helpers.test.ts --reporter=dot",
     "test:smoke": "vitest run tests/unit/core/storage/file-store.test.ts tests/integration/web-api.test.ts tests/integration/web-api-projects.test.ts --reporter=dot",
     "test:coverage": "vitest --coverage",
     "test:ui": "vitest --ui",
