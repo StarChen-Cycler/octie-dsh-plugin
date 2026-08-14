@@ -1,0 +1,7 @@
+# octie-dsh bundle patch: mount the octie-dsh plugin row into the composition.
+# The Node half (plugin/index.mjs) provides the `octie` service, registers the
+# 13 octie_* model tools, and emits octie/* events. Installed via:
+#   dsh plugin --profile <name> add octie-cli
+- insert:
+    - id: octie-dsh
+      name: octie-cli
