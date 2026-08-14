@@ -1,7 +1,7 @@
 # octie-dsh-plugin
 
 <p align="center">
-  <img src="./octie-harness-2.jpg" alt="Octie Harness — DSH bundle plugin" />
+  <img src="octie-harness-2.jpg" alt="Octie Harness — DSH bundle plugin" width="100%">
 </p>
 
 **Octie，重构为 DeepSeek Harness（DSH）可安装的 bundle 插件。**
