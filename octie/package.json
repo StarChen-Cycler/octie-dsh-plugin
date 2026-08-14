@@ -5,6 +5,7 @@
   "main": "./plugin/index.mjs",
   "exports": {
     ".": "./plugin/index.mjs",
+    "./client": "./client.js",
     "./core": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
@@ -15,6 +16,9 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     }
   },
   "bin": {
@@ -26,6 +30,7 @@
     "bin",
     "plugin",
     "skills",
+    "client.js",
     "cordis.patch.yml",
     "!dist/**/*.js.map",
     "!dist/**/*.d.ts.map",

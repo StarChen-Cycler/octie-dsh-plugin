@@ -13,6 +13,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -446,6 +447,109 @@ function registerSkill(ctx, disposers) {
   }));
 }
 
+/**
+ * Web panel routes for the DSH client half. Registered only when the
+ * `webServer` service is present (Web shape); in headless/CLI runs it is
+ * absent and this whole block is skipped. Every route owns its full response
+ * lifecycle (the SSE route intentionally holds the response open).
+ */
+function json(res, data, status = 200) {
+  const body = JSON.stringify(data);
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(body);
+}
+
+function message(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function parseQuery(req) {
+  return new URL(req.url || '/', 'http://localhost').searchParams;
+}
+
+function listProjects() {
+  try {
+    const data = JSON.parse(readFileSync(join(homedir(), '.octie', 'projects.json'), 'utf8'));
+    const projects = data.projects || {};
+    return Object.values(projects).map((p) => ({ name: p.name, path: p.path }));
+  } catch {
+    return [];
+  }
+}
+
+async function resolveRouteProject(params, service) {
+  const explicit = params.get('project');
+  if (explicit) return explicit;
+  if (service.current && service.current.path) return service.current.path;
+  throw new Error('No Octie project selected — pass ?project=<path> or open one first.');
+}
+
+function registerWebRoutes(webServer, service, disposers) {
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/projects',
+    handler: (_req, res) => json(res, listProjects()),
+  }));
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/state',
+    handler: async (req, res) => {
+      try {
+        const project = await resolveRouteProject(parseQuery(req), service);
+        const [tasks, graph] = await Promise.all([listTasks(project), graphStats(project)]);
+        json(res, { project, tasks, graph });
+      } catch (err) { json(res, { error: message(err) }, 400); }
+    },
+  }));
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/task',
+    handler: async (req, res) => {
+      try {
+        const params = parseQuery(req);
+        const project = await resolveRouteProject(params, service);
+        const id = params.get('id');
+        if (!id) return json(res, { error: 'missing ?id=' }, 400);
+        const task = await getTask(project, id);
+        if (!task) return json(res, { error: 'task not found' }, 404);
+        json(res, task);
+      } catch (err) { json(res, { error: message(err) }, 400); }
+    },
+  }));
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/graph',
+    handler: async (req, res) => {
+      try {
+        const project = await resolveRouteProject(parseQuery(req), service);
+        json(res, await graphStats(project));
+      } catch (err) { json(res, { error: message(err) }, 400); }
+    },
+  }));
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/events',
+    handler: (req, res) => {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      res.write(': connected\n\n');
+      const off = service.onChange((event) => {
+        try { res.write(`data: ${JSON.stringify(event)}\n\n`); } catch { /* client gone */ }
+      });
+      const cleanup = () => { off(); try { res.end(); } catch { /* noop */ } };
+      req.on('close', cleanup);
+      res.on('close', cleanup);
+    },
+  }));
+}
+
 export function apply(ctx) {
   const service = new OctieService(ctx);
   const disposers = [];
@@ -464,9 +568,15 @@ export function apply(ctx) {
   // Register the bundled usage skill so the model can load it on demand.
   registerSkill(ctx, disposers);
 
+  // Register the web panel read routes + SSE stream (headless-safe).
+  const webServer = ctx.get('webServer');
+  if (webServer !== undefined && typeof webServer.register === 'function') {
+    registerWebRoutes(webServer, service, disposers);
+  }
+
   ctx.effect(() => () => {
     for (const dispose of disposers) {
       try { dispose(); } catch { /* best-effort teardown */ }
     }
-  }, 'octie-dsh: service + tools + skill');
+  }, 'octie-dsh: service + tools + skill + web routes');
 }

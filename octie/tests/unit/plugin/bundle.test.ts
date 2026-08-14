@@ -173,6 +173,35 @@ describe('octie-dsh bundle Node half', () => {
     expect(skill.description.length).toBeGreaterThan(0);
   });
 
+  it('registers the web panel routes when the webServer service is present', () => {
+    const routes: any[] = [];
+    const webServerMock = {
+      register: (route: any) => { routes.push(route); return () => {}; },
+    };
+    const wrapper: any = {
+      tools: { register: () => () => {} },
+      provide: () => () => {},
+      emit: () => {},
+      on: () => () => {},
+      get: (name: string) => (name === 'webServer' ? webServerMock : undefined),
+      effect: (cb: () => any) => { cb(); return () => {}; },
+    };
+    apply(wrapper);
+
+    const paths = routes.map((r) => r.path).sort();
+    expect(paths).toEqual([
+      '/api/octie/events',
+      '/api/octie/graph',
+      '/api/octie/projects',
+      '/api/octie/state',
+      '/api/octie/task',
+    ]);
+    for (const r of routes) {
+      expect(r.kind).toBe('exact');
+      expect(typeof r.handler).toBe('function');
+    }
+  });
+
   it('functional smoke: init -> create -> list -> events', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);
