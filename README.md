@@ -1,5 +1,9 @@
 # octie-dsh-plugin
 
+<p align="center">
+  <img src="./octie-harness-2.jpg" alt="Octie Harness — DSH bundle plugin" />
+</p>
+
 **Octie，重构为 DeepSeek Harness（DSH）可安装的 bundle 插件。**
 
 Octie 是一个面向 agent 时代的**持久化任务图状态机**：节点 = 原子任务，边 = blocker 依赖，
