@@ -60,6 +60,14 @@ window.__ModuleLoader__.load({
 
     const e = React.createElement;
 
+    // Canonical status colors from the original octie web UI design tokens
+    // (octie/web-ui/src/design-tokens.css): ready #ff9f1c, in_progress #00d4ff,
+    // in_review #a78bfa, completed #10b981, blocked #f43f5e.
+    const STATUS_COLORS = {
+      ready: '#ff9f1c', in_progress: '#00d4ff', in_review: '#a78bfa',
+      completed: '#10b981', blocked: '#f43f5e',
+    };
+
     function StatusBadge(props) {
       return e('span', { className: 'octie-badge octie-' + props.status }, props.status);
     }
@@ -275,7 +283,8 @@ window.__ModuleLoader__.load({
       const tooltip = hover ? e('div', {
         className: 'octie-tooltip',
         style: { left: hover.left - 8, top: hover.top - 8 },
-      }, e('strong', null, hover.title), e('span', { className: 'octie-tooltip-meta' }, shortId(hover.id) + ' \u00b7 ' + hover.status)) : null;
+      }, e('strong', null, hover.title),
+        e('span', { className: 'octie-tooltip-meta', style: { color: STATUS_COLORS[hover.status] || '#e6e6e6' } }, shortId(hover.id) + ' \u00b7 ' + hover.status)) : null;
 
       if (sim.nodes.length === 0) return e('div', { className: 'octie-empty' }, 'No tasks');
       return e('div', { className: 'octie-graph-wrap' },
@@ -363,8 +372,12 @@ window.__ModuleLoader__.load({
         '.octie-tooltip{position:fixed;pointer-events:none;background:#000;border:1px solid rgba(128,128,128,.4);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);transform:translate(-100%,-100%);z-index:1200;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.octie-tooltip strong{display:block;overflow:hidden;text-overflow:ellipsis}',
         '.octie-tooltip-meta{color:rgba(230,230,230,.6);font-size:11px}',
-        '.octie-node{cursor:pointer;filter:drop-shadow(0 0 4px rgba(255,255,255,.6))}',
-        '.octie-node-ready{fill:#8ab4f8}.octie-node-in_progress{fill:#fdd663}.octie-node-in_review{fill:#b39dfb}.octie-node-completed{fill:#81c995}.octie-node-blocked{fill:#f28b82}',
+        '.octie-node{cursor:pointer}',
+        '.octie-node-ready{fill:#ff9f1c;filter:drop-shadow(0 0 5px rgba(255,159,28,.5))}',
+        '.octie-node-in_progress{fill:#00d4ff;filter:drop-shadow(0 0 5px rgba(0,212,255,.5))}',
+        '.octie-node-in_review{fill:#a78bfa;filter:drop-shadow(0 0 5px rgba(167,139,250,.5))}',
+        '.octie-node-completed{fill:#10b981;filter:drop-shadow(0 0 5px rgba(16,185,129,.5))}',
+        '.octie-node-blocked{fill:#f43f5e;filter:drop-shadow(0 0 5px rgba(244,63,94,.5))}',
         '.octie-edge{stroke:rgba(160,160,160,.4);stroke-width:1}',
         '.octie-arrow{fill:rgba(160,160,160,.5)}',
         '.octie-project-select{margin:10px 12px;padding:6px;background:#1e1f22;color:#e6e6e6;border:1px solid rgba(128,128,128,.4);border-radius:6px}',
@@ -374,7 +387,7 @@ window.__ModuleLoader__.load({
         '.octie-task-row:hover{background:rgba(255,255,255,.09)}',
         '.octie-task-title{flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.octie-badge{font-size:11px;padding:1px 6px;border-radius:999px;background:rgba(128,128,128,.2)}',
-        '.octie-ready{color:#8ab4f8}.octie-in_progress{color:#fdd663}.octie-in_review{color:#b39dfb}.octie-completed{color:#81c995}.octie-blocked{color:#f28b82}',
+        '.octie-ready{color:#ff9f1c}.octie-in_progress{color:#00d4ff}.octie-in_review{color:#a78bfa}.octie-completed{color:#10b981}.octie-blocked{color:#f43f5e}',
         '.octie-counts{padding:0 12px 8px;color:rgba(230,230,230,.6);font-size:12px}',
         '.octie-empty{padding:20px;text-align:center;color:rgba(230,230,230,.5)}',
         '.octie-error{padding:0 12px;color:#f28b82;font-size:12px}',
