@@ -109,3 +109,32 @@
 3. **skill 一次性读入**：不重启不刷新；没有热更新通道。
 4. **换模式仅限空白会话**：产品规则（防止历史工具调用无法重放），不是 bug。
 5. **双写分叉风险**：本机副本与仓库模板并存；约定"仓库模板为唯一上游"但没有机制强制。
+
+## 7. DSH 升级兼容性（参考）
+
+> 记录于 2026-08：分析基于当前 DSH 版本线（0.1.0-rc）与 octie 插件的实际依赖面。
+
+**依赖面事实**：Node 半边（`plugin/index.mjs`）只 import Node 内置模块与自家
+`../dist/index.js`，零个 `@deepseek-ai/dsh-*` 包依赖；与 DSH 的全部接触都走运行时
+服务契约（`ctx.tools.register` / `ctx.provide` / `ctx.emit` / `webServer.register` /
+`ctx.skills.register` / `ctx.get('agentPresets')`）与客户端平台契约
+（`window.__ModuleLoader__` + slot 树）。
+
+| 组件 | 升级后命运 | 原因 |
+|---|---|---|
+| 安装状态（profile bundles、`cordis.patch.yml`、用户 preset、`~/.octie` 数据） | 永远在 | 都在用户 home（`$DSH_HOME`），DSH 升级只替换应用本体，不碰 profile / 数据目录 |
+| Node 半边（13 工具、`octie` 服务、`/api/octie/*`、SSE、预置、skill） | 同版本线内稳 | 零 dsh-* 包 import；预置器对 `agentPresets` 有 try/catch 直写兜底 |
+| 客户端面板（`client.js`） | 皮肤级升级稳；大版本有风险 | 依赖 `window.__ModuleLoader__` 协议 + `sidebar.footer.action` / `shell.overlay` / `sidebar.workspaces` 槽位；loader 协议或槽位被改/删则面板挂不上（工具层不受影响） |
+| Octie 任务图模式 preset | 已知漂移点 | 携带 standard 全量行快照、按名引用 host 的 dsh-* 包；DSH 改名/删包 → 新会话挂载失败（运行中会话无恙）；DSH 加行则不自动继承 |
+| 3456 独立前端 | 零关系 | 独立进程、独立包 |
+
+**升级后检查清单：**
+
+1. 重启 DSH：面板在不在、工具列表是否有 13 个 `octie_*`、技能目录是否有 `octie`。
+2. 新建会话选「Octie 任务图模式」：进得去 = preset 无恙；进不去 = 按 §1 / §6.2 的
+   修复路径处理（从新版 shipped standard 重新复制 → 重贴 persona 块 →
+   `standingKeyFor` 挂载验证）。
+3. 预置器自动跳过已存在的 preset，无需任何操作。
+
+**结论**：数据永不失效；能力在 DSH 同一版本线内预期稳定；大版本跳跃时最多是面板
+注册点或 preset 快照需要一次对照修复，工具链始终活着。
