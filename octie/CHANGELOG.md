@@ -1,14 +1,16 @@
 # Changelog
 
-## 维护期增量（2026-08，octie-dsh-plugin 分支）
+## v1.2.0 (2026-08)
 
+- 发布到 npm：同一包同时服务两条一等接口——CLI 用户 `npm install -g octie-cli`，
+  DSH 用户 `dsh plugin add octie-cli`（tarball 含 plugin/client/preset/skills/dist）
 - DSH 客户端任务面板：列表 + 分层 DAG 图视图（barycenter 交叉最小化 + 力导向微调）
 - 项目活跃度排序（`.octie/project.json` mtime 信号，面板下拉与 Web API 同步）
 - 实时同步：会话内 SSE 秒级推送 + 外部写入 3 秒 mtime 轮询
 - 图物理开关（Physics）：开启受力/扰动回弹，关闭丝滑滑回整齐布局
 - 随插件预置的「Octie 任务图模式」agent preset（幂等，`OCTIE_NO_PRESET_PROVISION=1` 退出）
 - GitHub 直装可用：`octie/dist` 提交进仓库（除 .map 与 web-ui）+ 根 facade 镜像运行时依赖 + CI 漂移门禁
-- CI 三平台矩阵（ubuntu/windows/macos）；文档重构（README 用户向 + docs/development.md + docs/preset-skill-maintenance.md）
+- CI 三平台矩阵（ubuntu/windows/macos）；文档重构（README 用户向 + docs/development.md + docs/preset-skill-maintenance.md + 两份使用原则文档）
 
 ## v1.1.0 (2026-08)
 
