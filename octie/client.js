@@ -67,6 +67,10 @@ window.__ModuleLoader__.load({
       ready: '#ff9f1c', in_progress: '#00d4ff', in_review: '#a78bfa',
       completed: '#10b981', blocked: '#f43f5e',
     };
+    // Canonical priority colors (design-tokens.css --priority-top/second/later).
+    const PRIORITY_COLORS = { top: '#f43f5e', second: '#ff9f1c', later: '#6e7681' };
+    // Section accent colors mirroring the original TaskDetail view.
+    const SEC_COLORS = { cyan: '#00d4ff', amber: '#ff9f1c', rose: '#f43f5e', violet: '#a78bfa', emerald: '#10b981' };
 
     function StatusBadge(props) {
       return e('span', { className: 'octie-badge octie-' + props.status }, props.status);
@@ -296,17 +300,103 @@ window.__ModuleLoader__.load({
     function DetailPopup() {
       const t = state.selectedTask;
       if (!t) return null;
-      const criteria = (t.success_criteria || []).map((c) => e('li', { key: c.id }, c.text + (c.completed ? ' \u2713' : '')));
-      const deliverables = (t.deliverables || []).map((d) => e('li', { key: d.id }, d.text + (d.completed ? ' \u2713' : '')));
+
+      const statusColor = STATUS_COLORS[t.status] || '#e6e6e6';
+      const priorityColor = PRIORITY_COLORS[t.priority] || '#6e7681';
+
+      const sectionTitle = (label, count, color) => e('h4', { className: 'octie-section-title' },
+        e('span', { style: color ? { color: color } : null }, label),
+        count !== undefined ? e('span', { className: 'octie-section-count', style: color ? { color: color } : null }, '  ' + count) : null);
+
+      const check = (done, accent) => e('span', {
+        className: 'octie-check' + (done ? ' octie-check-on' : ''),
+        style: !done && accent ? { borderColor: accent, background: accent + '2e' } : null,
+      }, done ? '\u2713' : '');
+
+      const criteria = (t.success_criteria || []).map((c) => e('li', { key: c.id, className: 'octie-li' },
+        check(c.completed),
+        e('div', { className: 'octie-li-body' },
+          e('span', { className: c.completed ? 'octie-done' : '' }, c.text),
+          c.evidence ? e('div', { className: 'octie-mono-muted' }, 'Evidence: ' + c.evidence) : null,
+        )));
+      const critDone = (t.success_criteria || []).filter((c) => c.completed).length;
+
+      const deliverables = (t.deliverables || []).map((d) => e('li', { key: d.id, className: 'octie-li' },
+        check(d.completed),
+        e('div', { className: 'octie-li-body' },
+          e('span', { className: d.completed ? 'octie-done' : '' }, d.text),
+          d.file_path ? e('code', { className: 'octie-chip' }, d.file_path) : null,
+        )));
+      const delDone = (t.deliverables || []).filter((d) => d.completed).length;
+
+      const needFix = (t.need_fix || []).map((f) => e('li', { key: f.id, className: 'octie-li' },
+        check(f.completed, SEC_COLORS.rose),
+        e('div', { className: 'octie-li-body' },
+          e('span', { className: f.completed ? 'octie-done' : '' }, f.text),
+          f.file_path ? e('code', { className: 'octie-chip' }, f.file_path) : null,
+          f.source ? e('span', { className: 'octie-source-chip' }, f.source) : null,
+        )));
+      const fixDone = (t.need_fix || []).filter((f) => f.completed).length;
+
+      const related = (t.related_files || []).map((f, i) => e('li', { key: 'rf' + i }, e('code', { className: 'octie-chip' }, f)));
+      const blockers = (t.blockers || []).map((b, i) => e('li', { key: 'bl' + i }, e('code', { className: 'octie-chip octie-chip-rose' }, b)));
+      const subs = (t.sub_items || []).map((s, i) => e('li', { key: 'sub' + i }, e('code', { className: 'octie-chip' }, s)));
+      const c7 = (t.c7_verified || []).map((v, i) => e('li', { key: 'c7' + i, className: 'octie-c7-box' },
+        e('code', { className: 'octie-mono-cyan' }, v.library_id),
+        v.notes ? e('p', { className: 'octie-muted' }, v.notes) : null,
+        v.verified_at ? e('p', { className: 'octie-mono-muted' }, 'Verified: ' + new Date(v.verified_at).toLocaleString()) : null,
+      ));
+
+      const fmt = (iso) => { if (!iso) return ''; try { return new Date(iso).toLocaleString(); } catch { return String(iso); } };
+
       return e('div', { className: 'octie-popup-backdrop', onClick: () => patch({ selectedTask: null }) },
         e('div', { className: 'octie-popup', onClick: (ev) => ev.stopPropagation() },
-          e('h3', null, t.title),
-          e('p', { className: 'octie-popup-desc' }, t.description),
-          e('h4', null, 'Criteria'),
-          e('ul', null, criteria),
-          e('h4', null, 'Deliverables'),
-          e('ul', null, deliverables),
-          e('button', { className: 'octie-close', onClick: () => patch({ selectedTask: null }) }, 'Close'),
+          e('button', { className: 'octie-close octie-popup-close', onClick: () => patch({ selectedTask: null }) }, '\u00d7'),
+          e('div', { className: 'octie-popup-head' },
+            e('code', { className: 'octie-popup-id' }, t.id),
+            e('h3', { className: 'octie-popup-title' }, t.title),
+            e('div', { className: 'octie-popup-badges' },
+              e('span', { className: 'octie-status-chip', style: { background: statusColor + '22', color: statusColor } }, (t.status || '').replace('_', ' ')),
+              e('span', { className: 'octie-status-chip', style: { background: priorityColor + '22', color: priorityColor } }, t.priority || ''),
+            ),
+          ),
+          t.description ? e('div', { className: 'octie-section' },
+            sectionTitle('Description'),
+            e('p', { className: 'octie-desc' }, t.description)) : null,
+          criteria.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('Success Criteria', '(' + critDone + '/' + criteria.length + ')', SEC_COLORS.cyan),
+            e('ul', { className: 'octie-ul' }, criteria)) : null,
+          deliverables.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('Deliverables', '(' + delDone + '/' + deliverables.length + ')', SEC_COLORS.amber),
+            e('ul', { className: 'octie-ul' }, deliverables)) : null,
+          needFix.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('Need Fix', '(' + fixDone + '/' + needFix.length + ')', SEC_COLORS.rose),
+            e('ul', { className: 'octie-ul' }, needFix)) : null,
+          blockers.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('Blocked By', '(' + blockers.length + ')', SEC_COLORS.rose),
+            e('ul', { className: 'octie-ul octie-ul-inline' }, blockers)) : null,
+          t.dependencies ? e('div', { className: 'octie-section' },
+            sectionTitle('Dependencies'),
+            e('div', { className: 'octie-box', style: { borderLeftColor: SEC_COLORS.amber } }, t.dependencies)) : null,
+          related.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('Related Files'),
+            e('ul', { className: 'octie-ul octie-ul-inline' }, related)) : null,
+          subs.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('Sub-tasks', '(' + subs.length + ')'),
+            e('ul', { className: 'octie-ul octie-ul-inline' }, subs)) : null,
+          c7.length > 0 ? e('div', { className: 'octie-section' },
+            sectionTitle('C7 Verified', '(' + c7.length + ')', SEC_COLORS.cyan),
+            e('ul', { className: 'octie-ul' }, c7)) : null,
+          t.notes ? e('div', { className: 'octie-section' },
+            sectionTitle('Notes'),
+            e('div', { className: 'octie-box', style: { borderLeftColor: SEC_COLORS.violet } }, t.notes)) : null,
+          e('div', { className: 'octie-meta' },
+            e('div', { className: 'octie-meta-row' }, e('span', { className: 'octie-meta-label' }, 'Created'), e('span', { className: 'octie-mono-muted' }, fmt(t.created_at))),
+            e('div', { className: 'octie-meta-row' }, e('span', { className: 'octie-meta-label' }, 'Updated'), e('span', { className: 'octie-mono-muted' }, fmt(t.updated_at))),
+            t.completed_at ? e('div', { className: 'octie-meta-row' }, e('span', { className: 'octie-meta-label' }, 'Completed'), e('span', { className: 'octie-mono-muted', style: { color: SEC_COLORS.emerald } }, fmt(t.completed_at))) : null,
+            t.assignee ? e('div', { className: 'octie-meta-row' }, e('span', { className: 'octie-meta-label' }, 'Assignee'), e('span', { className: 'octie-mono-muted' }, t.assignee)) : null,
+            t.edges && t.edges.length > 0 ? e('div', { className: 'octie-meta-row' }, e('span', { className: 'octie-meta-label' }, 'Unlocks'), e('span', { className: 'octie-mono-muted' }, t.edges.length + ' task(s)')) : null,
+          ),
         ));
     }
 
@@ -392,9 +482,35 @@ window.__ModuleLoader__.load({
         '.octie-empty{padding:20px;text-align:center;color:rgba(230,230,230,.5)}',
         '.octie-error{padding:0 12px;color:#f28b82;font-size:12px}',
         '.octie-popup-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1100}',
-        '.octie-popup{width:min(560px,90vw);max-height:80vh;overflow-y:auto;background:var(--color-bg,#1e1f22);color:var(--color-text,#e6e6e6);border-radius:10px;padding:16px 20px;box-shadow:0 12px 40px rgba(0,0,0,.5)}',
-        '.octie-popup h3{margin:0 0 8px}.octie-popup h4{margin:12px 0 4px}.octie-popup ul{margin:0;padding-left:18px}',
-        '.octie-popup-desc{color:rgba(230,230,230,.75)}',
+        '.octie-popup{position:relative;width:min(620px,92vw);max-height:82vh;overflow-y:auto;background:var(--color-bg,#1e1f22);color:var(--color-text,#e6e6e6);border-radius:10px;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.5)}',
+        '.octie-popup-close{position:absolute;top:10px;right:12px}',
+        '.octie-popup-head{padding-right:24px;margin-bottom:4px}',
+        '.octie-popup-id{font-size:10px;color:rgba(230,230,230,.45);font-family:ui-monospace,Consolas,monospace;display:block;margin-bottom:4px;word-break:break-all}',
+        '.octie-popup-title{margin:0 0 8px;font-size:17px}',
+        '.octie-popup-badges{display:flex;gap:6px;flex-wrap:wrap}',
+        '.octie-status-chip{font-size:11px;padding:2px 8px;border-radius:999px;text-transform:uppercase;font-family:ui-monospace,Consolas,monospace}',
+        '.octie-section{margin-top:14px}',
+        '.octie-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;color:rgba(230,230,230,.55);font-family:ui-monospace,Consolas,monospace}',
+        '.octie-section-count{opacity:.95}',
+        '.octie-ul{list-style:none;margin:0;padding:0}',
+        '.octie-ul-inline{display:flex;flex-wrap:wrap;gap:6px}',
+        '.octie-li{display:flex;align-items:flex-start;gap:8px;padding:3px 0;font-size:13px;color:rgba(230,230,230,.85)}',
+        '.octie-check{width:15px;height:15px;border-radius:4px;border:1px solid rgba(128,128,128,.5);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-size:10px}',
+        '.octie-check-on{background:#10b981;border-color:#10b981;color:#04120b;font-weight:bold}',
+        '.octie-li-body{flex:1;min-width:0}',
+        '.octie-done{text-decoration:line-through;color:rgba(230,230,230,.4)}',
+        '.octie-mono-muted{font-size:11px;color:rgba(230,230,230,.55);font-family:ui-monospace,Consolas,monospace;margin-top:2px;display:block}',
+        '.octie-mono-cyan{font-size:12px;color:#00d4ff;font-family:ui-monospace,Consolas,monospace}',
+        '.octie-chip{font-size:11px;font-family:ui-monospace,Consolas,monospace;background:rgba(255,255,255,.05);border:1px solid rgba(128,128,128,.25);border-radius:5px;padding:2px 6px;color:rgba(230,230,230,.85);word-break:break-all;display:inline-block;margin:2px 0}',
+        '.octie-chip-rose{color:#f43f5e;border-color:rgba(244,63,94,.35);background:rgba(244,63,94,.08)}',
+        '.octie-source-chip{font-size:10px;text-transform:uppercase;color:#f43f5e;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);border-radius:4px;padding:0 5px;margin-top:4px;display:inline-block;font-family:ui-monospace,Consolas,monospace}',
+        '.octie-c7-box{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:6px;padding:6px 8px;margin:4px 0}',
+        '.octie-muted{font-size:12px;color:rgba(230,230,230,.65);margin:4px 0 0}',
+        '.octie-box{background:rgba(255,255,255,.04);border-left:3px solid transparent;border-radius:6px;padding:8px 10px;font-size:12px;color:rgba(230,230,230,.8);white-space:pre-wrap}',
+        '.octie-desc{font-size:13px;color:rgba(230,230,230,.75);white-space:pre-wrap;margin:0}',
+        '.octie-meta{border-top:1px solid rgba(128,128,128,.2);margin-top:14px;padding-top:10px;display:flex;flex-direction:column;gap:4px}',
+        '.octie-meta-row{display:flex;gap:8px;font-size:12px;align-items:baseline}',
+        '.octie-meta-label{color:rgba(230,230,230,.5);min-width:76px;flex-shrink:0}',
         '.octie-footer-button{background:none;border:none;color:inherit;cursor:pointer;font:inherit}',
       ].join('\n');
       document.head.appendChild(style);
