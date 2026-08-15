@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,7 +20,7 @@ import { apply, OctieService, TOOL_NAMES, SERVICE_NAME, name, inject } from '../
 
 let homedirTarget = '';
 
-vi.doMock('node:os', async () => {
+vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os');
   return { ...actual, homedir: () => homedirTarget };
 });
@@ -93,7 +93,7 @@ describe('octie-dsh bundle Node half', () => {
   });
 
   afterAll(() => {
-    vi.doUnmock('node:os');
+    vi.unmock('node:os');
     try { rmSync(homedirTarget, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
@@ -102,7 +102,24 @@ describe('octie-dsh bundle Node half', () => {
     mkdirSync(tempDir, { recursive: true });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // The smoke/onChange tests run `init`, which registers the project in the
+    // global registry (~/.octie/projects.json). The compiled dist/ loads
+    // `node:os` through native ESM, so vi.mock cannot redirect its homedir();
+    // prune the entry this test created by path instead (via the real homedir).
+    try {
+      const actual = await vi.importActual<typeof import('node:os')>('node:os');
+      const regPath = join(actual.homedir(), '.octie', 'projects.json');
+      const reg = JSON.parse(readFileSync(regPath, 'utf8'));
+      let changed = false;
+      for (const [key, value] of Object.entries(reg.projects || {})) {
+        if ((value as { path?: string }).path === tempDir) {
+          delete (reg.projects as Record<string, unknown>)[key];
+          changed = true;
+        }
+      }
+      if (changed) writeFileSync(regPath, JSON.stringify(reg, null, 2) + '\n');
+    } catch { /* registry may be absent or locked */ }
     try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
