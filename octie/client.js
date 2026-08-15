@@ -532,7 +532,7 @@ window.__ModuleLoader__.load({
         '.octie-toggle{background:none;border:1px solid rgba(128,128,128,.4);border-radius:6px;color:inherit;cursor:pointer;padding:2px 8px;font:inherit}',
         '.octie-graph{flex:1;width:100%;height:100%;min-height:0}',
         '.octie-graph-wrap{flex:1;position:relative;min-height:0;display:flex}',
-        '.octie-tooltip{position:fixed;pointer-events:none;background:#000;border:1px solid rgba(128,128,128,.4);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);transform:translate(-100%,-100%);z-index:1200;max-width:340px}',
+        '.octie-tooltip{position:fixed;pointer-events:none;background:#000;border:1px solid rgba(128,128,128,.4);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);transform:translate(-100%,-100%);z-index:1200;width:max-content;max-width:340px}',
         '.octie-tooltip strong{display:block;white-space:normal;word-break:break-word;line-height:1.35}',
         '.octie-tooltip-meta{color:rgba(230,230,230,.6);font-size:11px}',
         '.octie-node{cursor:pointer}',
