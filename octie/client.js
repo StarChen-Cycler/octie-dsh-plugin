@@ -250,22 +250,31 @@ window.__ModuleLoader__.load({
         ev.preventDefault();
         const s = simRef.current;
         dragMovedRef.current = false;
-        s.dragging = node.id;
-        s.alpha = 0.5;
-        startLoop();
         const startX = ev.clientX, startNodeX = node.x;
+        let dragging = false;
         const move = (e2) => {
           const dx = e2.clientX - startX;
-          if (Math.abs(dx) > 4) dragMovedRef.current = true;
+          if (Math.abs(dx) <= 4) return; // plain click: no force, no pinning
+          dragMovedRef.current = true;
+          if (!dragging) {
+            // First real movement: only now engage the drag forces.
+            dragging = true;
+            s.dragging = node.id;
+            s.alpha = 0.5;
+            startLoop();
+          }
           node.x = Math.max(12, Math.min(s.W - 12, startNodeX + dx));
           applySim(s, nodeElsRef.current, edgeElsRef.current);
         };
         const up = () => {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', up);
-          s.dragging = null;
-          s.alpha = 0.35;
-          startLoop();
+          if (dragging) {
+            s.dragging = null;
+            s.alpha = 0.35;
+            startLoop();
+          }
+          // Simple click: nothing is reheated; onClick opens the detail.
         };
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', up);
