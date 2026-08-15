@@ -94,43 +94,67 @@ window.__ModuleLoader__.load({
       });
     }
 
-    // Minimal force-directed layout (Obsidian-style organic DAG), plain JS.
+    // Layered topological layout: Y is pinned to dependency depth (roots/ready
+    // on top, deeper/blocked toward the bottom), X stays free via a light
+    // force pass, so the DAG reads top-to-bottom while nodes can still spread.
     function layoutGraph(tasks) {
       const nodes = (tasks || []).map((t) => ({
-        id: t.id, title: t.title, status: t.status, blockers: t.blockers || [], x: 0, y: 0,
+        id: t.id, title: t.title, status: t.status, blockers: t.blockers || [], level: 0, x: 0, y: 0,
       }));
       const byId = new Map(nodes.map((n) => [n.id, n]));
       const edges = [];
       for (const n of nodes) for (const b of n.blockers) if (byId.has(b)) edges.push([b, n.id]);
-      const W = 320, H = 420, k = 70;
-      for (let i = 0; i < nodes.length; i++) {
-        const angle = (i / Math.max(1, nodes.length)) * Math.PI * 2;
-        nodes[i].x = W / 2 + Math.cos(angle) * 90;
-        nodes[i].y = H / 2 + Math.sin(angle) * 90;
+
+      // level(T) = 1 + max(level(blocker)); roots (no known blockers) = 0.
+      for (let pass = 0; pass <= nodes.length; pass++) {
+        let changed = false;
+        for (const n of nodes) {
+          let lv = 0;
+          for (const b of n.blockers) { const bb = byId.get(b); if (bb) lv = Math.max(lv, bb.level + 1); }
+          if (lv !== n.level) { n.level = lv; changed = true; }
+        }
+        if (!changed) break;
       }
-      for (let iter = 0; iter < 320; iter++) {
+
+      const W = 320;
+      const levelGap = 58;
+      const maxLevel = nodes.reduce((m, n) => Math.max(m, n.level), 0);
+      const H = Math.max(200, 28 + maxLevel * levelGap + 28);
+      for (const n of nodes) n.y = 28 + n.level * levelGap;
+
+      // Deterministic horizontal seed: spread within each level, ordered by id.
+      const byLevel = new Map();
+      for (const n of nodes) { if (!byLevel.has(n.level)) byLevel.set(n.level, []); byLevel.get(n.level).push(n); }
+      for (const [, list] of byLevel) {
+        list.sort((a, b) => (a.id < b.id ? -1 : 1));
+        const span = W - 48;
+        list.forEach((n, i) => { n.x = 24 + (list.length === 1 ? span / 2 : (i * span) / (list.length - 1)); });
+      }
+
+      // Force pass on X only (Y stays pinned to its level).
+      for (let iter = 0; iter < 240; iter++) {
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const a = nodes[i], b = nodes[j];
-            let dx = a.x - b.x, dy = a.y - b.y;
-            let d2 = dx * dx + dy * dy;
-            if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = dx * dx + dy * dy || 1; }
-            const d = Math.sqrt(d2) || 1;
-            const f = 60 * k * k / d2;
-            a.x += f * dx / d; a.y += f * dy / d; b.x -= f * dx / d; b.y -= f * dy / d;
+            const dy = a.y - b.y;
+            if (Math.abs(dy) > levelGap * 1.2) continue;
+            let dx = a.x - b.x;
+            if (Math.abs(dx) < 0.5) dx = (i - j) * 0.01;
+            const d2 = dx * dx + dy * dy + 4;
+            const f = 900 / d2;
+            a.x += f * dx; b.x -= f * dx;
           }
         }
         for (const [s, t] of edges) {
           const a = byId.get(s), b = byId.get(t);
           if (!a || !b) continue;
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          const f = (d - k) * 0.04;
-          a.x -= f * dx / d; a.y -= f * dy / d; b.x += f * dx / d; b.y += f * dy / d;
+          const dx = a.x - b.x;
+          const pull = dx * 0.06;
+          a.x -= pull; b.x += pull;
         }
-        for (const n of nodes) { n.x += (W / 2 - n.x) * 0.02; n.y += (H / 2 - n.y) * 0.02; }
+        for (const n of nodes) n.x += (W / 2 - n.x) * 0.03;
       }
-      for (const n of nodes) { n.x = Math.max(12, Math.min(W - 12, n.x)); n.y = Math.max(12, Math.min(H - 12, n.y)); }
+      for (const n of nodes) n.x = Math.max(12, Math.min(W - 12, n.x));
       return { nodes, edges, W, H };
     }
 
@@ -138,17 +162,21 @@ window.__ModuleLoader__.load({
       const { nodes, edges, W, H } = React.useMemo(() => layoutGraph(props.tasks || []), [props.tasks]);
       if (nodes.length === 0) return e('div', { className: 'octie-empty' }, 'No tasks');
       const byId = new Map(nodes.map((n) => [n.id, n]));
+      const arrow = e('defs', null, e('marker', {
+        id: 'octie-arrow', viewBox: '0 0 10 10', refX: 9, refY: 5,
+        markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse',
+      }, e('path', { d: 'M 0 0 L 10 5 L 0 10 z', className: 'octie-arrow' })));
       const lines = edges.map(([s, t], i) => {
         const a = byId.get(s), b = byId.get(t);
         if (!a || !b) return null;
-        return e('line', { key: 'e' + i, x1: a.x, y1: a.y, x2: b.x, y2: b.y, className: 'octie-edge' });
+        return e('line', { key: 'e' + i, x1: a.x, y1: a.y, x2: b.x, y2: b.y, className: 'octie-edge', markerEnd: 'url(#octie-arrow)' });
       });
       const dots = nodes.map((n) => e('circle', {
         key: n.id, cx: n.x, cy: n.y, r: 6,
         className: 'octie-node octie-node-' + n.status,
         onClick: () => openDetail(n.id),
       }, e('title', null, n.title + ' \u00b7 ' + shortId(n.id))));
-      return e('svg', { className: 'octie-graph', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid meet' }, lines, dots);
+      return e('svg', { className: 'octie-graph', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid meet' }, arrow, lines, dots);
     }
 
     function DetailPopup() {
@@ -229,6 +257,7 @@ window.__ModuleLoader__.load({
         '.octie-node{cursor:pointer;filter:drop-shadow(0 0 4px rgba(255,255,255,.6))}',
         '.octie-node-ready{fill:#8ab4f8}.octie-node-in_progress{fill:#fdd663}.octie-node-in_review{fill:#b39dfb}.octie-node-completed{fill:#81c995}.octie-node-blocked{fill:#f28b82}',
         '.octie-edge{stroke:rgba(160,160,160,.4);stroke-width:1}',
+        '.octie-arrow{fill:rgba(160,160,160,.5)}',
         '.octie-project-select{margin:10px 12px;padding:6px;background:#1e1f22;color:#e6e6e6;border:1px solid rgba(128,128,128,.4);border-radius:6px}',
         '.octie-project-select option{background:#1e1f22;color:#e6e6e6}',
         '.octie-task-list{flex:1;overflow-y:auto;padding:0 8px 8px}',
