@@ -114,7 +114,7 @@ window.__ModuleLoader__.load({
     function buildSim(tasks) {
       const nodes = (tasks || []).map((t) => ({
         id: t.id, title: t.title, status: t.status, blockers: t.blockers || [],
-        level: 0, x: 0, y: 0, vx: 0,
+        level: 0, x: 0, y: 0, vx: 0, vx0: null,
       }));
       const byId = new Map(nodes.map((n) => [n.id, n]));
       const edges = [];
@@ -139,6 +139,16 @@ window.__ModuleLoader__.load({
         const span = W - 48;
         list.forEach((n, i) => { n.x = 24 + (list.length === 1 ? span / 2 : (i * span) / (list.length - 1)); });
       }
+      // Virtual parents for isolated orphans: every fully disconnected node at
+      // the top level gets a hidden fixed point in a virtual layer above (same
+      // height), with x spread evenly by id order. A hidden spring pulls each
+      // orphan toward its own target, so the orphan cloud settles into a
+      // stable, evenly spread arrangement instead of wandering.
+      const sources = new Set(edges.map((edge) => edge[0]));
+      const orphans = nodes.filter((n) => n.level === 0 && !sources.has(n.id));
+      orphans.sort((a, b) => (a.id < b.id ? -1 : 1));
+      const vSpan = W - 48;
+      orphans.forEach((n, i) => { n.vx0 = orphans.length === 1 ? W / 2 : 24 + (i * vSpan) / (orphans.length - 1); });
       return { nodes, edges, byId, W, H, levelGap, alpha: 1, dragging: null };
     }
 
@@ -155,7 +165,7 @@ window.__ModuleLoader__.load({
           let dx = a.x - b.x;
           if (Math.abs(dx) < 0.5) dx = 0.5 * (i < j ? -1 : 1);
           const d2 = dx * dx + dy * dy + 4;
-          const f = 1400 / d2; // repulsion
+          const f = 250 / d2; // repulsion
           fx.set(a.id, fx.get(a.id) + f * dx);
           fx.set(b.id, fx.get(b.id) - f * dx);
         }
@@ -169,15 +179,21 @@ window.__ModuleLoader__.load({
         fx.set(a.id, fx.get(a.id) - f);
         fx.set(b.id, fx.get(b.id) + f);
       }
+      // Hidden virtual-parent springs hold each orphan near its target x.
+      for (const n of nodes) {
+        if (n.vx0 !== null && sim.dragging !== n.id) {
+          fx.set(n.id, fx.get(n.id) + (n.vx0 - n.x) * 0.15);
+        }
+      }
       for (const n of nodes) {
         if (sim.dragging === n.id) continue;
         const f = fx.get(n.id) || 0;
-        n.vx = (n.vx + f * alpha) * 0.82; // integrate + velocity decay
+        n.vx = (n.vx + f * alpha) * 0.6; // integrate + velocity decay
         n.x += n.vx;
-        n.x += (W / 2 - n.x) * 0.03 * alpha; // center
+        n.x += (W / 2 - n.x) * 0.02 * alpha; // center
         n.x = Math.max(12, Math.min(W - 12, n.x));
       }
-      sim.alpha = Math.max(0.02, sim.alpha * 0.96); // temperature cool
+      sim.alpha = Math.max(0.02, sim.alpha * 0.98); // temperature cool
     }
 
     function applySim(sim, nodeEls, edgeEls) {
