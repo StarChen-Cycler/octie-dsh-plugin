@@ -196,8 +196,10 @@ function resolveProject(service, project) {
 
 // Shared `project` parameter attached to every non-init tool so the model can
 // target any existing project in one call (falls back to the open project).
+// Convention: always pass an ABSOLUTE path so the caller knows exactly where
+// the task graph lives and where tasks will be created.
 function projectParam() {
-  return stringParam(false, 'Project directory path (default: the currently open project)');
+  return stringParam(false, 'Absolute path to the Octie project directory (default: the currently open project). Pass it explicitly so you always know exactly where tasks are created.');
 }
 
 function stringParam(required, description) {
@@ -251,7 +253,7 @@ function buildTools(service) {
   return [
     makeTool(service, 'octie_init',
       'Initialize a new Octie project at a path and open it as the current project.',
-      { name: stringParam(true, 'Unique project name'), path: stringParam(false, 'Project directory (default: current working directory)') },
+      { name: stringParam(true, 'Unique project name'), path: stringParam(false, 'Absolute project directory (default: current working directory)') },
       async (args) => service.init(args.name, { path: args.path }),
       { resolveProject: false }),
     makeTool(service, 'octie_create',
