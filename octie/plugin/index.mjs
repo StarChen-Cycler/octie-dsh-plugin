@@ -34,6 +34,7 @@ import {
   restoreSnapshot,
   createHandoff,
   initProjectAt,
+  getProjectLastUpdated,
 } from '../dist/index.js';
 
 export const name = 'octie-dsh';
@@ -473,7 +474,22 @@ function listProjects() {
   try {
     const data = JSON.parse(readFileSync(join(homedir(), '.octie', 'projects.json'), 'utf8'));
     const projects = data.projects || {};
-    return Object.values(projects).map((p) => ({ name: p.name, path: p.path }));
+    // Activity signal = project.json mtime (the latest task-graph write),
+    // falling back to registry lastAccessed for entries whose files are gone.
+    // Most recently task-updated project sorts first and becomes the panel
+    // default, so active plans surface without scrolling.
+    const entries = Object.values(projects).map((p) => ({
+      name: p.name,
+      path: p.path,
+      lastUpdated: getProjectLastUpdated(p.path) ||
+        (typeof p.lastAccessed === 'string' ? p.lastAccessed : ''),
+      lastAccessed: typeof p.lastAccessed === 'string' ? p.lastAccessed : '',
+      taskCount: typeof p.taskCount === 'number' ? p.taskCount : 0,
+    }));
+    entries.sort((a, b) =>
+      (b.lastUpdated || '').localeCompare(a.lastUpdated || '') ||
+      (a.name || '').localeCompare(b.name || ''));
+    return entries;
   } catch {
     return [];
   }

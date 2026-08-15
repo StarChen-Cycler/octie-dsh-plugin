@@ -1,10 +1,16 @@
 import { describe, it, expect } from 'vitest';
+import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { v4 as uuidv4 } from 'uuid';
 import { buildProjectTree, type ProjectNode, type ProjectTreeEntry } from '../../../../src/core/utils/projectTree.js';
+import { getProjectLastUpdated } from '../../../../src/core/registry/index.js';
 
-function makeProject(path: string, name: string): ProjectTreeEntry {
+function makeProject(path: string, name: string, lastUpdated?: string): ProjectTreeEntry {
   return {
     path,
     name,
+    ...(lastUpdated === undefined ? {} : { lastUpdated }),
     registeredAt: '2026-01-01T00:00:00.000Z',
     lastAccessed: '2026-01-01T00:00:00.000Z',
     taskCount: 0,
@@ -83,7 +89,7 @@ describe('buildProjectTree', () => {
     expect(rootAB!.children).toHaveLength(0);
   });
 
-  it('sorts projects and children alphabetically by name', () => {
+  it('sorts projects and children alphabetically by name when no lastUpdated is present', () => {
     const projects = [
       makeProject('/home/user/zebra', 'zebra'),
       makeProject('/home/user/alpha', 'alpha'),
@@ -95,6 +101,58 @@ describe('buildProjectTree', () => {
 
     expect(tree.map((n) => n.project.name)).toEqual(['alpha', 'zebra']);
     expect(tree[1]!.children.map((n) => n.project.name)).toEqual(['apple', 'banana']);
+  });
+
+  it('ranks roots by the latest task update, newest first', () => {
+    const projects = [
+      makeProject('/home/user/zebra', 'zebra', '2026-08-10T00:00:00.000Z'),
+      makeProject('/home/user/alpha', 'alpha', '2026-08-14T00:00:00.000Z'),
+      makeProject('/home/user/mid', 'mid', '2026-08-12T00:00:00.000Z'),
+    ];
+
+    const tree = buildProjectTree(projects);
+
+    expect(tree.map((n) => n.project.name)).toEqual(['alpha', 'mid', 'zebra']);
+  });
+
+  it('promotes a parent whose subproject was recently task-updated', () => {
+    const projects = [
+      makeProject('/home/user/root', 'root', '2026-08-01T00:00:00.000Z'),
+      makeProject('/home/user/root/.octie/subprojects/child', 'child', '2026-08-15T00:00:00.000Z'),
+      makeProject('/home/user/active-root', 'active-root', '2026-08-10T00:00:00.000Z'),
+    ];
+
+    const tree = buildProjectTree(projects);
+
+    // The root's subtree max (child: 08-15) beats active-root (08-10).
+    expect(tree.map((n) => n.project.name)).toEqual(['root', 'active-root']);
+    expect(tree[0]!.children.map((n) => n.project.name)).toEqual(['child']);
+  });
+
+  it('sorts children within a parent by activity, name as tiebreaker', () => {
+    const projects = [
+      makeProject('/home/user/root', 'root', '2026-08-01T00:00:00.000Z'),
+      makeProject('/home/user/root/.octie/subprojects/old', 'old', '2026-08-01T00:00:00.000Z'),
+      makeProject('/home/user/root/.octie/subprojects/fresh', 'fresh', '2026-08-03T00:00:00.000Z'),
+      makeProject('/home/user/root/.octie/subprojects/tie-a', 'tie-a', '2026-08-02T00:00:00.000Z'),
+      makeProject('/home/user/root/.octie/subprojects/tie-b', 'tie-b', '2026-08-02T00:00:00.000Z'),
+    ];
+
+    const tree = buildProjectTree(projects);
+
+    expect(tree[0]!.children.map((n) => n.project.name))
+      .toEqual(['fresh', 'tie-a', 'tie-b', 'old']);
+  });
+
+  it('sorts projects without lastUpdated after ones that have it', () => {
+    const projects = [
+      makeProject('/home/user/never', 'never'), // no lastUpdated
+      makeProject('/home/user/ancient', 'ancient', '2026-01-01T00:00:00.000Z'),
+    ];
+
+    const tree = buildProjectTree(projects);
+
+    expect(tree.map((n) => n.project.name)).toEqual(['ancient', 'never']);
   });
 
   it('handles Windows-style backslash paths', () => {
@@ -151,5 +209,34 @@ describe('buildProjectTree', () => {
     expect(rewriteRoot).toBeDefined();
     expect(rewriteRoot!.children).toHaveLength(1);
     expect(rewriteRoot!.children[0]!.project.name).toBe('frontend-visual-rewrite');
+  });
+});
+
+describe('getProjectLastUpdated', () => {
+  it('returns the project.json mtime as an ISO timestamp', () => {
+    const dir = join(tmpdir(), `octie-tree-test-${uuidv4()}`);
+    try {
+      const octieDir = join(dir, '.octie');
+      mkdirSync(octieDir, { recursive: true });
+      const projectFile = join(octieDir, 'project.json');
+      writeFileSync(projectFile, '{}\n');
+
+      const expected = new Date(Date.UTC(2026, 7, 15, 8, 30, 0));
+      utimesSync(projectFile, expected, expected);
+
+      expect(getProjectLastUpdated(dir)).toBe('2026-08-15T08:30:00.000Z');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns null when the project file is missing', () => {
+    const dir = join(tmpdir(), `octie-tree-test-${uuidv4()}`);
+    try {
+      mkdirSync(dir, { recursive: true });
+      expect(getProjectLastUpdated(dir)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

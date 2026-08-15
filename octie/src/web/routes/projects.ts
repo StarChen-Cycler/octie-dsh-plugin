@@ -14,6 +14,7 @@ import {
   saveRegistry,
   getProjectTaskCounts,
   registerMissingSubprojects,
+  getProjectLastUpdated,
   type RegistryProject,
 } from '../../core/registry/index.js';
 import { asyncHandler, sendSuccess, sendError } from '../utils/route-helpers.js';
@@ -25,6 +26,8 @@ interface ProjectWithStatus extends RegistryProject {
   exists: boolean;
   statusCounts: Record<string, number>;
   priorityCounts: Record<string, number>;
+  /** ISO timestamp of the last task-graph write (project.json mtime). */
+  lastUpdated: string;
 }
 
 /**
@@ -66,8 +69,17 @@ export function registerProjectsRoutes(router: Router): void {
           second: 0,
           later: 0,
         },
+        // Activity signal: latest task-graph write, falling back to registry
+        // lastAccessed for entries whose files are no longer on disk.
+        lastUpdated: getProjectLastUpdated(project.path) ?? project.lastAccessed ?? '',
       };
     });
+
+    // Rank by latest task update so active plans surface first; name is the
+    // deterministic tiebreaker.
+    projectsWithStatus.sort((a, b) =>
+      (b.lastUpdated || '').localeCompare(a.lastUpdated || '') ||
+      a.name.localeCompare(b.name));
 
     return sendSuccess(res, {
       projects: projectsWithStatus,

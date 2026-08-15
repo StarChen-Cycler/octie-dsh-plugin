@@ -112,7 +112,7 @@ function ProjectCard({ project, onClick, index }: ProjectCardProps) {
             <polyline points="12 6 12 12 16 14" />
           </svg>
           <span>
-            {new Date(project.lastAccessed).toLocaleDateString(undefined, {
+            {new Date(project.lastUpdated || project.lastAccessed).toLocaleDateString(undefined, {
               month: 'short',
               day: 'numeric',
             })}

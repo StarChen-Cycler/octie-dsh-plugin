@@ -122,17 +122,33 @@ window.__ModuleLoader__.load({
 
     function shortId(id) { return id ? id.slice(0, 7) : ''; }
 
-    // Project picker: indented by subproject depth, so a parent's subprojects
-    // (and sub-subprojects) group visually under it.
+    // Project picker: ranked by the latest task-graph change (project.json
+    // mtime, served as lastUpdated) with a relative-time hint, and indented by
+    // subproject depth so a parent's subprojects (and sub-subprojects) group
+    // visually under it.
     function projectDepth(path) {
       return ((path || '').replace(/\\/g, '/').match(/\/\.octie\/subprojects\//g) || []).length;
     }
+    function relTime(iso) {
+      if (!iso) return '';
+      const ms = Date.now() - new Date(iso).getTime();
+      if (!Number.isFinite(ms) || ms < 0) return '';
+      const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
+      if (ms < MIN) return 'just now';
+      if (ms < HOUR) return Math.floor(ms / MIN) + 'm ago';
+      if (ms < DAY) return Math.floor(ms / HOUR) + 'h ago';
+      if (ms < 30 * DAY) return Math.floor(ms / DAY) + 'd ago';
+      return Math.floor(ms / (30 * DAY)) + 'mo ago';
+    }
     function projectOptions(projects) {
-      const norm = (p) => (p.path || '').replace(/\\/g, '/');
-      const sorted = [...projects].sort((a, b) => norm(a.path).localeCompare(norm(b.path)));
+      const sorted = [...(projects || [])].sort((a, b) =>
+        (b.lastUpdated || '').localeCompare(a.lastUpdated || '') ||
+        (a.name || '').localeCompare(b.name || ''));
       return sorted.map((p) => {
         const d = projectDepth(p.path);
-        const label = (d > 0 ? '\u00a0\u00a0'.repeat(d) + '\u21b3 ' : '') + p.name;
+        const ago = relTime(p.lastUpdated);
+        const label = (d > 0 ? '\u00a0\u00a0'.repeat(d) + '\u21b3 ' : '') + p.name +
+          (ago ? '  \u00b7  ' + ago : '');
         return e('option', { key: p.path, value: p.path }, label);
       });
     }

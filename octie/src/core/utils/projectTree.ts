@@ -7,6 +7,10 @@
  * `.octie/subprojects/` directory. Mere directory-prefix overlap (e.g. two
  * unrelated projects under the same drive/root folder) must NOT create a
  * parent/child relationship.
+ *
+ * This module stays dependency-free on purpose: it is also compiled into the
+ * browser web-ui, so it must not import Node builtins. The filesystem-based
+ * activity signal (getProjectLastUpdated) lives in core/registry instead.
  */
 
 /**
@@ -16,6 +20,8 @@
 export interface ProjectTreeEntry {
   path: string;
   name: string;
+  /** ISO timestamp of the last task-graph change (project.json mtime). */
+  lastUpdated?: string;
 }
 
 export interface ProjectNode<T extends ProjectTreeEntry = ProjectTreeEntry> {
@@ -70,9 +76,25 @@ export function buildProjectTree<T extends ProjectTreeEntry>(projects: T[]): Pro
     }
   }
 
-  // Stable ordering: by name, recursively.
+  // Activity ranking: a node ranks by the most recent task-graph change
+  // anywhere in its subtree (own project.json or any descendant's), so an
+  // active subproject drags its parent group toward the top. Name is the
+  // tiebreaker for stable, deterministic ordering.
+  const rankOf = (node: ProjectNode<T>): string => {
+    let best = node.project.lastUpdated || '';
+    for (const child of node.children) {
+      const childRank = rankOf(child);
+      if (childRank > best) best = childRank;
+    }
+    return best;
+  };
   const sortNodes = (items: ProjectNode<T>[]) => {
-    items.sort((a, b) => a.project.name.localeCompare(b.project.name));
+    items.sort((a, b) => {
+      const ra = rankOf(a);
+      const rb = rankOf(b);
+      if (ra !== rb) return rb.localeCompare(ra);
+      return a.project.name.localeCompare(b.project.name);
+    });
     for (const item of items) {
       sortNodes(item.children);
     }

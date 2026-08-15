@@ -54,6 +54,26 @@ export interface UnregisterProjectResult {
   error?: Error;
 }
 
+/**
+ * The canonical project activity signal: the mtime of the project's task
+ * graph file. Every task mutation (create/update/approve/wire/merge/delete/
+ * restore) rewrites `.octie/project.json` through the atomic save path, so
+ * its mtime IS "the latest task updating time" — unlike registry
+ * lastAccessed, which only moves on CLI registration/touches and misses
+ * task edits entirely.
+ *
+ * @returns ISO timestamp of the last graph write, or null when the project
+ *          file cannot be read (e.g. the path no longer exists on disk).
+ */
+export function getProjectLastUpdated(projectPath: string): string | null {
+  try {
+    const mtimeMs = statSync(join(projectPath, '.octie', 'project.json')).mtimeMs;
+    return new Date(mtimeMs).toISOString();
+  } catch {
+    return null;
+  }
+}
+
 /** Current registry version */
 const REGISTRY_VERSION = '1.0.0';
 const REGISTRY_LOCK_FILE = 'projects.lock';

@@ -12,6 +12,8 @@ export interface RegistryProject {
   name: string;
   registeredAt: string;
   lastAccessed: string;
+  /** ISO timestamp of the last task-graph write (project.json mtime). */
+  lastUpdated?: string;
   taskCount: number;
   exists: boolean;
   statusCounts: Record<string, number>;

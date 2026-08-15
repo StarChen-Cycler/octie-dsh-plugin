@@ -12,11 +12,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
-import { mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { apply, OctieService, TOOL_NAMES, SERVICE_NAME, name, inject } from '../../../plugin/index.mjs';
+import { TaskStorage } from '../../../src/core/storage/file-store.js';
 
 let homedirTarget = '';
 
@@ -216,6 +217,102 @@ describe('octie-dsh bundle Node half', () => {
     for (const r of routes) {
       expect(r.kind).toBe('exact');
       expect(typeof r.handler).toBe('function');
+    }
+  });
+
+  it('GET /api/octie/projects ranks by latest task update (project.json mtime)', async () => {
+    // The plugin reads the REAL registry (~/.octie/projects.json): vi.mock of
+    // node:os does not reach the native-ESM plugin/dist import chain (same
+    // limitation the smoke tests work around). So this test registers three
+    // temp projects with synthetic task-file mtimes in the real registry,
+    // asserts the activity ranking, and restores the registry afterwards.
+    const actual = await vi.importActual<typeof import('node:os')>('node:os');
+    const registryPath = join(actual.homedir(), '.octie', 'projects.json');
+    mkdirSync(join(actual.homedir(), '.octie'), { recursive: true });
+
+    const now = Date.now();
+    const iso = (msAgo: number) => new Date(now - msAgo).toISOString();
+    const freshDir = join(tmpdir(), `octie-activity-fresh-${uuidv4()}`);
+    const oldDir = join(tmpdir(), `octie-activity-old-${uuidv4()}`);
+    const legacyDir = join(tmpdir(), `octie-activity-legacy-${uuidv4()}`);
+    const dirs = [freshDir, oldDir, legacyDir];
+    for (const d of dirs) {
+      mkdirSync(d, { recursive: true });
+      const storage = new TaskStorage({ projectDir: d });
+      await storage.createProject(d.split(/[\\/]/).pop() || 'project');
+    }
+    // Task-graph write times: fresh = 60s ago, old = 10 days ago, legacy =
+    // project file removed entirely (falls back to registry lastAccessed).
+    const freshFile = join(freshDir, '.octie', 'project.json');
+    const oldFile = join(oldDir, '.octie', 'project.json');
+    for (const [file, msAgo] of [[freshFile, 60000], [oldFile, 86400000 * 10]] as [string, number][]) {
+      const t = new Date(now - msAgo);
+      utimesSync(file, t, t);
+    }
+    rmSync(join(legacyDir, '.octie'), { recursive: true, force: true });
+
+    const freshKey = `fresh-activity-${freshDir}`;
+    const oldKey = `old-activity-${oldDir}`;
+    const legacyKey = `legacy-activity-${legacyDir}`;
+    const original = existsSync(registryPath) ? readFileSync(registryPath, 'utf8') : null;
+
+    try {
+      const reg = original ? JSON.parse(original) : { version: '1.0.0', projects: {} };
+      reg.projects[freshKey] = { name: 'fresh-activity', path: freshDir, registeredAt: iso(86400000), lastAccessed: iso(86400000 * 5), taskCount: 7 };
+      reg.projects[oldKey] = { name: 'old-activity', path: oldDir, registeredAt: iso(86400000 * 10), lastAccessed: iso(86400000 * 5), taskCount: 2 };
+      reg.projects[legacyKey] = { name: 'legacy-activity', path: legacyDir }; // no lastAccessed, no project file
+      writeFileSync(registryPath, JSON.stringify(reg, null, 2) + '\n');
+
+      const routes: any[] = [];
+      const webServerMock = {
+        register: (route: any) => { routes.push(route); return () => {}; },
+      };
+      const wrapper: any = {
+        tools: { register: () => () => {} },
+        provide: () => () => {},
+        emit: () => {},
+        on: () => () => {},
+        get: (name: string) => (name === 'webServer' ? webServerMock : undefined),
+        effect: (cb: () => any) => { cb(); return () => {}; },
+      };
+      apply(wrapper);
+
+      const projectsRoute = routes.find((r) => r.path === '/api/octie/projects');
+      expect(projectsRoute).toBeDefined();
+
+      let body: any[] | null = null;
+      await projectsRoute.handler({ url: '/' }, {
+        writeHead: () => {},
+        end: (payload: string) => { body = JSON.parse(payload); },
+      });
+
+      const list = body as any[];
+      const names = list.map((p) => p.name);
+      // Relative order among the three synthetic entries must follow mtime,
+      // regardless of where other real-registry projects interleave.
+      expect(names.indexOf('fresh-activity')).toBeLessThan(names.indexOf('old-activity'));
+      expect(names.indexOf('old-activity')).toBeLessThan(names.indexOf('legacy-activity'));
+
+      const fresh = list.find((p) => p.path === freshDir);
+      expect(fresh.lastUpdated).toBe(iso(60000));
+      expect(fresh.taskCount).toBe(7);
+      const legacy = list.find((p) => p.path === legacyDir);
+      expect(legacy.lastUpdated).toBe('');
+      expect(legacy.taskCount).toBe(0);
+    } finally {
+      // Restore the registry to its exact pre-test state minus our keys.
+      const reg = original ? JSON.parse(original) : { version: '1.0.0', projects: {} };
+      delete reg.projects[freshKey];
+      delete reg.projects[oldKey];
+      delete reg.projects[legacyKey];
+      if (original === null && Object.keys(reg.projects).length === 0 && existsSync(registryPath)) {
+        rmSync(registryPath, { force: true });
+      } else if (original !== null) {
+        writeFileSync(registryPath, JSON.stringify(reg, null, 2) + '\n');
+      }
+      for (const d of dirs) {
+        try { rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
     }
   });
 
