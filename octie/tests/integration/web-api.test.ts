@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -120,14 +120,16 @@ describe('Web API Integration Tests', () => {
       }
     });
 
-    it('GET /test should keep serving the Vitest html report when available', async () => {
-      const response = await request(app)
-        .get('/test/')
-        .expect('Content-Type', /html/);
+    it.skipIf(!existsSync(join(process.cwd(), 'html', 'index.html')))(
+      'GET /test should keep serving the Vitest html report when available',
+      async () => {
+        const response = await request(app)
+          .get('/test/')
+          .expect('Content-Type', /html/);
 
-      expect(response.status).toBe(200);
-      expect(response.text).toContain('<title>Vitest</title>');
-    });
+        expect(response.status).toBe(200);
+        expect(response.text).toContain('<title>Vitest</title>');
+      });
 
     it('GET /health should return healthy status', async () => {
       const response = await request(app)
