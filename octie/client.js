@@ -18,6 +18,7 @@ window.__ModuleLoader__.load({
       tasks: [],
       graph: null,
       selectedTask: null,
+      hover: null,
       error: null,
     };
     const listeners = new Set();
@@ -101,6 +102,11 @@ window.__ModuleLoader__.load({
       return e('button', {
         className: 'octie-task-row',
         onClick: () => openDetail(t.id),
+        onPointerEnter: (ev) => {
+          const r = ev.currentTarget.getBoundingClientRect();
+          patch({ hover: { title: t.title, status: t.status, id: t.id, left: r.left, top: r.top } });
+        },
+        onPointerLeave: () => patch({ hover: null }),
       },
         e('span', { className: 'octie-task-title' }, t.title),
         e('span', { className: 'octie-row-badges' },
@@ -245,7 +251,6 @@ window.__ModuleLoader__.load({
       const edgeElsRef = React.useRef(new Map());
       const rafRef = React.useRef(null);
       const dragMovedRef = React.useRef(false);
-      const [hover, setHover] = React.useState(null);
 
       function loop() {
         const s = simRef.current;
@@ -307,7 +312,7 @@ window.__ModuleLoader__.load({
 
       function onEnter(ev, node) {
         const r = ev.currentTarget.getBoundingClientRect();
-        setHover({ title: node.title, status: node.status, id: node.id, left: r.left, top: r.top });
+        patch({ hover: { title: node.title, status: node.status, id: node.id, left: r.left, top: r.top } });
       }
 
       const byId = sim.byId;
@@ -332,18 +337,11 @@ window.__ModuleLoader__.load({
         onClick: () => { if (!dragMovedRef.current) openDetail(n.id); },
         onPointerDown: (ev) => onDown(ev, n),
         onPointerEnter: (ev) => onEnter(ev, n),
-        onPointerLeave: () => setHover(null),
+        onPointerLeave: () => patch({ hover: null }),
       }));
-      const tooltip = hover ? e('div', {
-        className: 'octie-tooltip',
-        style: { left: hover.left - 8, top: hover.top - 8 },
-      }, e('strong', null, hover.title),
-        e('span', { className: 'octie-tooltip-meta', style: { color: STATUS_COLORS[hover.status] || '#e6e6e6' } }, shortId(hover.id) + ' \u00b7 ' + hover.status)) : null;
-
       if (sim.nodes.length === 0) return e('div', { className: 'octie-empty' }, 'No tasks');
       return e('div', { className: 'octie-graph-wrap' },
         e('svg', { className: 'octie-graph', viewBox: '0 0 ' + sim.W + ' ' + sim.H, preserveAspectRatio: 'xMidYMid meet' }, arrow, lines, dots),
-        tooltip,
       );
     }
 
@@ -450,6 +448,18 @@ window.__ModuleLoader__.load({
         ));
     }
 
+    // Shared hover tooltip for both the list rows and the graph nodes: the
+    // full title plus a status-colored short id + status line.
+    function tooltipOf(hover) {
+      if (!hover) return null;
+      return e('div', {
+        className: 'octie-tooltip',
+        style: { left: hover.left - 8, top: hover.top - 8 },
+      },
+        e('strong', null, hover.title),
+        e('span', { className: 'octie-tooltip-meta', style: { color: STATUS_COLORS[hover.status] || '#e6e6e6' } }, shortId(hover.id) + ' \u00b7 ' + hover.status));
+    }
+
     function Panel() {
       const s = useOctieState();
       React.useEffect(() => {
@@ -485,6 +495,7 @@ window.__ModuleLoader__.load({
         counts ? e('div', { className: 'octie-counts' }, counts) : null,
         body,
         s.error ? e('div', { className: 'octie-error' }, String(s.error)) : null,
+        tooltipOf(s.hover),
         DetailPopup(),
       );
     }
@@ -521,8 +532,8 @@ window.__ModuleLoader__.load({
         '.octie-toggle{background:none;border:1px solid rgba(128,128,128,.4);border-radius:6px;color:inherit;cursor:pointer;padding:2px 8px;font:inherit}',
         '.octie-graph{flex:1;width:100%;height:100%;min-height:0}',
         '.octie-graph-wrap{flex:1;position:relative;min-height:0;display:flex}',
-        '.octie-tooltip{position:fixed;pointer-events:none;background:#000;border:1px solid rgba(128,128,128,.4);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);transform:translate(-100%,-100%);z-index:1200;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.octie-tooltip strong{display:block;overflow:hidden;text-overflow:ellipsis}',
+        '.octie-tooltip{position:fixed;pointer-events:none;background:#000;border:1px solid rgba(128,128,128,.4);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);transform:translate(-100%,-100%);z-index:1200;max-width:340px}',
+        '.octie-tooltip strong{display:block;white-space:normal;word-break:break-word;line-height:1.35}',
         '.octie-tooltip-meta{color:rgba(230,230,230,.6);font-size:11px}',
         '.octie-node{cursor:pointer}',
         '.octie-node-ready{fill:#ff9f1c;filter:drop-shadow(0 0 5px rgba(255,159,28,.5))}',
