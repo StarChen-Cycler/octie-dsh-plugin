@@ -1,0 +1,11 @@
+# Line endings: keep build outputs (and text in general) LF-normalized in
+# the index so the CI dist-drift gate compares byte-identical files across
+# OSes — vite preserves source line endings, so a CRLF checkout would emit
+# CRLF html and fail the gate on Linux/macOS.
+*.html text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.d.ts text eol=lf
+*.ts text eol=lf
+*.md text eol=lf
+*.yml text eol=lf

@@ -47,6 +47,9 @@ node dist/cli/index.js --help
    一起提交。
 2. **CI 防漂移门禁**：build 之后 `git diff --exit-code -- octie/dist`，产物与提交不一致
    即红——依赖它兜底，不要手动绕过。
+3. 行尾：根 `.gitattributes` 强制 `*.html/*.js/*.css/*.ts/*.md/*.yml` 以 LF 入库
+   （vite 会保留源码行尾，CRLF 检出会让各 OS 重建的 html 逐字节不同，门禁在
+   Linux/macOS 上会误红）。
 3. 只提交产物本身，不提交 `.map`（根 `.gitignore` 末尾有 `octie/dist/**/*.map`）。
 4. 发布 npm 时 `prepack` 会重新构建，tarball 走 `files` 白名单——与提交 dist 不冲突，
    两路并存。
