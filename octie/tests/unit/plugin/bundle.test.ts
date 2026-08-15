@@ -319,6 +319,86 @@ describe('octie-dsh bundle Node half', () => {
     }
   });
 
+  it('GET /api/octie/events polls external file changes and emits external-change events', async () => {
+    vi.useFakeTimers();
+    const actual = await vi.importActual<typeof import('node:os')>('node:os');
+    const registryPath = join(actual.homedir(), '.octie', 'projects.json');
+    mkdirSync(join(actual.homedir(), '.octie'), { recursive: true });
+    const originalRegistry = existsSync(registryPath) ? readFileSync(registryPath, 'utf8') : null;
+    const dir = join(tmpdir(), `octie-events-test-${uuidv4()}`);
+    const closeHandlers: Array<() => void> = [];
+    try {
+      if (originalRegistry === null) {
+        writeFileSync(registryPath, JSON.stringify({ version: '1.0.0', projects: {} }, null, 2) + '\n');
+      }
+      mkdirSync(dir, { recursive: true });
+      const storage = new TaskStorage({ projectDir: dir });
+      await storage.createProject('events-test');
+      const projectFile = join(dir, '.octie', 'project.json');
+
+      const routes: any[] = [];
+      const webServerMock = {
+        register: (route: any) => { routes.push(route); return () => {}; },
+      };
+      const wrapper: any = {
+        tools: { register: () => () => {} },
+        provide: () => () => {},
+        emit: () => {},
+        on: () => () => {},
+        get: (name: string) => (name === 'webServer' ? webServerMock : undefined),
+        effect: (cb: () => any) => { cb(); return () => {}; },
+      };
+      apply(wrapper);
+
+      const eventsRoute = routes.find((r) => r.path === '/api/octie/events');
+      expect(eventsRoute).toBeDefined();
+
+      const writes: string[] = [];
+      const res = {
+        writeHead: () => {},
+        write: (chunk: string) => { writes.push(chunk); },
+        end: () => {},
+        on: (ev: string, fn: () => void) => { if (ev === 'close') closeHandlers.push(fn); },
+      };
+      const req = {
+        url: `/?project=${encodeURIComponent(dir)}`,
+        on: (ev: string, fn: () => void) => { if (ev === 'close') closeHandlers.push(fn); },
+      };
+      eventsRoute.handler(req, res);
+      expect(writes[0]).toContain(': connected');
+
+      // External task write: bump project.json mtime → one tasks-scope event.
+      const future = new Date(Date.now() + 5000);
+      utimesSync(projectFile, future, future);
+      vi.advanceTimersByTime(3000);
+      const taskEvents = writes.filter((w) => w.includes('"kind":"external-change"') && w.includes('"scope":"tasks"'));
+      expect(taskEvents).toHaveLength(1);
+      // SSE payloads JSON-escape backslashes in the path.
+      expect(taskEvents[0]).toContain(JSON.stringify(dir).slice(1, -1));
+
+      // No further event while nothing changed.
+      vi.advanceTimersByTime(3000);
+      expect(writes.filter((w) => w.includes('"scope":"tasks"'))).toHaveLength(1);
+
+      // External registry write: rewrite identical bytes → mtime bump → projects-scope event.
+      // (>=1: other test files may legitimately write the registry concurrently.)
+      const registry = readFileSync(registryPath, 'utf8');
+      writeFileSync(registryPath, registry);
+      vi.advanceTimersByTime(3000);
+      const projectEvents = writes.filter((w) => w.includes('"kind":"external-change"') && w.includes('"scope":"projects"'));
+      expect(projectEvents.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      closeHandlers.forEach((fn) => fn());
+      vi.useRealTimers();
+      if (originalRegistry === null) {
+        try { rmSync(registryPath, { force: true }); } catch { /* ignore */ }
+      } else {
+        writeFileSync(registryPath, originalRegistry);
+      }
+      try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
   it('functional smoke: init -> create -> list -> events', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

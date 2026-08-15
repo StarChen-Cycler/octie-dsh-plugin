@@ -13,6 +13,7 @@ window.__ModuleLoader__.load({
     const state = {
       open: false,
       view: 'list',
+      physics: true,
       projects: [],
       project: null,
       tasks: [],
@@ -53,9 +54,12 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function connectSse() {
-      const es = new EventSource('/api/octie/events');
-      es.onmessage = () => refresh(); // task changed on the host → re-read state
+    function connectSse(project) {
+      const url = '/api/octie/events' + (project ? '?project=' + encodeURIComponent(project) : '');
+      const es = new EventSource(url);
+      // Any host-side change (in-session tool event or the Node half's
+      // external-change mtime poll) → re-read state for list + graph + picker.
+      es.onmessage = () => refresh();
       return () => es.close();
     }
 
@@ -308,16 +312,56 @@ window.__ModuleLoader__.load({
     function GraphView(props) {
       const tasks = props.tasks || [];
       const tasksKey = tasks.map((t) => t.id).join('|');
+      const { physics } = useOctieState();
       const sim = React.useMemo(() => buildSim(tasks), [tasksKey]);
       const simRef = React.useRef(sim);
       const nodeElsRef = React.useRef(new Map());
       const edgeElsRef = React.useRef(new Map());
       const rafRef = React.useRef(null);
       const dragMovedRef = React.useRef(false);
+      const physicsRef = React.useRef(physics);
+      const prevPhysicsRef = React.useRef(physics);
+      physicsRef.current = physics;
 
       function loop() {
         const s = simRef.current;
         if (!s) { rafRef.current = null; return; }
+
+        // Silky stop: physics was just turned off — glide every node back to
+        // the tidy crossing-minimized layout (vx0 targets), then freeze. A
+        // node under the pointer keeps following it until release, then it
+        // glides home too.
+        if (s.coasting) {
+          let maxD = 0;
+          for (const n of s.nodes) {
+            if (s.dragging === n.id) continue;
+            if (n.vx0 !== null) {
+              const target = Math.max(12, Math.min(s.W - 12, n.vx0));
+              n.x += (target - n.x) * 0.16;
+              maxD = Math.max(maxD, Math.abs(target - n.x));
+            }
+          }
+          applySim(s, nodeElsRef.current, edgeElsRef.current);
+          if (maxD < 0.4) {
+            for (const n of s.nodes) {
+              if (n.vx0 !== null) n.x = Math.max(12, Math.min(s.W - 12, n.vx0));
+            }
+            s.coasting = false;
+            applySim(s, nodeElsRef.current, edgeElsRef.current);
+            rafRef.current = null;
+            return;
+          }
+          rafRef.current = requestAnimationFrame(loop);
+          return;
+        }
+
+        // Physics off: static — no force integration at all.
+        if (!physicsRef.current) {
+          applySim(s, nodeElsRef.current, edgeElsRef.current);
+          rafRef.current = null;
+          return;
+        }
+
         if (s.dragging === null && s.alpha <= 0.02) {
           applySim(s, nodeElsRef.current, edgeElsRef.current);
           rafRef.current = null; // settled → stop consuming CPU
@@ -331,13 +375,37 @@ window.__ModuleLoader__.load({
         if (rafRef.current != null) return;
         rafRef.current = requestAnimationFrame(loop);
       }
+      // Reheat with a small horizontal perturbation so the force system is
+      // instantly visible: repulsion + target springs wobble everything back
+      // to the crossing-minimized equilibrium.
+      function reheat(magnitude) {
+        const s = simRef.current;
+        if (!s) return;
+        for (const n of s.nodes) n.x = Math.max(12, Math.min(s.W - 12, n.x + (Math.random() - 0.5) * magnitude));
+        s.coasting = false;
+        s.alpha = 0.6;
+        startLoop();
+      }
 
       React.useEffect(() => {
         simRef.current = sim;
-        sim.alpha = 1;
-        startLoop();
+        if (physicsRef.current) reheat(12); // initial visible settle when physics is on
         return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
       }, [sim]);
+
+      // Physics toggle transitions (skip the mount run — mount is handled above).
+      React.useEffect(() => {
+        if (prevPhysicsRef.current === physics) return;
+        prevPhysicsRef.current = physics;
+        const s = simRef.current;
+        if (!s) return;
+        if (physics) {
+          reheat(12);
+        } else {
+          s.coasting = true; // glide home to the tidy layout instead of snapping
+          startLoop();
+        }
+      }, [physics]);
 
       function onDown(ev, node) {
         ev.preventDefault();
@@ -404,6 +472,16 @@ window.__ModuleLoader__.load({
       }));
       if (sim.nodes.length === 0) return e('div', { className: 'octie-empty' }, 'No tasks');
       return e('div', { className: 'octie-graph-wrap' },
+        e('label', {
+          className: 'octie-physics-switch',
+          title: physics
+            ? 'Physics on \u2014 forces react when you drag a node; turn off for a static layout'
+            : 'Physics off \u2014 nodes glide back to the tidy layout and freeze',
+        },
+          e('input', { type: 'checkbox', checked: physics, onChange: (ev) => patch({ physics: !!ev.target.checked }) }),
+          e('span', { className: 'octie-physics-track' }, e('span', { className: 'octie-physics-thumb' })),
+          e('span', { className: 'octie-physics-label' }, 'Physics'),
+        ),
         e('svg', { className: 'octie-graph', viewBox: '0 0 ' + sim.W + ' ' + sim.H, preserveAspectRatio: 'xMidYMid meet' }, arrow, lines, dots),
       );
     }
@@ -527,8 +605,10 @@ window.__ModuleLoader__.load({
       const s = useOctieState();
       React.useEffect(() => {
         refresh();
-        return connectSse();
-      }, []);
+        // Reconnect the SSE channel when the viewed project changes so the
+        // Node half's external-change poll watches the right project.json.
+        return connectSse(s.project);
+      }, [s.project]);
       if (!s.open) return null;
       const options = projectOptions(s.projects);
       const rows = sortTasks(s.tasks).map((t) => e(TaskRow, { key: t.id, task: t }));
@@ -595,6 +675,13 @@ window.__ModuleLoader__.load({
         '.octie-toggle{background:none;border:1px solid rgba(128,128,128,.4);border-radius:6px;color:inherit;cursor:pointer;padding:2px 8px;font:inherit}',
         '.octie-graph{flex:1;width:100%;height:100%;min-height:0}',
         '.octie-graph-wrap{flex:1;position:relative;min-height:0;display:flex}',
+        '.octie-physics-switch{position:absolute;top:6px;right:6px;z-index:2;display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:rgba(30,31,34,.85);border:1px solid rgba(128,128,128,.35);border-radius:999px;padding:3px 8px 3px 6px;font-size:11px;color:rgba(230,230,230,.85);backdrop-filter:blur(2px)}',
+        '.octie-physics-switch input{display:none}',
+        '.octie-physics-track{position:relative;width:28px;height:16px;border-radius:999px;background:rgba(128,128,128,.35);transition:background .25s ease}',
+        '.octie-physics-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#e6e6e6;transition:transform .25s cubic-bezier(.4,0,.2,1)}',
+        '.octie-physics-switch input:checked + .octie-physics-track{background:#00d4ff}',
+        '.octie-physics-switch input:checked + .octie-physics-track .octie-physics-thumb{transform:translateX(12px)}',
+        '.octie-physics-label{user-select:none}',
         '.octie-tooltip{position:fixed;pointer-events:none;background:#000;border:1px solid rgba(128,128,128,.4);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);transform:translate(-100%,-100%);z-index:1200;width:max-content;max-width:340px}',
         '.octie-tooltip strong{display:block;white-space:normal;word-break:break-word;line-height:1.35}',
         '.octie-tooltip-meta{color:rgba(230,230,230,.6);font-size:11px}',

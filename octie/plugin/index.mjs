@@ -12,7 +12,7 @@
  * owned JSON projection — no live graph objects ever cross the boundary.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -558,10 +558,44 @@ function registerWebRoutes(webServer, service, disposers) {
         Connection: 'keep-alive',
       });
       res.write(': connected\n\n');
+
+      // In-session tool mutations push through service.onChange. External
+      // writes (octie CLI in a terminal, the web UI, another DSH session) are
+      // invisible to that channel, so each connection also polls the mtimes
+      // of the viewed project's graph file and the global registry and emits
+      // an external-change event when either moves. 3s stat calls are cheap.
+      const params = parseQuery(req);
+      const project = params.get('project') || '';
+      const registryFile = join(homedir(), '.octie', 'projects.json');
+      const projectFile = project ? join(project, '.octie', 'project.json') : '';
+      const mtimeOf = (p) => { try { return statSync(p).mtimeMs; } catch { return -1; } };
+      let lastRegistry = mtimeOf(registryFile);
+      let lastProject = mtimeOf(projectFile);
+      const pollTimer = setInterval(() => {
+        try {
+          const rm = mtimeOf(registryFile);
+          if (rm !== -1 && rm !== lastRegistry) {
+            lastRegistry = rm;
+            res.write(`data: ${JSON.stringify({ kind: 'external-change', scope: 'projects' })}\n\n`);
+          }
+          if (projectFile) {
+            const pm = mtimeOf(projectFile);
+            if (pm !== -1 && pm !== lastProject) {
+              lastProject = pm;
+              res.write(`data: ${JSON.stringify({ kind: 'external-change', scope: 'tasks', project })}\n\n`);
+            }
+          }
+        } catch { /* connection gone */ }
+      }, 3000);
+
       const off = service.onChange((event) => {
         try { res.write(`data: ${JSON.stringify(event)}\n\n`); } catch { /* client gone */ }
       });
-      const cleanup = () => { off(); try { res.end(); } catch { /* noop */ } };
+      const cleanup = () => {
+        clearInterval(pollTimer);
+        off();
+        try { res.end(); } catch { /* noop */ }
+      };
       req.on('close', cleanup);
       res.on('close', cleanup);
     },
