@@ -108,3 +108,26 @@
 - **CLI 版本**：`docs/cli-usage-principles.md`。
 - **命令覆盖对照**：`octie/docs/CLI-COMMAND-COVERAGE.md`。
 - **开发与维护**：`docs/development.md`、`docs/preset-skill-maintenance.md`。
+
+## 9. 实时链路与面板排查（实战沉淀 · 2026-08）
+
+一次"面板状态不更新"bug 的完整排查经验，全部来自真实修复过程：
+
+1. **三层实时链路，各有分工**：会话内 `octie_*` 工具事件（进程内 SSE，秒级推送）→
+   Node half 的 **fs.watch** 监听当前项目 `.octie` 目录（project.json / history/ / config
+   任一变动，120ms 防抖即时推 `external-change`）→ **3 秒 mtime 轮询兜底**（注册表文件、
+   watcher 出错、目录暂缺）。缺任何一层，某类变更就会漏。
+2. **排查从服务端往客户端走，别倒过来**：怀疑"SSE 没触发"时，先做**活体探针**——直连
+   `/api/octie/events` 端点捕获 SSE 帧，同时触发一次 `octie_update`；本次探针立刻收到
+   `task-updated` 帧，证明服务器正常，问题在浏览器侧（旧 client.js / 断掉的 EventSource），
+   省下了一整轮错误方向的排查。
+3. **渲染缓存的 key 必须覆盖全部渲染输入**（本次 bug 根因）：面板 GraphView 的模拟缓存
+   只按任务 id 建 key——status 变了 key 不变，`useMemo` 复用旧节点对象，图里的小球颜色
+   永远停在旧状态（列表视图直读数据所以正常）。修法：key 纳入 `status` 与 `blockers`，
+   任何图相关变化都重建节点与边。**通用原则：视图缓存的身份 = 该视图渲染的所有输入。**
+4. **变更监听瞄准数据源，而不是整个目录**：监听 `.octie/`（图表真正的输入文件），
+   不监听项目根全部文件——README 改动等无关写入只会制造噪声刷新。
+5. **客户端必须自愈**：`es.onerror → refresh()`、页面恢复可见（`visibilitychange`）强制
+   `refresh()`——旧标签页、断连后重连都不该依赖用户手动刷新。
+6. **验证顺序**：Node 侧（探针 / bundle 测试）→ 浏览器侧（硬刷新 Ctrl+F5 加载新 client.js）
+   → 分别看 List 视图与 Graph 视图（两者渲染路径不同，一个正常不等于另一个正常）。

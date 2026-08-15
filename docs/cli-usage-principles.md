@@ -64,6 +64,10 @@
   仅在重构图结构（octie-refine）时按需使用，且事后必须 `octie graph validate` + `octie graph cycles` 复查。
 - **每轮图操作后验证**：`octie list --graph`（看结构）→ `octie graph validate`（完整性）→
   `octie graph cycles`（环）→ `octie find --orphans`（游离节点，用 wire 接回）。
+- **批量建节点：先画依赖再落子**（2026-08 实战教训）：一次 create 多个任务前先想清它们之间
+  以及它们与既有节点的 blocker 关系——本次实战 5 个节点全无 blockers，`octie graph` 立刻暴露
+  5 个 orphans，补了 7 条边才闭合。正确姿势：create 时就带 `--blockers` + `--dependencies`
+  （孪生），建完必查 `octie graph`，**orphans 必须为 0**。
 
 ## 5. 执行与状态流转规范
 
@@ -82,6 +86,10 @@
 - **三个来源**：review（评审）/ runtime（运行错误）/ regression（回归）。加缺陷时带来源与文件：
   `octie update <id> --add-need-fix "<问题>" --need-fix-source <review|runtime|regression> --need-fix-file "<path>"`。
 - **闭环**：修复 → `--complete-need-fix <need-fix-id>`；need_fix 未清空不能进入 in_review。
+- **实战补充（2026-08）**：`--add-need-fix` 会把已 `in_review` 的任务**打回 in_progress**
+  （实测）——这是特性不是 bug：只要还有未闭环缺陷，任务就不该被审批。缺陷记录要带
+  **根因 + 复现/验证方法**（如"tasksKey 只含 id → useMemo 复用旧模拟"），修复提交推送后
+  `--complete-need-fix` 关闭，任务才重新进入 in_review。
 - **来源指引**：特性/缺陷准备（octie-fix 阶段）用 C7 MCP 验证技术选型后建任务，
   「最小变更修根因 + 沿用现有模式 + 与 C7 对齐」。
 
@@ -128,3 +136,16 @@ octie update <id> --unblock <id>（执行流程中）  # 用 octie approve 走�
 - **DSH 插件工具层版本**（同一套原则换成 13 个 `octie_*` 工具的表达）：`docs/dsh-plugin-usage-principles.md`。
 - **开发与维护**：`docs/development.md`、`docs/preset-skill-maintenance.md`。
 - 本文若与 usage skill 冲突，以 usage skill 为准——它是单一事实来源。
+
+## 11. 实战沉淀（2026-08 · 面板实时修复）
+
+> 一次真实 bug 修复周期的经验，已回写进上文对应章节，这里作速览：
+
+1. **先画依赖再批量建节点**：5 个新节点忘记 blockers → `octie graph` 的 orphans 立刻报警；
+   补 7 条边（`--blockers` + `--dependency-explanation` 孪生）后 orphans 归零、连通分量 8→4。
+2. **"看起来没更新"先验数据再验界面**：面板颜色不更新时，先 `octie get/list` 确认落盘状态
+   已变，再怀疑界面层——数据是真相，界面只是投影。
+3. **缺陷走 need_fix 而非口头**：评审发现的问题 `--add-need-fix`（带根因与验证方法）入图，
+   修复提交后 `--complete-need-fix` 闭环；期间任务被自动打回 in_progress，天然挡住提前审批。
+4. **审批门照常生效**：即便全部工作完成、CI 全绿，任务也只停在 in_review，等用户裁决后才
+   `octie approve` 转 completed。
