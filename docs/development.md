@@ -78,6 +78,7 @@ typecheck → build → test:smoke → `npm test` → **dist 漂移门禁**。
 | 文档 | 内容 |
 |---|---|
 | `docs/preset-skill-maintenance.md` | preset / skill 上下文的三条修改路径、挂载验证、验证清单、已知不成熟点、DSH 升级兼容性 |
+| `docs/cli-usage-principles.md` | CLI 项目使用基本原则（源自 `.agents/skills/octie-*` 的提炼）：建任务 / 建依赖 / 图操作 / 执行审批 / need_fix 规范 |
 | `docs/octie-dsh-plugin-refactor.md` | 从原 Octie 到 DSH 插件的完整改造设计（选型、API 设计、长期架构） |
 | `octie/docs/USABILITY.md` | 易用性评估（9 条发现，3 条已修复） |
 | `octie/docs/AUDIT.md` | 发布前 5 面审计记录（5/5 通过） |
