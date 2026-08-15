@@ -133,7 +133,7 @@ window.__ModuleLoader__.load({
     if (typeof document !== 'undefined') {
       const style = document.createElement('style');
       style.textContent = [
-        '.octie-panel{position:fixed;top:0;right:0;width:320px;height:100vh;display:flex;flex-direction:column;z-index:1000;pointer-events:auto;background:var(--color-bg,#1e1f22);color:var(--color-text,#e6e6e6);border-left:1px solid rgba(128,128,128,.3);box-shadow:-8px 0 24px rgba(0,0,0,.35);font:13px/1.4 system-ui,sans-serif}',
+        '.octie-panel{position:fixed;top:48px;right:8px;bottom:8px;width:340px;display:flex;flex-direction:column;z-index:1000;pointer-events:auto;background:var(--color-bg,#1e1f22);color:var(--color-text,#e6e6e6);border:1px solid rgba(128,128,128,.3);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);font:13px/1.4 system-ui,sans-serif}',
         '.octie-panel-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(128,128,128,.2)}',
         '.octie-close{background:none;border:none;color:inherit;cursor:pointer;font-size:16px}',
         '.octie-project-select{margin:10px 12px;padding:6px;background:transparent;color:inherit;border:1px solid rgba(128,128,128,.4);border-radius:6px}',
