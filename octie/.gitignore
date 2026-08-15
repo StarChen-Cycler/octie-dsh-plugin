@@ -6,9 +6,14 @@ node_modules/
 # git-tracked files, so the GitHub-direct install path needs the built
 # artifacts in the repository. Rebuild and commit after source changes
 # (CI has a git-diff drift gate). Debug .map files stay out.
+# dist/web-ui (vite output) stays OUT: its html is not byte-deterministic
+# across platforms/Node versions (vite preserves source line endings), so
+# it would flake the drift gate; only `octie serve` needs it, and npm
+# tarballs still ship it (prepack rebuilds from files list).
 !dist/
 !dist/**
 dist/**/*.map
+dist/web-ui/
 build/
 *.log
 

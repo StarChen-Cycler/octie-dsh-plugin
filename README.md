@@ -37,7 +37,8 @@ Octie 是一个面向 agent 时代的**持久化任务图状态机**：节点 = 
 dsh plugin --profile <name> add octie-cli
 ```
 
-**或直接从 GitHub 安装**（仓库随附构建产物，开箱即用）：
+**或直接从 GitHub 安装**（仓库随附构建产物，开箱即用；不含 `octie serve` 的网页界面
+资源，如需使用自行构建）：
 
 ```sh
 dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
