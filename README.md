@@ -34,19 +34,23 @@ Octie 是一个面向 agent 时代的**持久化任务图状态机**：节点 = 
 
 ## 安装（DSH）
 
-```sh
-# npm 发布后
-dsh plugin --profile <name> add octie-cli
+**推荐：npm 包**（预构建产物随 tarball 发布，几秒钟装完、无需本地编译）：
 
-# 或从本仓库 git 源
+```sh
+dsh plugin --profile <name> add octie-cli
+```
+
+**或从 GitHub 源**（尝鲜 / 发布前的备选）：注意 git 依赖安装只携带 git 跟踪的文件，
+不包含构建产物 `octie/dist/`——直装后需自行 `cd octie && npm run build:cli` 补构建
+（或待仓库决定随源码提交 dist 后开箱即用）。
+
+```sh
 dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
 ```
 
+要求 Node.js ≥ 20。安装后重启 DSH，插件会自动预置「Octie 任务图模式」agent preset（见下文）。
 `cordis.patch.yml` 会挂载 `octie-dsh` 插件行。用法见 [`skills/octie/SKILL.md`](skills/octie/SKILL.md)
 （通用指导：心智模型 / 不变式 / 用法模式库 / 陷阱 / 沉淀入口）。
-
-安装后重启 DSH，插件会自动预置「Octie 任务图模式」agent preset（见下文），
-新建会话时在模式选择器中即可选用。
 
 ## 客户端任务面板
 
