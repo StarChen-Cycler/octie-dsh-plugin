@@ -1,0 +1,34 @@
+{
+  "name": "octie-cli",
+  "version": "1.1.0",
+  "description": "A graph-based task management system with CLI and web UI for atomic, verifiable tasks",
+  "main": "./octie/plugin/index.mjs",
+  "exports": {
+    ".": "./octie/plugin/index.mjs",
+    "./client": "./octie/client.js",
+    "./core": {
+      "types": "./octie/dist/index.d.ts",
+      "import": "./octie/dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./octie/cordis.patch.yml"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./octie/cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "bin": {
+    "octie": "./octie/bin/octie.cjs"
+  },
+  "type": "module",
+  "files": [
+    "octie"
+  ],
+  "scripts": {
+    "prepare": "cd octie && npm ci --ignore-scripts && npm run build:cli"
+  }
+}
