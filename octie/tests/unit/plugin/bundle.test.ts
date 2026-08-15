@@ -294,7 +294,10 @@ describe('octie-dsh bundle Node half', () => {
       expect(names.indexOf('old-activity')).toBeLessThan(names.indexOf('legacy-activity'));
 
       const fresh = list.find((p) => p.path === freshDir);
-      expect(fresh.lastUpdated).toBe(iso(60000));
+      // Filesystems round mtimes differently (APFS differs by ~1ms), so
+      // assert approximate rather than exact equality across OSes.
+      const freshMs = new Date(fresh.lastUpdated).getTime();
+      expect(Math.abs(freshMs - (now - 60000))).toBeLessThan(5000);
       expect(fresh.taskCount).toBe(7);
       const legacy = list.find((p) => p.path === legacyDir);
       expect(legacy.lastUpdated).toBe('');
