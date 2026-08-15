@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, chmodSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -49,17 +49,17 @@ describe('handoff command', () => {
     }
   });
 
-  function runCli(command: string): string {
+  function runCli(command: string, extraEnv: NodeJS.ProcessEnv = {}): string {
     return execSync(`node ${cliPath} ${command}`, {
       encoding: 'utf-8',
-      env,
+      env: { ...env, ...extraEnv },
     });
   }
 
-  function runCliInDir(command: string, cwd: string): string {
+  function runCliInDir(command: string, cwd: string, extraEnv: NodeJS.ProcessEnv = {}): string {
     return execSync(`node ${cliPath} ${command}`, {
       encoding: 'utf-8',
-      env,
+      env: { ...env, ...extraEnv },
       cwd,
     });
   }
@@ -135,25 +135,19 @@ describe('handoff command', () => {
     const subprojectName = `child-${uuidv4().substring(0, 8)}`;
     runCli(`init --project "${tempDir}" --name "${parentName}"`);
 
-    const parentProjectFile = join(tempDir, '.octie', 'project.json');
-    chmodSync(parentProjectFile, 0o444);
+    expect(() => {
+      runCli(
+        `--project "${tempDir}" handoff create ` +
+        `--subproject-name "${subprojectName}" ` +
+        `--title "Create rollback handoff gate" ` +
+        `--description "Create a loose handoff that should fail while saving the parent project so child project rollback can be verified." ` +
+        `--success-criterion "Child project.json exists before parent save attempt" ` +
+        `--deliverable "rollback handoff attempt record"`,
+        { OCTIE_TEST_FORCE_TASK_SAVE_FAILURE: '1' },
+      );
+    }).toThrow();
 
-    try {
-      expect(() => {
-        runCli(
-          `--project "${tempDir}" handoff create ` +
-          `--subproject-name "${subprojectName}" ` +
-          `--title "Create rollback handoff gate" ` +
-          `--description "Create a loose handoff that should fail while saving the parent project so child project rollback can be verified." ` +
-          `--success-criterion "Child project.json exists before parent save attempt" ` +
-          `--deliverable "rollback handoff attempt record"`,
-        );
-      }).toThrow();
-
-      expect(existsSync(join(tempDir, '.octie', 'subprojects', subprojectName))).toBe(false);
-    } finally {
-      chmodSync(parentProjectFile, 0o666);
-    }
+    expect(existsSync(join(tempDir, '.octie', 'subprojects', subprojectName))).toBe(false);
   });
 
   it('treats -p on handoff create as priority instead of project path', async () => {
@@ -187,12 +181,10 @@ describe('handoff command', () => {
     const subprojectName = `child-${uuidv4().substring(0, 8)}`;
     runCli(`init --project "${tempDir}" --name "${parentName}"`);
 
-    const parentProjectFile = join(tempDir, '.octie', 'project.json');
     const registryDir = join(tempHome, '.octie');
     const registryLockPath = join(registryDir, 'projects.lock');
     mkdirSync(registryDir, { recursive: true });
     writeFileSync(registryLockPath, 'locked');
-    chmodSync(parentProjectFile, 0o444);
 
     try {
       expect(() => {
@@ -203,51 +195,45 @@ describe('handoff command', () => {
           `--description "Create a loose handoff that should fail while saving the parent project so rollback can report an incomplete registry cleanup path." ` +
           `--success-criterion "CLI exits with code 1 when parent save fails" ` +
           `--deliverable "registry rollback handoff attempt record"`,
+          { OCTIE_TEST_FORCE_TASK_SAVE_FAILURE: '1' },
         );
       }).toThrow(/rollback cleanup incomplete/i);
     } finally {
-      chmodSync(parentProjectFile, 0o666);
       rmSync(registryLockPath, { force: true });
     }
-  });
+  }, 15000);
 
   it('reports both original and rollback failures when directory removal also fails', () => {
     const parentName = `parent-${uuidv4().substring(0, 8)}`;
     const subprojectName = `child-${uuidv4().substring(0, 8)}`;
     runCli(`init --project "${tempDir}" --name "${parentName}"`);
 
-    const parentProjectFile = join(tempDir, '.octie', 'project.json');
-    chmodSync(parentProjectFile, 0o444);
-
+    let errorText = '';
     try {
-      let errorText = '';
-      try {
-        execSync(
-          `node ${cliPath} --project "${tempDir}" handoff create ` +
-          `--subproject-name "${subprojectName}" ` +
-          `--title "Create dual failure handoff gate" ` +
-          `--description "Create a loose handoff that should fail while saving the parent project and also fail during rollback directory removal so both failure details are surfaced." ` +
-          `--success-criterion "CLI stderr contains rollback diagnostics when parent save fails" ` +
-          `--deliverable "dual failure handoff attempt record"`,
-          {
-            encoding: 'utf-8',
-            env: {
-              ...env,
-              OCTIE_TEST_FORCE_HANDOFF_RM_SYNC_FAILURE: '1',
-            },
-            stdio: 'pipe',
+      execSync(
+        `node ${cliPath} --project "${tempDir}" handoff create ` +
+        `--subproject-name "${subprojectName}" ` +
+        `--title "Create dual failure handoff gate" ` +
+        `--description "Create a loose handoff that should fail while saving the parent project and also fail during rollback directory removal so both failure details are surfaced." ` +
+        `--success-criterion "CLI stderr contains rollback diagnostics when parent save fails" ` +
+        `--deliverable "dual failure handoff attempt record"`,
+        {
+          encoding: 'utf-8',
+          env: {
+            ...env,
+            OCTIE_TEST_FORCE_TASK_SAVE_FAILURE: '1',
+            OCTIE_TEST_FORCE_HANDOFF_RM_SYNC_FAILURE: '1',
           },
-        );
-      } catch (error) {
-        errorText = getExecErrorText(error);
-      }
-
-      expect(errorText).toMatch(/Original failure:[\s\S]*Rollback failure:/);
-      expect((errorText.match(/Original failure:/g) || [])).toHaveLength(1);
-      expect((errorText.match(/Rollback failure:/g) || [])).toHaveLength(1);
-    } finally {
-      chmodSync(parentProjectFile, 0o666);
+          stdio: 'pipe',
+        },
+      );
+    } catch (error) {
+      errorText = getExecErrorText(error);
     }
+
+    expect(errorText).toMatch(/Original failure:[\s\S]*Rollback failure:/);
+    expect((errorText.match(/Original failure:/g) || [])).toHaveLength(1);
+    expect((errorText.match(/Rollback failure:/g) || [])).toHaveLength(1);
   });
 
   it('exposes original and rollback failures through structured error data', () => {

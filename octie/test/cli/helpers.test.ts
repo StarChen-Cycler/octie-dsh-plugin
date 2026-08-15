@@ -2,7 +2,7 @@
  * Tests for CLI helpers — getProjectPath, loadGraph
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getProjectPath, loadGraph } from '../../src/cli/utils/helpers.js';
 import { registerProject } from '../../src/core/registry/index.js';
 import { TaskStorage } from '../../src/core/storage/file-store.js';
@@ -19,10 +19,26 @@ function makeTempDir(): string {
 
 describe('getProjectPath', () => {
   it('auto-detects project from cwd when no --project given', async () => {
-    // This test is informational: auto-detection works from the octie repo itself
-    const result = await getProjectPath();
-    expect(result).toBeDefined();
-    expect(typeof result).toBe('string');
+    // Self-contained: create a real project in a temp dir and point process.cwd
+    // at it, so the test does not depend on the repo checkout having .octie/
+    // (which is gitignored and absent on CI). Mocking process.cwd avoids
+    // process.chdir(), which is unsupported inside vitest worker threads.
+    const dir = makeTempDir();
+    const projectDir = join(dir, 'myproject');
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(projectDir);
+    try {
+      mkdirSync(join(projectDir, '.octie'), { recursive: true });
+      const storage = new TaskStorage({ projectDir });
+      await storage.createProject('autodetect-test');
+
+      const result = await getProjectPath();
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('string');
+      expect(result).toBe(projectDir);
+    } finally {
+      cwdSpy.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -52,10 +68,24 @@ describe('getProjectPath --project . (Issue #1)', () => {
   it('treats --project . as cwd and auto-detects', async () => {
     // --project . resolves to the current working directory.
     // If PWD contains an Octie project, auto-detection kicks in.
-    // In the octie repo itself, this should work.
-    const result = await getProjectPath('.');
-    expect(result).toBeDefined();
-    expect(typeof result).toBe('string');
+    // Self-contained: create the project in a temp dir and point process.cwd
+    // at it so the test passes on CI where the repo checkout has no .octie/.
+    const dir = makeTempDir();
+    const projectDir = join(dir, 'myproject');
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(projectDir);
+    try {
+      mkdirSync(join(projectDir, '.octie'), { recursive: true });
+      const storage = new TaskStorage({ projectDir });
+      await storage.createProject('dot-project-test');
+
+      const result = await getProjectPath('.');
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('string');
+      expect(result).toBe(projectDir);
+    } finally {
+      cwdSpy.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

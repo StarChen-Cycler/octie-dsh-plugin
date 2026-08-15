@@ -1042,8 +1042,13 @@ describe('create command', () => {
     it('should bound cache invalidation latency and warn when a timeout occurs', async () => {
       const originalFetch = global.fetch;
       const originalTimeout = process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS;
+      const originalServerUrl = process.env.OCTIE_SERVER_URL;
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS = '25';
+      // The probe is skipped entirely when no server URL is configured; a fresh
+      // CI runner has no ~/.octie/.last-server-url file, so point it at a fake
+      // server explicitly (fetch is mocked below and never touches the network).
+      process.env.OCTIE_SERVER_URL = 'http://127.0.0.1:1';
 
       global.fetch = vi.fn(async (_input, init) => {
         const signal = init?.signal as AbortSignal | undefined;
@@ -1082,6 +1087,11 @@ describe('create command', () => {
           delete process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS;
         } else {
           process.env.OCTIE_CACHE_INVALIDATE_TIMEOUT_MS = originalTimeout;
+        }
+        if (originalServerUrl === undefined) {
+          delete process.env.OCTIE_SERVER_URL;
+        } else {
+          process.env.OCTIE_SERVER_URL = originalServerUrl;
         }
         warnSpy.mockRestore();
       }

@@ -284,6 +284,15 @@ export async function executeTaskCreation(
     graph.addEdge(blockerId, prepared.task.id);
   }
   graph.propagateStatus(prepared.task.id);
+
+  // Test-only failure injection: lets handoff rollback tests force a parent-save
+  // failure deterministically on every platform. File-permission tricks (chmod
+  // 0o444) only block writes on Windows — POSIX rename ignores the target
+  // file's mode bits — so CI on Linux cannot rely on them.
+  if (process.env.OCTIE_TEST_FORCE_TASK_SAVE_FAILURE === '1') {
+    throw new Error('Injected task save failure');
+  }
+
   await saveGraph(projectPath, graph);
   touchProject(projectPath);
   await invalidateProjectCache(projectPath);

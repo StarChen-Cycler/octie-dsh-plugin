@@ -326,7 +326,11 @@ describe('CLI workflow integration', () => {
       await testStorage.createProject('relative-test');
 
       // Should create absolute paths
-      expect(testStorage.octieDirPath).toMatch(/^[A-Za-z]:\\/); // Windows absolute path
+      if (process.platform === 'win32') {
+        expect(testStorage.octieDirPath).toMatch(/^[A-Za-z]:\\/); // Windows absolute path
+      } else {
+        expect(testStorage.octieDirPath.startsWith('/')).toBe(true); // POSIX absolute path
+      }
       expect(testStorage.projectFilePath).toContain('project.json');
     });
   });
