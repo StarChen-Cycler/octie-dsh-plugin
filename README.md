@@ -4,6 +4,10 @@
   <img src="octie-harness-2.jpg" alt="Octie Harness — DSH bundle plugin" width="100%">
 </p>
 
+> **Status: 项目处于增量维护中（under incremental maintenance）** ——
+> 新特性、修复与文档会以小幅增量持续合入（例如 DSH 客户端任务面板、交叉最小化的
+> DAG 图布局、`octie` 使用技能等）。功能以「先可用、再迭代」的方式演进。
+
 **Octie，重构为 DeepSeek Harness（DSH）可安装的 bundle 插件。**
 
 Octie 是一个面向 agent 时代的**持久化任务图状态机**：节点 = 原子任务，边 = blocker 依赖，
