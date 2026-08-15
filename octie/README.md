@@ -11,7 +11,7 @@ Octie 提供**两条并行的一等接口**，共享同一份任务图存储（`
 ## CLI 与 Web UI（独立使用）
 
 ```sh
-# 安装（npm 发布后）
+# 安装（npm，已发布）
 npm install -g octie-cli
 
 # 快速上手

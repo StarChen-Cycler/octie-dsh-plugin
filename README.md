@@ -43,7 +43,7 @@ Octie 同时是**两条并行的一等接口**，共享同一份任务图存储�
 要求 Node.js ≥ 20。
 
 ```sh
-# 推荐：npm 包（发布后）
+# 安装（npm，已发布）
 npm install -g octie-cli
 
 # 或从源码构建（开发向，详见 docs/development.md）
