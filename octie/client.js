@@ -91,12 +91,22 @@ window.__ModuleLoader__.load({
       return e('span', { className: 'octie-badge octie-' + props.status }, props.status);
     }
 
+    function PriorityTag(props) {
+      const color = PRIORITY_COLORS[props.priority] || '#6e7681';
+      return e('span', { className: 'octie-tag', style: { color: color, background: color + '22' } }, props.priority);
+    }
+
     function TaskRow(props) {
       const t = props.task;
       return e('button', {
         className: 'octie-task-row',
         onClick: () => openDetail(t.id),
-      }, e('span', { className: 'octie-task-title' }, t.title), StatusBadge({ status: t.status }));
+      },
+        e('span', { className: 'octie-task-title' }, t.title),
+        e('span', { className: 'octie-row-badges' },
+          StatusBadge({ status: t.status }),
+          PriorityTag({ priority: t.priority }),
+        ));
     }
 
     function openDetail(id) {
@@ -529,6 +539,8 @@ window.__ModuleLoader__.load({
         '.octie-task-row:hover{background:rgba(255,255,255,.09)}',
         '.octie-task-title{flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.octie-badge{font-size:11px;padding:1px 6px;border-radius:999px;background:rgba(128,128,128,.2)}',
+        '.octie-row-badges{display:flex;align-items:center;gap:4px;flex-shrink:0}',
+        '.octie-tag{font-size:11px;padding:1px 6px;border-radius:999px;font-family:ui-monospace,Consolas,monospace}',
         '.octie-ready{color:#ff9f1c}.octie-in_progress{color:#00d4ff}.octie-in_review{color:#a78bfa}.octie-completed{color:#10b981}.octie-blocked{color:#f43f5e}',
         '.octie-counts{padding:0 12px 8px;color:rgba(230,230,230,.6);font-size:12px}',
         '.octie-empty{padding:20px;text-align:center;color:rgba(230,230,230,.5)}',
