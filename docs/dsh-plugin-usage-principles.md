@@ -3,6 +3,9 @@
 > 本文是 `docs/cli-usage-principles.md`（CLI 原则）在 DSH 插件工具层的对应版：
 > **同一套不变式，换成 13 个 `octie_*` 工具的表达**。CLI 命令 → 工具的完整映射另见
 > `octie/docs/CLI-COMMAND-COVERAGE.md`；不变式与心智模型的权威是 `octie/skills/octie/SKILL.md`。
+>
+> 注意：**CLI 是与插件并行的一等接口**（独立安装、终端驱动、同一份任务图存储），
+> 本文只是插件侧的原则视图，不是 CLI 的替代文档。
 
 ## 1. 会话内前置约定
 

@@ -3,6 +3,33 @@
 A graph-based task management system with CLI, web UI, and a **DeepSeek Harness (DSH)
 bundle plugin** for atomic, verifiable tasks.
 
+Octie 提供**两条并行的一等接口**，共享同一份任务图存储（`.octie/project.json`）：
+**独立 CLI / Web UI**（终端驱动，无需 DSH）与 **DSH bundle 插件**（agent 在会话内直接
+驱动任务图）。两者的使用原则文档见仓库根 `docs/cli-usage-principles.md` 与
+`docs/dsh-plugin-usage-principles.md`。
+
+## CLI 与 Web UI（独立使用）
+
+```sh
+# 安装（npm 发布后）
+npm install -g octie-cli
+
+# 快速上手
+octie init                                   # 初始化项目（创建 .octie/）
+octie create \
+  --title "Implement login endpoint" \
+  --description "POST /api/auth/login：校验凭据、签发 JWT。" \
+  --success-criterion "Returns 200 with JWT for valid credentials" \
+  --deliverable "src/api/auth/login.ts"
+octie list --format md                        # 查看任务
+octie update <id> --complete-criterion <cid>  # 维护进度
+octie approve <id>                            # 审批：BFS 解锁下游
+octie serve                                   # 网页界面（默认 3456 端口）
+```
+
+要求 Node.js ≥ 20。CLI 的完整使用原则（建任务 / 建依赖 / 图操作 / 执行审批 / need_fix）
+见 `docs/cli-usage-principles.md`。
+
 ## DSH 插件（octie-dsh）
 
 Octie 同时是一个可安装的 DSH bundle 插件：任务图状态机直接进入 agent 的工作循环。

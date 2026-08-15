@@ -4,6 +4,10 @@
 > 中关于「如何使用 Octie 项目」的硬性规则与惯例，整理成一份可直接查阅的原则清单。
 > 不变式（派生状态、approve 门、阻断孪生）以 `octie/skills/octie/SKILL.md`（usage skill）为权威；
 > 本文聚焦 CLI 使用层面，两者口径一致。
+>
+> 定位说明：**CLI（`octie` 命令 + `octie serve`）是 Octie 的一等独立接口**——可全局安装、
+> 终端/脚本驱动，不依赖 DSH；DSH 插件是与之共享同一任务图存储的另一条接口，其工具层原则见
+> `docs/dsh-plugin-usage-principles.md`。
 
 ## 1. 项目与任务模型
 

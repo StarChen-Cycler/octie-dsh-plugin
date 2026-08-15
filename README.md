@@ -18,14 +18,56 @@ Octie 是一个面向 agent 时代的**持久化任务图状态机**：节点 = 
 完成一个任务经 **BFS 自动解锁下游**；原子校验在创建时拒绝模糊任务；不可变快照（SHA-256）
 保证长会话可恢复。
 
+## 两种使用方式
+
+Octie 同时是**两条并行的一等接口**，共享同一份任务图存储（`.octie/project.json`），
+可随时互换使用：
+
+| 方式 | 形态 | 适合 |
+|---|---|---|
+| **独立 CLI / Web UI** | 全局安装 `octie` 命令 + `octie serve` 网页界面 | 终端驱动、脚本管道、不需要 DSH 的场景 |
+| **DSH bundle 插件** | 13 个 `octie_*` 模型工具 + Cordis 服务 + 任务面板 + 预置 agent preset | 让 DSH agent 直接在会话里规划、执行、追踪任务图 |
+
 ## 你能得到什么
 
-- **13 个 `octie_*` 模型工具** + `octie` Cordis 服务 + `octie/*` 事件——在 DSH 会话里
+- **独立 CLI（`octie`）与 Web UI（`octie serve`）**：不装 DSH 也能用，见下文
+  「CLI 独立使用」
+- **13 个 `octie_*` 模型工具** + `octie` Cordis 服务 + `octie/*` 事件——DSH 会话里
   直接规划、执行、追踪任务图
 - **DSH 客户端任务面板**：列表 + 分层 DAG 图视图、项目活跃度排序、实时同步、图物理开关
 - **「Octie 任务图模式」agent preset**：随插件自动预置，开箱即用的任务图工作模式
 - **`octie` 使用技能**：按需加载的完整用法手册（心智模型 / 不变式 / 模式库 / 陷阱）
-- **独立 CLI 与 Web UI**：`octie serve` 启动随附的网页界面，脱离 DSH 也能用
+
+## CLI 独立使用
+
+要求 Node.js ≥ 20。
+
+```sh
+# 推荐：npm 包（发布后）
+npm install -g octie-cli
+
+# 或从源码构建（开发向，详见 docs/development.md）
+git clone https://github.com/StarChen-Cycler/octie-dsh-plugin
+cd octie-dsh-plugin/octie && npm install && npm run build:cli
+```
+
+快速上手：
+
+```sh
+octie init                                   # 初始化项目（创建 .octie/）
+octie create \
+  --title "Implement login endpoint" \
+  --description "POST /api/auth/login：校验凭据、签发 JWT。" \
+  --success-criterion "Returns 200 with JWT for valid credentials" \
+  --deliverable "src/api/auth/login.ts"
+octie list --format md                        # 查看任务
+octie update <id> --complete-criterion <cid>  # 维护进度
+octie approve <id>                            # 审批：BFS 解锁下游
+octie serve                                   # 网页界面（默认 3456 端口）
+```
+
+CLI 的完整使用原则（建任务 / 建依赖 / 图操作 / 执行审批 / need_fix）见
+[`docs/cli-usage-principles.md`](docs/cli-usage-principles.md)。
 
 ## 安装（DSH）
 
@@ -46,6 +88,9 @@ dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
 
 安装后重启 DSH：插件会自动预置「Octie 任务图模式」（见下文），`cordis.patch.yml`
 挂载 `octie-dsh` 插件行，13 个工具与 `octie` 技能即时可用。
+
+DSH 插件层的使用原则（13 个 `octie_*` 工具的用法规范）见
+[`docs/dsh-plugin-usage-principles.md`](docs/dsh-plugin-usage-principles.md)。
 
 ## 客户端任务面板
 
@@ -70,7 +115,10 @@ dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
 ## 用法
 
 任务图组件的完整用法（工具签名、绝对路径约定、不变式、模式库、陷阱）见
-[`skills/octie/SKILL.md`](skills/octie/SKILL.md)。
+[`skills/octie/SKILL.md`](skills/octie/SKILL.md)。分接口的使用原则：
+
+- **CLI**：[`docs/cli-usage-principles.md`](docs/cli-usage-principles.md)
+- **DSH 插件工具**：[`docs/dsh-plugin-usage-principles.md`](docs/dsh-plugin-usage-principles.md)
 
 ## License
 

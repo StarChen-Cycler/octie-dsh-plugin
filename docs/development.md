@@ -68,7 +68,8 @@ typecheck → build → test:smoke → `npm test` → **dist 漂移门禁**。
 
 - **npm**（推荐给最终用户，秒级安装）：`cd octie && npm publish`（`prepublishOnly`
   会先 build + 全量测试；tarball 已实测 991 KB / 133 文件，含 dist/plugin/client/
-  preset/skills）。发布后 `dsh plugin add octie-cli`。
+  preset/skills）。发布后：DSH 用户 `dsh plugin add octie-cli`；CLI 用户
+  `npm install -g octie-cli`（同一包，两条接口共用）。
 - **GitHub Releases**（无 npm 账号时的备选）：把 `npm pack` 产物 tgz 挂到 Release，
   用户以 tarball URL 安装。
 - **GitHub 直装**：随附 dist，直接可用（见 README）。
