@@ -315,7 +315,13 @@ window.__ModuleLoader__.load({
 
     function GraphView(props) {
       const tasks = props.tasks || [];
-      const tasksKey = tasks.map((t) => t.id).join('|');
+      // The key must cover everything the graph renders: a status change
+      // (update/approve) or a blocker change (wire) must rebuild the sim so
+      // node classes pick up the new status color — keying by id alone kept
+      // stale node colors in the graph view after updates.
+      const tasksKey = tasks
+        .map((t) => t.id + ':' + t.status + ':' + (t.blockers || []).join(','))
+        .join('|');
       const { physics } = useOctieState();
       const sim = React.useMemo(() => buildSim(tasks), [tasksKey]);
       const simRef = React.useRef(sim);
