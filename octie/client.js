@@ -165,21 +165,68 @@ window.__ModuleLoader__.load({
       for (const n of nodes) n.y = 28 + n.level * levelGap;
       const byLevel = new Map();
       for (const n of nodes) { if (!byLevel.has(n.level)) byLevel.set(n.level, []); byLevel.get(n.level).push(n); }
-      for (const [, list] of byLevel) {
-        list.sort((a, b) => (a.id < b.id ? -1 : 1));
-        const span = W - 48;
-        list.forEach((n, i) => { n.x = 24 + (list.length === 1 ? span / 2 : (i * span) / (list.length - 1)); });
+
+      // Barycenter ordering (Sugiyama): minimize edge crossings by sorting
+      // each level on the mean neighbor order index (down+up sweeps), then
+      // give every node an evenly spaced target x in the final order. Nodes
+      // with no neighbors keep their id order (they add no crossings). The
+      // force sim's hidden target springs then settle the layout near these
+      // crossing-minimized, stable positions.
+      const dependents = new Map();
+      for (const [s, t] of edges) {
+        if (!dependents.has(s)) dependents.set(s, []);
+        dependents.get(s).push(t);
       }
-      // Virtual parents for isolated orphans: every fully disconnected node at
-      // the top level gets a hidden fixed point in a virtual layer above (same
-      // height), with x spread evenly by id order. A hidden spring pulls each
-      // orphan toward its own target, so the orphan cloud settles into a
-      // stable, evenly spread arrangement instead of wandering.
-      const sources = new Set(edges.map((edge) => edge[0]));
-      const orphans = nodes.filter((n) => n.level === 0 && !sources.has(n.id));
-      orphans.sort((a, b) => (a.id < b.id ? -1 : 1));
-      const vSpan = W - 48;
-      orphans.forEach((n, i) => { n.vx0 = orphans.length === 1 ? W / 2 : 24 + (i * vSpan) / (orphans.length - 1); });
+      const levelOrder = new Map();
+      for (const [lv, list] of byLevel) {
+        list.sort((a, b) => (a.id < b.id ? -1 : 1));
+        levelOrder.set(lv, list.map((n) => n.id));
+      }
+      const orderIndexOf = (lv) => {
+        const m = new Map();
+        (levelOrder.get(lv) || []).forEach((id, i) => m.set(id, i));
+        return m;
+      };
+      for (let sweep = 0; sweep < 4; sweep++) {
+        for (let lv = 1; lv <= maxLevel; lv++) {
+          const parentIdx = orderIndexOf(lv - 1);
+          const curIdx = orderIndexOf(lv);
+          const keyed = (levelOrder.get(lv) || []).map((id) => {
+            const n = byId.get(id);
+            let sum = 0, count = 0;
+            for (const b of n.blockers) {
+              const idx = parentIdx.get(b);
+              if (idx !== undefined) { sum += idx; count++; }
+            }
+            return { id, bary: count > 0 ? sum / count : curIdx.get(id) };
+          });
+          keyed.sort((a, b) => a.bary - b.bary);
+          levelOrder.set(lv, keyed.map((k) => k.id));
+        }
+        for (let lv = maxLevel - 1; lv >= 0; lv--) {
+          const childIdx = orderIndexOf(lv + 1);
+          const curIdx = orderIndexOf(lv);
+          const keyed = (levelOrder.get(lv) || []).map((id) => {
+            const kids = dependents.get(id) || [];
+            let sum = 0, count = 0;
+            for (const c of kids) {
+              const idx = childIdx.get(c);
+              if (idx !== undefined) { sum += idx; count++; }
+            }
+            return { id, bary: count > 0 ? sum / count : curIdx.get(id) };
+          });
+          keyed.sort((a, b) => a.bary - b.bary);
+          levelOrder.set(lv, keyed.map((k) => k.id));
+        }
+      }
+      const spanX = W - 48;
+      for (const [, ids] of levelOrder) {
+        ids.forEach((id, i) => {
+          const n = byId.get(id);
+          n.vx0 = ids.length === 1 ? W / 2 : 24 + (i * spanX) / (ids.length - 1);
+          n.x = n.vx0; // start near the crossing-minimized equilibrium
+        });
+      }
       return { nodes, edges, byId, W, H, levelGap, alpha: 1, dragging: null };
     }
 
@@ -210,7 +257,7 @@ window.__ModuleLoader__.load({
         fx.set(a.id, fx.get(a.id) - f);
         fx.set(b.id, fx.get(b.id) + f);
       }
-      // Hidden virtual-parent springs hold each orphan near its target x.
+      // Hidden target springs hold every node near its crossing-minimized x.
       for (const n of nodes) {
         if (n.vx0 !== null && sim.dragging !== n.id) {
           fx.set(n.id, fx.get(n.id) + (n.vx0 - n.x) * 0.15);
