@@ -79,6 +79,7 @@ docs/*
 !docs/preset-skill-maintenance.md
 !docs/development.md
 !docs/cli-usage-principles.md
+!docs/dsh-plugin-usage-principles.md
 design/
 files/
 right-way-to-flags/

@@ -121,6 +121,6 @@ octie update <id> --unblock <id>（执行流程中）  # 用 octie approve 走�
 ## 10. 与其他文档的关系
 
 - **不变式与心智模型**（状态派生 / approve 门 / 孪生 / 原子校验）：`octie/skills/octie/SKILL.md`（usage skill，权威）。
-- **DSH 侧使用**（octie_* 工具、绝对 `project` 路径约定、面板）：同一份 usage skill 的 Part 0.5 与模式 E。
+- **DSH 插件工具层版本**（同一套原则换成 13 个 `octie_*` 工具的表达）：`docs/dsh-plugin-usage-principles.md`。
 - **开发与维护**：`docs/development.md`、`docs/preset-skill-maintenance.md`。
 - 本文若与 usage skill 冲突，以 usage skill 为准——它是单一事实来源。
