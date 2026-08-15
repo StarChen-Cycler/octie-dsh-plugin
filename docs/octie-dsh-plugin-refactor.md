@@ -419,3 +419,21 @@ octie/ （usage skill，单一目录）
 2. **模式带元数据**：每个 pattern 写「适用场景 + 依赖的其它组件 + 取舍」，而非「正确流程」。
 3. **不变式极简**：不变式只收「工具性质」，不收任何「某工作流偏好」——这是防止 usage skill
    腐化回「4 个 phase skill 各说各话」的关键。
+
+## 11. 交付后的增量（2026-08 维护期）
+
+> 本节记录 §1–§10 设计定稿之后、维护期合入的能力与机制；§1–§10 保持设计时的原貌。
+
+| 增量 | 内容 | 落点 |
+|---|---|---|
+| 客户端任务面板 | 列表 + 分层 DAG 图视图（barycenter 交叉最小化 + 力导向微调 + 拖拽回稳） | `client.js`（`exports["./client"]`），经 `sidebar.footer.action` / `shell.overlay` / `sidebar.workspaces` 槽注册 |
+| 项目活跃度排序 | 信号 = `.octie/project.json` mtime（最近任务更新时间）；面板下拉、`/api/projects`、侧边栏子树排名统一使用 | `getProjectLastUpdated`（core/registry）、`buildProjectTree`（core/utils）、web 路由 |
+| 实时同步 | 会话内工具变更走 SSE 秒级推送；外部写入（CLI / Web UI / 其他会话）由 SSE 连接的 3 秒 mtime 轮询检测 | `/api/octie/events`（Node half）、`connectSse(project)`（client） |
+| 图物理开关 | 图视图右上角 `Physics`：开启时扰动后受力回弹、拖拽涟漪；关闭时节点滑回整齐布局后定格 | `client.js` GraphView |
+| 随包 agent preset | 「Octie 任务图模式」模板随包（`preset/octie-mode/`），插件 `apply()` 幂等预置到用户 preset 根（任何 root 已有同 id 即跳过、`authorable=false` 不猜路径）；persona 注入心智模型并强制先读 `octie` skill | `plugin/index.mjs` `ensureOctiePreset()`；创作/验证路径见 `docs/preset-skill-maintenance.md` |
+| GitHub 直装 | npm git 依赖只打包 git 已跟踪文件 → `octie/dist`（除 `.map` 与 `dist/web-ui/`）提交进仓库；根 facade `package.json` 镜像 exports/dsh/bin 契约 + 运行时依赖，`dsh plugin add github:StarChen-Cycler/octie-dsh-plugin` 开箱即用；CI `git diff --exit-code -- octie/dist` 门禁防漂移 | 根 `package.json`、`octie/.gitignore`、`.gitattributes`、`.github/workflows/ci.yml` |
+| 文档重构 | README 纯用户向；开发事项下沉 `docs/development.md`；preset/skill 修改路径与升级兼容性在 `docs/preset-skill-maintenance.md` | 仓库根 / `docs/` |
+
+**安装形态对照（与 §3 选型结论一致，落地补充）**：bundle 仍是唯一正确形态；agent preset
+（模式）作为提示词层叠加在宿主平面的 bundle 之上，而不是把 bundle 移进 preset——bundle 的
+`octie` 服务发布、面板路由与技能注册属于宿主平面，进 preset 会被挂载审计拒绝。

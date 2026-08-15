@@ -10,15 +10,26 @@ Octie 同时是一个可安装的 DSH bundle 插件：任务图状态机直接�
 ### 安装
 
 ```sh
-# 从 npm（发布后）
+# 推荐：npm 包（预构建，秒级安装）
 dsh plugin --profile <name> add octie-cli
 
-# 或从 git 源
-dsh plugin --profile <name> add github:<owner>/octie-dsh-plugin#<ref>
+# 或从 GitHub 直装（仓库随附构建产物，开箱即用）
+dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
 ```
 
-安装后，`cordis.patch.yml` 会挂载 `octie-dsh` 插件行：提供 `octie` 服务、注册
-`octie_*` 模型工具、并发出 `octie/*` 事件。
+要求 Node.js ≥ 20。安装后重启 DSH：`cordis.patch.yml` 挂载 `octie-dsh` 插件行（`octie`
+服务、13 个 `octie_*` 模型工具、`octie/*` 事件），并**自动预置「Octie 任务图模式」
+agent preset**（幂等，已存在绝不覆盖）——新会话选该模式即获 Octie 心智模型 +
+「先读 `octie` skill」的强制第一步。
+
+### 客户端面板
+
+- **项目活跃度排序**：项目下拉按 `.octie/project.json` mtime（最近任务更新时间）倒序，
+  最近动过的项目自动浮顶并被默认选中。
+- **实时同步**：会话内工具变更经 SSE 秒级推送；外部写入（CLI / Web UI / 其他会话）
+  经 3 秒 mtime 轮询自动刷新（列表 + 图 + 下拉）。
+- **图物理开关**：图视图右上角 `Physics` 开关——开启时小球受力（扰动回弹、拖拽涟漪），
+  关闭时丝滑滑回整齐布局后定格。
 
 ### 工具清单（13 个）
 
@@ -51,6 +62,8 @@ dsh plugin --profile <name> add github:<owner>/octie-dsh-plugin#<ref>
 - `octie-cli/core`（`exports["./core"]`）：DSH 无关的 octie-core 库——`TaskGraphStore`/
   `TaskNode`/`TaskStorage` + service 层（`createTask`/`listTasks`/…），CLI 与 Web UI 共用。
 - 包根（`exports["."]`）：Cordis Node half（`plugin/index.mjs`）。
+- `exports["./client"]`：DSH 客户端任务面板（`client.js`）。
 - `bin`：`octie` CLI。
 
-详见仓库根 `README.md` 与 `docs/octie-dsh-plugin-refactor.md`（改造设计全文）。
+详见仓库根 `README.md` 与 `docs/octie-dsh-plugin-refactor.md`（改造设计全文）、
+`docs/development.md`（开发须知）。

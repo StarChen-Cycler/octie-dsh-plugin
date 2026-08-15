@@ -27,7 +27,7 @@ package.json                      cordis.patch.yml            plugin/index.mjs
   它 `import { … } from '../dist/index.js'` 直接调 octie-core 的服务层。
 - 安装：`dsh plugin --profile web add <spec>`，安装器把 `dsh.profile.bundles` 与依赖对齐。
 
-### 1.1 `apply(ctx)` 里做的四件事（都在当前 Fiber 内、可撤销）
+### 1.1 `apply(ctx)` 里做的事（都在当前 Fiber 内、可撤销）
 
 ```js
 export function apply(ctx) {
@@ -40,9 +40,12 @@ export function apply(ctx) {
   // ② 注册模型工具：13 个 octie_*，交给 ctx.tools.register
   for (const tool of buildTools(service)) disposers.push(ctx.tools.register(tool))
 
-  // ③ 统一 teardown：stop/update/undefine 时全部反向执行
-  ctx.effect(() => () => disposers.forEach(d => d()))
+  // ③ 注册 Web 路由：/api/octie/{projects,state,task,graph,events}（events 为 SSE 长连接）
+  // ④ 注册 skill：ctx.skills.register('octie')，正文读自包内 skills/octie/SKILL.md
+  // ⑤ 幂等预置 agent preset：ensureOctiePreset(ctx)（best-effort，见 §8.3）
 
+  // 统一 teardown：stop/update/undefine 时全部反向执行
+  ctx.effect(() => () => disposers.forEach(d => d()))
   return {}
 }
 ```
@@ -141,7 +144,7 @@ DSH 对工具返回值有硬约束：**lossless JSON = 对象、数组、字符�
 | 3 | （潜伏）首次成功调用会抛 `ToolOutputError` | `output.schema: { type:'string' }` 与“返回对象/数组”不符 | `output.schema` 改为 `{}`（无约束 JSON） |
 | 4 | 传了 `project` 参数却总是读“当前项目”，甚至报 `No Octie project open` | `resolveProject()` 对显式 path 只 `return` 字符串、不 `openProject` 也不设 `service.current`；且 execute 回调忽略第二个参数 | `resolveProject()` 对显式 path 也 `openProject().then(handle => service.current = handle)`，并把 `project` 参数注入所有非 init 工具 |
 | 5 | 第一次调工具就误入 `openProject()` 自动探测 | `octie_init` 的参数字段是 `path` 不是 `project`，但旧 wrapper 对**所有**工具都先 `resolveProject` | `octie_init` 标记 `resolveProject:false`，跳过项目解析 |
-| 6 | 本地改完代码，`dist` 没进 git | `octie/dist/` 在 `.gitignore` 里，`prepack` 时才 `build` 重建 | 源码（`src/**`）入库即可；本地 symlink 安装用 `tsc` 重建 `dist` 即时生效；发布靠 `prepack` |
+| 6 | 本地改完代码，`dist` 没进 git | `octie/dist/` 在 `.gitignore` 里，`prepack` 时才 `build` 重建 | **已反转（2026-08）**：npm git 依赖只打包 git 已跟踪文件，`prepare` 建的 dist 会被丢弃，GitHub 直装因此装完即坏。现改为 `octie/dist`（除 `.map` 与 `dist/web-ui/`）**提交进仓库**，根 facade 镜像运行时依赖，CI 加 `git diff --exit-code -- octie/dist` 漂移门禁。细节见 `docs/development.md` §3 |
 
 ---
 
@@ -149,7 +152,7 @@ DSH 对工具返回值有硬约束：**lossless JSON = 对象、数组、字符�
 
 ```bash
 cd octie
-npm run build:cli          # 重建 dist（dist 被 gitignore，本地安装即时生效）
+npm run build:cli          # 重建 dist（dist 已提交进 git；CI 漂移门禁会校验产物新鲜度）
 npm run test:core          # 快测：service + plugin + core + shared-helpers
 ```
 
@@ -197,3 +200,42 @@ octie 的实现：正文放在包内 `octie/skills/octie/SKILL.md`（`package.js
 
 > **动态插件 = `defineTool`（裸映射，自动转 schema）；bundle 插件 = `ctx.tools.register`（完整 JSON Schema，原样透传）。**
 > **工具返回值永远是 lossless JSON——不许有 `undefined`。**
+
+---
+
+## 8. 维护期新增的接入面（2026-08）
+
+### 8.1 客户端面板（slot 注册）
+
+`client.js` 是 `window.__ModuleLoader__.load` 工厂，`apply` 里经 `ctx.get('slots')` 注册：
+
+- `sidebar.footer.action`（面板开关按钮，owner prop `{wide}`）
+- `shell.overlay`（面板本体）
+- `sidebar.workspaces`（single 槽）
+
+面板是纯 React + `fetch('/api/octie/*')`，样式全部自带（`octie-` 前缀），不依赖主题 token。
+换 DSH 皮肤级前端无需改动；若换掉整个 slot 树则需要把注册点移植到新壳（数据层零改动）。
+
+### 8.2 实时同步（SSE + 外部变更轮询）
+
+- 会话内：`OctieService._notify` → `service.onChange` 订阅 → `/api/octie/events` 写 SSE 帧。
+- 外部写入（终端 CLI / Web UI / 其他会话）不经过本进程：SSE 连接按 `?project=` 每 3 秒
+  stat 当前项目 `project.json` 与全局注册表 mtime，变化即推 `external-change` 事件。
+- 客户端 `connectSse(project)` 随项目切换重连；`es.onmessage → refresh()` 一次刷新
+  列表 + 图 + 项目下拉。
+
+### 8.3 agent preset 预置（宿主平面写用户 root）
+
+`ensureOctiePreset(ctx)`：`ctx.get('agentPresets')`（可选服务）→ roster 探测（任何 root
+已有 id=`octie` 即跳过；`authorable=false` 不猜路径）→ 直写 `$DSH_HOME/.agent-presets/octie/`。
+幂等、best-effort、卸载不删除；`OCTIE_NO_PRESET_PROVISION=1` 退出（测试用）。
+创作/修改/验证路径见 `docs/preset-skill-maintenance.md`。
+
+### 8.4 安装形态与仓库布局
+
+- 根 facade `package.json`：镜像 `octie/package.json` 的 exports / dsh.bundle / bin 契约 +
+  运行时依赖，让 `dsh plugin add github:…` 能解析并携带依赖；无 workspaces，不影响
+  `octie/` 内 `npm ci`。
+- `octie/dist`（tsc 产物）提交进仓库：npm git 依赖只打包已跟踪文件（坑 #6 的反转）。
+- `dist/web-ui/`（vite 产物）不进仓库：html 输出跨平台/跨 Node 版本不逐字节确定，
+  进提交会让漂移门禁必红；仅 `octie serve` 需要，npm tarball 仍会带。

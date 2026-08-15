@@ -106,9 +106,14 @@ Octie 是**持久化任务图状态机**：节点 = 任务，边 = blocker（依
 
 - **适用**：在 DeepSeek Harness 里盯一个项目的执行状态，不想切终端。
 - **组合**：侧栏 Octie 图标 → 面板；**List 视图**按 status→priority→title 排序，当执行队列看；
-  **Graph 视图**看依赖 DAG（ready 在上、blocked 在下，节点可拖拽、松手回稳）；悬停出完整标题；
+  **Graph 视图**看依赖 DAG（ready 在上、blocked 在下，节点可拖拽、松手回稳；右上角
+  `Physics` 开关：开启时受力/扰动回弹，关闭时滑回整齐布局后定格）；悬停出完整标题；
   点任务/节点开详情弹窗（criteria / deliverables / need_fix / blockers / dependencies / C7 / notes / 时间戳）。
-- **数据同源**：面板经 `/api/octie/*` 读取 + SSE 推送，与 CLI/工具实时一致。
+- **项目下拉按活跃度排序**：以 `.octie/project.json` 的 mtime（最近任务更新时间）倒序，
+  最近动过的项目浮在顶部并被默认选中，附相对时间提示。
+- **数据同源**：面板经 `/api/octie/*` 读取 + SSE 推送，与 CLI/工具实时一致；会话内工具
+  变更秒级刷新，**外部写入**（终端 CLI / Web UI / 其他 DSH 会话）经 Node half 每 3 秒
+  mtime 轮询也会自动刷新。
 - **依赖**：DSH bundle 的 client half（面板只读，变更仍走工具/CLI）。
 - **取舍**：零切换盯进度；但只能看，不能改。
 

@@ -24,7 +24,7 @@ This guide covers common issues and their solutions when using Octie.
 1. **Global installation not in PATH**:
    ```bash
    # Reinstall globally
-   npm install -g octie
+   npm install -g octie-cli
 
    # Verify npm global bin path is in PATH
    npm config get prefix
@@ -56,8 +56,8 @@ This guide covers common issues and their solutions when using Octie.
 npm cache clean --force
 
 # Reinstall
-npm uninstall -g octie
-npm install -g octie
+npm uninstall -g octie-cli
+npm install -g octie-cli
 
 # Or for local development
 cd octie
@@ -209,7 +209,7 @@ npm config set prefix '~/.npm-global'
 export PATH=~/.npm-global/bin:$PATH
 
 # Option 3: Use sudo (not recommended)
-sudo npm install -g octie
+sudo npm install -g octie-cli
 ```
 
 ## Graph Issues
