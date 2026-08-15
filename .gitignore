@@ -75,7 +75,8 @@ octie/web-ui/public/*
 octie/web-ui/src/assets/
 vendor/
 packages/
-docs/
+docs/*
+!docs/preset-skill-maintenance.md
 design/
 files/
 right-way-to-flags/
