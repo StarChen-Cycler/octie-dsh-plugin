@@ -216,13 +216,17 @@ octie 的实现：正文放在包内 `octie/skills/octie/SKILL.md`（`package.js
 面板是纯 React + `fetch('/api/octie/*')`，样式全部自带（`octie-` 前缀），不依赖主题 token。
 换 DSH 皮肤级前端无需改动；若换掉整个 slot 树则需要把注册点移植到新壳（数据层零改动）。
 
-### 8.2 实时同步（SSE + 外部变更轮询）
+### 8.2 实时同步（SSE + 外部变更检测）
 
 - 会话内：`OctieService._notify` → `service.onChange` 订阅 → `/api/octie/events` 写 SSE 帧。
-- 外部写入（终端 CLI / Web UI / 其他会话）不经过本进程：SSE 连接按 `?project=` 每 3 秒
-  stat 当前项目 `project.json` 与全局注册表 mtime，变化即推 `external-change` 事件。
-- 客户端 `connectSse(project)` 随项目切换重连；`es.onmessage → refresh()` 一次刷新
-  列表 + 图 + 项目下拉。
+- 外部写入（终端 CLI / Web UI / 其他会话）不经过本进程，两条通道：
+  1. **fs.watch（即时）**：SSE 连接按 `?project=` 监听当前项目 `.octie` 目录——project.json /
+     history/ / config.json 任一文件变动（120ms 防抖）立即推 `external-change` 事件，
+     因为这些是唯一会改变图表的文件（不监听项目根目录的无关文件，避免噪声）。
+  2. **3 秒 mtime 轮询（兜底）**：覆盖注册表文件、watcher 出错、目录暂缺等场景。
+- 客户端：`connectSse(project)` 随项目切换重连；`es.onmessage` / `es.onerror` → `refresh()`；
+  页面从后台恢复可见（`visibilitychange`）强制 `refresh()`——旧标签页自愈，
+  一次刷新列表 + 图 + 项目下拉。
 
 ### 8.3 agent preset 预置（宿主平面写用户 root）
 

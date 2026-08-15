@@ -31,6 +31,11 @@ node dist/cli/index.js --help
 改 `client.js` 无需构建（浏览器直读）；改 `plugin/index.mjs` 无需构建（Node 直读，但 DSH
 需重启）；改 `src/**` 需要 `npm run build:cli`。
 
+面板实时链路（维护时注意）：会话内工具事件 → SSE 秒级推送；外部写入 → `/api/octie/events`
+用 **fs.watch 监听当前项目 `.octie` 目录**（project.json/history/config 任一变动 ~100ms 推
+`external-change`）+ 3 秒 mtime 轮询兜底（注册表 + 容错）；客户端 `es.onmessage`/`es.onerror`/
+`visibilitychange` 都会触发 `refresh()`（旧标签页自愈）。机制细节见 `octie/docs/CORDIS-INTEGRATION.md` §8.2。
+
 ## 3. dist 提交策略（重要）
 
 **`octie/dist/` 是提交进仓库的**，排除 `.map` 调试文件。原因：

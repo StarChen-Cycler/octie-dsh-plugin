@@ -57,9 +57,13 @@ window.__ModuleLoader__.load({
     function connectSse(project) {
       const url = '/api/octie/events' + (project ? '?project=' + encodeURIComponent(project) : '');
       const es = new EventSource(url);
-      // Any host-side change (in-session tool event or the Node half's
-      // external-change mtime poll) → re-read state for list + graph + picker.
+      // Any host-side change (in-session tool event, the Node half's .octie
+      // file watcher, or the mtime fallback poll) → re-read state for the
+      // list + graph + picker.
       es.onmessage = () => refresh();
+      // Self-heal: if the stream errors (dropped connection, server restart),
+      // immediately re-read state; EventSource itself reconnects automatically.
+      es.onerror = () => refresh();
       return () => es.close();
     }
 
@@ -606,8 +610,16 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         refresh();
         // Reconnect the SSE channel when the viewed project changes so the
-        // Node half's external-change poll watches the right project.json.
-        return connectSse(s.project);
+        // Node half's .octie file watcher watches the right directory.
+        const offSse = connectSse(s.project);
+        // Self-heal stale tabs: when the page becomes visible again, force a
+        // refresh so a missed SSE window never leaves the panel outdated.
+        const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+          offSse();
+          document.removeEventListener('visibilitychange', onVisible);
+        };
       }, [s.project]);
       if (!s.open) return null;
       const options = projectOptions(s.projects);

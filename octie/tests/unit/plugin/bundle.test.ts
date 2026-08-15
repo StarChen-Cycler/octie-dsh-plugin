@@ -477,6 +477,63 @@ describe('octie-dsh bundle Node half', () => {
     }
   });
 
+  it('GET /api/octie/events pushes instantly when the .octie directory changes (fs.watch)', async () => {
+    vi.useRealTimers();
+    const dir = join(tmpdir(), `octie-watch-test-${uuidv4()}`);
+    mkdirSync(dir, { recursive: true });
+    const storage = new TaskStorage({ projectDir: dir });
+    await storage.createProject('watch-test');
+    const projectFile = join(dir, '.octie', 'project.json');
+    const closeHandlers: Array<() => void> = [];
+    try {
+      const routes: any[] = [];
+      const webServerMock = {
+        register: (route: any) => { routes.push(route); return () => {}; },
+      };
+      const wrapper: any = {
+        tools: { register: () => () => {} },
+        provide: () => () => {},
+        emit: () => {},
+        on: () => () => {},
+        get: (name: string) => (name === 'webServer' ? webServerMock : undefined),
+        effect: (cb: () => any) => { cb(); return () => {}; },
+      };
+      apply(wrapper);
+
+      const eventsRoute = routes.find((r) => r.path === '/api/octie/events');
+      expect(eventsRoute).toBeDefined();
+
+      const writes: string[] = [];
+      const res = {
+        writeHead: () => {},
+        write: (chunk: string) => { writes.push(chunk); },
+        end: () => {},
+        on: (ev: string, fn: () => void) => { if (ev === 'close') closeHandlers.push(fn); },
+      };
+      const req = {
+        url: `/?project=${encodeURIComponent(dir)}`,
+        on: (ev: string, fn: () => void) => { if (ev === 'close') closeHandlers.push(fn); },
+      };
+      eventsRoute.handler(req, res);
+      expect(writes[0]).toContain(': connected');
+
+      // Any write into the project's .octie directory must push within ~1s
+      // (fs.watch), well before the 3s fallback poll would fire.
+      writeFileSync(projectFile, readFileSync(projectFile, 'utf8') + '\n');
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if (writes.some((w) => w.includes('"kind":"external-change"') && w.includes('"scope":"tasks"'))) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const taskEvents = writes.filter((w) => w.includes('"kind":"external-change"') && w.includes('"scope":"tasks"'));
+      expect(taskEvents.length).toBeGreaterThanOrEqual(1);
+      expect(taskEvents[0]).toContain(JSON.stringify(dir).slice(1, -1));
+    } finally {
+      closeHandlers.forEach((fn) => fn());
+      try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
   it('functional smoke: init -> create -> list -> events', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

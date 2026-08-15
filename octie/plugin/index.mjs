@@ -12,7 +12,7 @@
  * owned JSON projection — no live graph objects ever cross the boundary.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -600,9 +600,11 @@ function registerWebRoutes(webServer, service, disposers) {
 
       // In-session tool mutations push through service.onChange. External
       // writes (octie CLI in a terminal, the web UI, another DSH session) are
-      // invisible to that channel, so each connection also polls the mtimes
-      // of the viewed project's graph file and the global registry and emits
-      // an external-change event when either moves. 3s stat calls are cheap.
+      // invisible to that channel, so each connection also watches the viewed
+      // project's .octie directory — ANY change to project.json / history/ /
+      // config.json pushes an external-change event within ~100ms, because
+      // those are the only files that alter the chart. A 3s mtime poll stays
+      // as a fallback (registry file + watcher errors + missing directories).
       const params = parseQuery(req);
       const project = params.get('project') || '';
       const registryFile = join(homedir(), '.octie', 'projects.json');
@@ -610,18 +612,43 @@ function registerWebRoutes(webServer, service, disposers) {
       const mtimeOf = (p) => { try { return statSync(p).mtimeMs; } catch { return -1; } };
       let lastRegistry = mtimeOf(registryFile);
       let lastProject = mtimeOf(projectFile);
+      const push = (payload) => {
+        try { res.write(`data: ${JSON.stringify(payload)}\n\n`); } catch { /* client gone */ }
+      };
+
+      let projectWatcher = null;
+      let watchTimer = null;
+      if (project) {
+        const octieDir = join(project, '.octie');
+        try {
+          projectWatcher = watch(octieDir, () => {
+            // Debounce bursts (atomic writes are tmp-write + rename).
+            if (watchTimer) return;
+            watchTimer = setTimeout(() => {
+              watchTimer = null;
+              const pm = mtimeOf(projectFile);
+              if (pm !== -1 && pm !== lastProject) {
+                lastProject = pm;
+                push({ kind: 'external-change', scope: 'tasks', project });
+              }
+            }, 120);
+          });
+          projectWatcher.on('error', () => { /* fall back to the poll */ });
+        } catch { /* .octie missing — the poll will pick it up once created */ }
+      }
+
       const pollTimer = setInterval(() => {
         try {
           const rm = mtimeOf(registryFile);
           if (rm !== -1 && rm !== lastRegistry) {
             lastRegistry = rm;
-            res.write(`data: ${JSON.stringify({ kind: 'external-change', scope: 'projects' })}\n\n`);
+            push({ kind: 'external-change', scope: 'projects' });
           }
           if (projectFile) {
             const pm = mtimeOf(projectFile);
             if (pm !== -1 && pm !== lastProject) {
               lastProject = pm;
-              res.write(`data: ${JSON.stringify({ kind: 'external-change', scope: 'tasks', project })}\n\n`);
+              push({ kind: 'external-change', scope: 'tasks', project });
             }
           }
         } catch { /* connection gone */ }
@@ -632,6 +659,8 @@ function registerWebRoutes(webServer, service, disposers) {
       });
       const cleanup = () => {
         clearInterval(pollTimer);
+        if (watchTimer) clearTimeout(watchTimer);
+        if (projectWatcher) { try { projectWatcher.close(); } catch { /* noop */ } }
         off();
         try { res.end(); } catch { /* noop */ }
       };
