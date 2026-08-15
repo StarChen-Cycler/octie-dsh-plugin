@@ -81,6 +81,7 @@ right-way-to-flags/
 
 # Memo files
 .memo/
+.codegraph/
 CLAUDE.md
 /*.md
 !README.md

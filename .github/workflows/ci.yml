@@ -11,7 +11,7 @@ defaults:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,6 +20,9 @@ jobs:
           cache: npm
           cache-dependency-path: octie/package-lock.json
       - run: npm ci
+      # web-ui is its own package; its build (octie serve) needs these too
+      - run: npm ci
+        working-directory: octie/web-ui
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:smoke

@@ -54,7 +54,7 @@ node dist/cli/index.js --help
 - [`docs/octie-dsh-plugin-refactor.md`](docs/octie-dsh-plugin-refactor.md) —— 从原 Octie 到 DSH 插件的完整改造设计（选型、API 设计、长期架构）。
 - [`octie/docs/USABILITY.md`](octie/docs/USABILITY.md) —— 易用性评估（9 条发现，3 条已修复）。
 - [`octie/docs/AUDIT.md`](octie/docs/AUDIT.md) —— 发布前 5 面审计记录（5/5 通过）。
-- [`.memo/memodocs/`](.memo/memodocs/) —— 本改造的 user/tech specs 与 Octie 任务图规划。
+- [`octie/docs/CORDIS-INTEGRATION.md`](octie/docs/CORDIS-INTEGRATION.md) —— Cordis 接入机制与踩坑记录。
 
 ## 与上游的关系
 
