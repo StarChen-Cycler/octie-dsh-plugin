@@ -2,7 +2,13 @@
 node_modules/
 
 # Build outputs
-dist/
+# dist/ is COMMITTED on purpose: npm git-dependency installs ship only
+# git-tracked files, so the GitHub-direct install path needs the built
+# artifacts in the repository. Rebuild and commit after source changes
+# (CI has a git-diff drift gate). Debug .map files stay out.
+!dist/
+!dist/**
+dist/**/*.map
 build/
 *.log
 

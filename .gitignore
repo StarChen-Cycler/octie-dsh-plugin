@@ -77,6 +77,7 @@ vendor/
 packages/
 docs/*
 !docs/preset-skill-maintenance.md
+!docs/development.md
 design/
 files/
 right-way-to-flags/

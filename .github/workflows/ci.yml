@@ -29,5 +29,9 @@ jobs:
         working-directory: octie/web-ui
       - run: npm run typecheck
       - run: npm run build
+      # Committed dist must stay in sync with source: GitHub-direct installs
+      # ship only git-tracked files. Fail when the fresh build drifts.
+      - run: git diff --exit-code -- octie/dist
+        working-directory: ${{ github.workspace }}
       - run: npm run test:smoke
       - run: npm test

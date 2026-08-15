@@ -27,8 +27,5 @@
   "type": "module",
   "files": [
     "octie"
-  ],
-  "scripts": {
-    "prepare": "cd octie && npm ci --ignore-scripts && npm run build:cli"
-  }
+  ]
 }
