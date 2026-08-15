@@ -251,7 +251,7 @@ window.__ModuleLoader__.load({
           n.x = n.vx0; // start near the crossing-minimized equilibrium
         });
       }
-      return { nodes, edges, byId, W, H, levelGap, alpha: 1, dragging: null };
+      return { nodes, edges, byId, W, H, levelGap, alpha: 1, dragging: null, idle: 0 };
     }
 
     // One simulation step on X only (the dragged node's x is pinned by the pointer).
@@ -373,8 +373,19 @@ window.__ModuleLoader__.load({
         }
 
         if (s.dragging === null && s.alpha <= 0.02) {
+          // Physics ON and settled: keep the force system visibly alive with
+          // a sparse ambient impulse (~every half second, 35% chance on a
+          // random node) instead of stopping the loop, so the ON state feels
+          // persistent. Turning physics OFF still freezes via the branch above.
+          s.idle = (s.idle || 0) + 1;
+          if (s.idle >= 30 && s.nodes.length > 0 && Math.random() < 0.35) {
+            const n = s.nodes[Math.floor(Math.random() * s.nodes.length)];
+            n.vx += (Math.random() - 0.5) * 1.4;
+            s.alpha = 0.12;
+            s.idle = 0;
+          }
           applySim(s, nodeElsRef.current, edgeElsRef.current);
-          rafRef.current = null; // settled → stop consuming CPU
+          rafRef.current = requestAnimationFrame(loop);
           return;
         }
         tickSim(s);
@@ -393,14 +404,22 @@ window.__ModuleLoader__.load({
         if (!s) return;
         for (const n of s.nodes) n.x = Math.max(12, Math.min(s.W - 12, n.x + (Math.random() - 0.5) * magnitude));
         s.coasting = false;
-        s.alpha = 0.6;
+        s.alpha = 0.7;
         startLoop();
       }
 
       React.useEffect(() => {
         simRef.current = sim;
         if (physicsRef.current) reheat(12); // initial visible settle when physics is on
-        return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
+        return () => {
+          // Race fix: a cancelled frame id must be cleared, otherwise the
+          // stale non-null rafRef makes every later startLoop() a no-op and
+          // the physics loop stays dead after a project switch.
+          if (rafRef.current != null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+        };
       }, [sim]);
 
       // Physics toggle transitions (skip the mount run — mount is handled above).
