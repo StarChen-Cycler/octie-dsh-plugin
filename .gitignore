@@ -6,6 +6,7 @@ monitor-claude-delay.ps1
 # Version control
 .git/
 .github/
+!.github/
 .svn/
 .hg/
 
