@@ -9,7 +9,9 @@
 > DAG 图布局、项目活跃度排序、外部变更实时同步、图物理开关、随插件预置的
 > Octie 任务图模式、`octie` 使用技能等）。功能以「先可用、再迭代」的方式演进。
 
-**Octie，重构为 DeepSeek Harness（DSH）可安装的 bundle 插件。**
+**Octie —— agent 时代的状态导向任务图内核（state-oriented task graph kernel），
+重构为 DeepSeek Harness（DSH）可安装的 bundle 插件。State is derived, not set：
+状态只读派生，而非手工设置——the task layer that every agent framework can call。**
 
 Octie 是一个面向 agent 时代的**持久化任务图状态机**：节点 = 原子任务，边 = blocker 依赖，
 状态**只读派生**（`ready → in_progress → in_review → completed`，唯一手动转移是 `approve`），
