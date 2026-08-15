@@ -72,6 +72,21 @@ window.__ModuleLoader__.load({
     // Section accent colors mirroring the original TaskDetail view.
     const SEC_COLORS = { cyan: '#00d4ff', amber: '#ff9f1c', rose: '#f43f5e', violet: '#a78bfa', emerald: '#10b981' };
 
+    // List view execution order: kanban flow first (ready → in_progress →
+    // in_review → blocked → completed), then priority (top → second → later),
+    // then title alphabetical.
+    const STATUS_ORDER = { ready: 0, in_progress: 1, in_review: 2, blocked: 3, completed: 4 };
+    const PRIORITY_ORDER = { top: 0, second: 1, later: 2 };
+    function sortTasks(tasks) {
+      return [...(tasks || [])].sort((a, b) => {
+        const ds = (STATUS_ORDER[a.status] ?? 5) - (STATUS_ORDER[b.status] ?? 5);
+        if (ds !== 0) return ds;
+        const dp = (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3);
+        if (dp !== 0) return dp;
+        return (a.title || '').localeCompare(b.title || '');
+      });
+    }
+
     function StatusBadge(props) {
       return e('span', { className: 'octie-badge octie-' + props.status }, props.status);
     }
@@ -433,7 +448,7 @@ window.__ModuleLoader__.load({
       }, []);
       if (!s.open) return null;
       const options = projectOptions(s.projects);
-      const rows = (s.tasks || []).map((t) => e(TaskRow, { key: t.id, task: t }));
+      const rows = sortTasks(s.tasks).map((t) => e(TaskRow, { key: t.id, task: t }));
       const counts = s.graph && s.graph.byStatus
         ? Object.entries(s.graph.byStatus).map(([k, v]) => k + ' ' + v).join(' \u00b7 ')
         : '';
