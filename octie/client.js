@@ -464,13 +464,25 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function FooterButton() {
+    // Mini-DAG logo: one top dot feeding two bottom dots, in status colors.
+    function Logo() {
+      return e('svg', { className: 'octie-logo', width: 20, height: 20, viewBox: '0 0 20 20' },
+        e('line', { x1: 10, y1: 4.5, x2: 4.5, y2: 14.5, className: 'octie-logo-edge' }),
+        e('line', { x1: 10, y1: 4.5, x2: 15.5, y2: 14.5, className: 'octie-logo-edge' }),
+        e('circle', { cx: 10, cy: 4.5, r: 2.8, className: 'octie-logo-amber' }),
+        e('circle', { cx: 4.5, cy: 14.5, r: 2.8, className: 'octie-logo-cyan' }),
+        e('circle', { cx: 15.5, cy: 14.5, r: 2.8, className: 'octie-logo-emerald' }),
+      );
+    }
+
+    function FooterButton(props) {
       const s = useOctieState();
+      const wide = !!(props && props.wide);
       return e('button', {
-        className: 'octie-footer-button',
+        className: 'octie-footer-button' + (wide ? ' octie-footer-wide' : ''),
         title: 'Octie tasks',
         onClick: () => patch({ open: !s.open }),
-      }, 'Octie');
+      }, Logo(), wide ? e('span', { className: 'octie-footer-label' }, 'Octie') : null);
     }
 
     // Injected during materialization: the module loader claims and removes it.
@@ -536,7 +548,13 @@ window.__ModuleLoader__.load({
         '.octie-meta{border-top:1px solid rgba(128,128,128,.2);margin-top:14px;padding-top:10px;display:flex;flex-direction:column;gap:4px}',
         '.octie-meta-row{display:flex;gap:8px;font-size:12px;align-items:baseline}',
         '.octie-meta-label{color:rgba(230,230,230,.5);min-width:76px;flex-shrink:0}',
-        '.octie-footer-button{background:none;border:none;color:inherit;cursor:pointer;font:inherit}',
+        '.octie-footer-button{display:flex;align-items:center;justify-content:center;gap:6px;background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:4px}',
+        '.octie-footer-label{font-size:12px}',
+        '.octie-logo{display:block;flex-shrink:0}',
+        '.octie-logo-edge{stroke:rgba(170,170,170,.55);stroke-width:1.2}',
+        '.octie-logo-amber{fill:#ff9f1c;filter:drop-shadow(0 0 3px rgba(255,159,28,.6))}',
+        '.octie-logo-cyan{fill:#00d4ff;filter:drop-shadow(0 0 3px rgba(0,212,255,.6))}',
+        '.octie-logo-emerald{fill:#10b981;filter:drop-shadow(0 0 3px rgba(16,185,129,.6))}',
       ].join('\n');
       document.head.appendChild(style);
     }
@@ -549,7 +567,7 @@ window.__ModuleLoader__.load({
 
         slots.inject('sidebar.footer.action', () => slots.register(
           { name: 'sidebar.footer.action', id: 'octie-panel', order: 90, label: 'Octie' },
-          () => e(FooterButton),
+          (props) => e(FooterButton, props),
         ));
 
         slots.inject('shell.overlay', () => slots.register(
