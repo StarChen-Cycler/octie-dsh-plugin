@@ -12,6 +12,7 @@ window.__ModuleLoader__.load({
     // --- shared panel store (module-scoped; both slots render from it) ---
     const state = {
       open: false,
+      view: 'list',
       projects: [],
       project: null,
       tasks: [],
@@ -67,11 +68,87 @@ window.__ModuleLoader__.load({
       const t = props.task;
       return e('button', {
         className: 'octie-task-row',
-        onClick: () => {
-          const base = '/api/octie/task?project=' + encodeURIComponent(state.project || '') + '&id=' + encodeURIComponent(t.id);
-          fetchJson(base).then((task) => patch({ selectedTask: task })).catch(() => {});
-        },
+        onClick: () => openDetail(t.id),
       }, e('span', { className: 'octie-task-title' }, t.title), StatusBadge({ status: t.status }));
+    }
+
+    function openDetail(id) {
+      const base = '/api/octie/task?project=' + encodeURIComponent(state.project || '') + '&id=' + encodeURIComponent(id);
+      fetchJson(base).then((task) => patch({ selectedTask: task })).catch(() => {});
+    }
+
+    function shortId(id) { return id ? id.slice(0, 7) : ''; }
+
+    // Project picker: indented by subproject depth, so a parent's subprojects
+    // (and sub-subprojects) group visually under it.
+    function projectDepth(path) {
+      return ((path || '').replace(/\\/g, '/').match(/\/\.octie\/subprojects\//g) || []).length;
+    }
+    function projectOptions(projects) {
+      const norm = (p) => (p.path || '').replace(/\\/g, '/');
+      const sorted = [...projects].sort((a, b) => norm(a.path).localeCompare(norm(b.path)));
+      return sorted.map((p) => {
+        const d = projectDepth(p.path);
+        const label = (d > 0 ? '\u00a0\u00a0'.repeat(d) + '\u21b3 ' : '') + p.name;
+        return e('option', { key: p.path, value: p.path }, label);
+      });
+    }
+
+    // Minimal force-directed layout (Obsidian-style organic DAG), plain JS.
+    function layoutGraph(tasks) {
+      const nodes = (tasks || []).map((t) => ({
+        id: t.id, title: t.title, status: t.status, blockers: t.blockers || [], x: 0, y: 0,
+      }));
+      const byId = new Map(nodes.map((n) => [n.id, n]));
+      const edges = [];
+      for (const n of nodes) for (const b of n.blockers) if (byId.has(b)) edges.push([b, n.id]);
+      const W = 320, H = 420, k = 70;
+      for (let i = 0; i < nodes.length; i++) {
+        const angle = (i / Math.max(1, nodes.length)) * Math.PI * 2;
+        nodes[i].x = W / 2 + Math.cos(angle) * 90;
+        nodes[i].y = H / 2 + Math.sin(angle) * 90;
+      }
+      for (let iter = 0; iter < 320; iter++) {
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i], b = nodes[j];
+            let dx = a.x - b.x, dy = a.y - b.y;
+            let d2 = dx * dx + dy * dy;
+            if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = dx * dx + dy * dy || 1; }
+            const d = Math.sqrt(d2) || 1;
+            const f = 60 * k * k / d2;
+            a.x += f * dx / d; a.y += f * dy / d; b.x -= f * dx / d; b.y -= f * dy / d;
+          }
+        }
+        for (const [s, t] of edges) {
+          const a = byId.get(s), b = byId.get(t);
+          if (!a || !b) continue;
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d = Math.sqrt(dx * dx + dy * dy) || 1;
+          const f = (d - k) * 0.04;
+          a.x -= f * dx / d; a.y -= f * dy / d; b.x += f * dx / d; b.y += f * dy / d;
+        }
+        for (const n of nodes) { n.x += (W / 2 - n.x) * 0.02; n.y += (H / 2 - n.y) * 0.02; }
+      }
+      for (const n of nodes) { n.x = Math.max(12, Math.min(W - 12, n.x)); n.y = Math.max(12, Math.min(H - 12, n.y)); }
+      return { nodes, edges, W, H };
+    }
+
+    function GraphView(props) {
+      const { nodes, edges, W, H } = React.useMemo(() => layoutGraph(props.tasks || []), [props.tasks]);
+      if (nodes.length === 0) return e('div', { className: 'octie-empty' }, 'No tasks');
+      const byId = new Map(nodes.map((n) => [n.id, n]));
+      const lines = edges.map(([s, t], i) => {
+        const a = byId.get(s), b = byId.get(t);
+        if (!a || !b) return null;
+        return e('line', { key: 'e' + i, x1: a.x, y1: a.y, x2: b.x, y2: b.y, className: 'octie-edge' });
+      });
+      const dots = nodes.map((n) => e('circle', {
+        key: n.id, cx: n.x, cy: n.y, r: 6,
+        className: 'octie-node octie-node-' + n.status,
+        onClick: () => openDetail(n.id),
+      }, e('title', null, n.title + ' \u00b7 ' + shortId(n.id))));
+      return e('svg', { className: 'octie-graph', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid meet' }, lines, dots);
     }
 
     function DetailPopup() {
@@ -98,15 +175,25 @@ window.__ModuleLoader__.load({
         return connectSse();
       }, []);
       if (!s.open) return null;
-      const options = s.projects.map((p) => e('option', { key: p.path, value: p.path }, p.name));
+      const options = projectOptions(s.projects);
       const rows = (s.tasks || []).map((t) => e(TaskRow, { key: t.id, task: t }));
       const counts = s.graph && s.graph.byStatus
         ? Object.entries(s.graph.byStatus).map(([k, v]) => k + ' ' + v).join(' \u00b7 ')
         : '';
+      const body = s.view === 'graph'
+        ? e(GraphView, { tasks: s.tasks || [] })
+        : e('div', { className: 'octie-task-list' }, rows.length ? rows : e('div', { className: 'octie-empty' }, 'No tasks'));
       return e('div', { className: 'octie-panel' },
         e('div', { className: 'octie-panel-header' },
           e('strong', null, 'Octie Tasks'),
-          e('button', { className: 'octie-close', onClick: () => patch({ open: false }) }, '\u00d7'),
+          e('div', { className: 'octie-header-actions' },
+            e('button', {
+              className: 'octie-toggle',
+              title: s.view === 'graph' ? 'Switch to list' : 'Switch to graph',
+              onClick: () => patch({ view: s.view === 'graph' ? 'list' : 'graph' }),
+            }, s.view === 'graph' ? 'List' : 'Graph'),
+            e('button', { className: 'octie-close', onClick: () => patch({ open: false }) }, '\u00d7'),
+          ),
         ),
         e('select', {
           className: 'octie-project-select',
@@ -114,7 +201,7 @@ window.__ModuleLoader__.load({
           onChange: (ev) => { patch({ project: ev.target.value }); refresh(); },
         }, options),
         counts ? e('div', { className: 'octie-counts' }, counts) : null,
-        e('div', { className: 'octie-task-list' }, rows.length ? rows : e('div', { className: 'octie-empty' }, 'No tasks')),
+        body,
         s.error ? e('div', { className: 'octie-error' }, String(s.error)) : null,
         DetailPopup(),
       );
@@ -136,6 +223,12 @@ window.__ModuleLoader__.load({
         '.octie-panel{position:fixed;top:48px;right:8px;bottom:8px;width:340px;display:flex;flex-direction:column;z-index:1000;pointer-events:auto;background:var(--color-bg,#1e1f22);color:var(--color-text,#e6e6e6);border:1px solid rgba(128,128,128,.3);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);font:13px/1.4 system-ui,sans-serif}',
         '.octie-panel-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(128,128,128,.2)}',
         '.octie-close{background:none;border:none;color:inherit;cursor:pointer;font-size:16px}',
+        '.octie-header-actions{display:flex;align-items:center;gap:8px}',
+        '.octie-toggle{background:none;border:1px solid rgba(128,128,128,.4);border-radius:6px;color:inherit;cursor:pointer;padding:2px 8px;font:inherit}',
+        '.octie-graph{flex:1;width:100%;height:100%;min-height:0}',
+        '.octie-node{cursor:pointer;filter:drop-shadow(0 0 4px rgba(255,255,255,.6))}',
+        '.octie-node-ready{fill:#8ab4f8}.octie-node-in_progress{fill:#fdd663}.octie-node-in_review{fill:#b39dfb}.octie-node-completed{fill:#81c995}.octie-node-blocked{fill:#f28b82}',
+        '.octie-edge{stroke:rgba(160,160,160,.4);stroke-width:1}',
         '.octie-project-select{margin:10px 12px;padding:6px;background:#1e1f22;color:#e6e6e6;border:1px solid rgba(128,128,128,.4);border-radius:6px}',
         '.octie-project-select option{background:#1e1f22;color:#e6e6e6}',
         '.octie-task-list{flex:1;overflow-y:auto;padding:0 8px 8px}',
