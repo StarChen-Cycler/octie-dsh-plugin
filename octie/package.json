@@ -30,6 +30,7 @@
     "bin",
     "plugin",
     "skills",
+    "preset",
     "client.js",
     "cordis.patch.yml",
     "!dist/**/*.js.map",

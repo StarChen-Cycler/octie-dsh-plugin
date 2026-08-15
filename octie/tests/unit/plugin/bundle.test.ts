@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
-import { existsSync, mkdirSync, rmSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readFileSync, appendFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -87,13 +87,23 @@ function isLosslessJson(value: unknown, path = '$'): boolean {
 
 describe('octie-dsh bundle Node half', () => {
   let tempDir: string;
+  let originalProvisionHook: string | undefined;
 
   beforeAll(() => {
     homedirTarget = join(tmpdir(), `octie-plugin-home-${uuidv4()}`);
     mkdirSync(homedirTarget, { recursive: true });
+    // Keep the real DSH home free of preset writes during this suite; the
+    // two provisioning tests below clear the hook around their own applies.
+    originalProvisionHook = process.env.OCTIE_NO_PRESET_PROVISION;
+    process.env.OCTIE_NO_PRESET_PROVISION = '1';
   });
 
   afterAll(() => {
+    if (originalProvisionHook === undefined) {
+      delete process.env.OCTIE_NO_PRESET_PROVISION;
+    } else {
+      process.env.OCTIE_NO_PRESET_PROVISION = originalProvisionHook;
+    }
     vi.unmock('node:os');
     try { rmSync(homedirTarget, { recursive: true, force: true }); } catch { /* ignore */ }
   });
@@ -396,6 +406,74 @@ describe('octie-dsh bundle Node half', () => {
         writeFileSync(registryPath, originalRegistry);
       }
       try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
+  it('provisions the octie agent preset into DSH_HOME on load, idempotently', () => {
+    const origHome = process.env.DSH_HOME;
+    const origHook = process.env.OCTIE_NO_PRESET_PROVISION;
+    const fakeHome = join(tmpdir(), `octie-dshhome-${uuidv4()}`);
+    mkdirSync(fakeHome, { recursive: true });
+    process.env.DSH_HOME = fakeHome;
+    delete process.env.OCTIE_NO_PRESET_PROVISION;
+    try {
+      const wrapper: any = {
+        tools: { register: () => () => {} },
+        provide: () => () => {},
+        emit: () => {},
+        on: () => () => {},
+        get: () => undefined,
+        effect: (cb: () => any) => { cb(); return () => {}; },
+      };
+      apply(wrapper);
+
+      const presetDir = join(fakeHome, '.agent-presets', 'octie');
+      expect(existsSync(join(presetDir, 'agent.cordis.yml'))).toBe(true);
+      expect(existsSync(join(presetDir, 'preset.yml'))).toBe(true);
+      const composition = readFileSync(join(presetDir, 'agent.cordis.yml'), 'utf8');
+      expect(composition).toContain('- id: persona');
+      expect(composition).toContain('Mandatory first step');
+      expect(readFileSync(join(presetDir, 'preset.yml'), 'utf8')).toContain('Octie 任务图模式');
+
+      // Idempotent: a later load never overwrites user edits.
+      appendFileSync(join(presetDir, 'agent.cordis.yml'), '\n# user marker\n');
+      apply(wrapper);
+      expect(readFileSync(join(presetDir, 'agent.cordis.yml'), 'utf8')).toContain('user marker');
+    } finally {
+      if (origHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = origHome;
+      if (origHook === undefined) delete process.env.OCTIE_NO_PRESET_PROVISION; else process.env.OCTIE_NO_PRESET_PROVISION = origHook;
+      try { rmSync(fakeHome, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
+  it('skips provisioning when the roster already supplies the preset id', async () => {
+    const origHome = process.env.DSH_HOME;
+    const origHook = process.env.OCTIE_NO_PRESET_PROVISION;
+    const fakeHome = join(tmpdir(), `octie-dshhome-${uuidv4()}`);
+    mkdirSync(fakeHome, { recursive: true });
+    process.env.DSH_HOME = fakeHome;
+    delete process.env.OCTIE_NO_PRESET_PROVISION;
+    try {
+      let listed = false;
+      const wrapper: any = {
+        tools: { register: () => () => {} },
+        provide: () => () => {},
+        emit: () => {},
+        on: () => () => {},
+        get: (name: string) => (name === 'agentPresets'
+          ? { list: async () => { listed = true; return [{ id: 'octie' }]; } }
+          : undefined),
+        effect: (cb: () => any) => { cb(); return () => {}; },
+      };
+      apply(wrapper);
+      await new Promise((resolve) => setTimeout(resolve, 0)); // flush the roster probe
+
+      expect(listed).toBe(true);
+      expect(existsSync(join(fakeHome, '.agent-presets', 'octie', 'agent.cordis.yml'))).toBe(false);
+    } finally {
+      if (origHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = origHome;
+      if (origHook === undefined) delete process.env.OCTIE_NO_PRESET_PROVISION; else process.env.OCTIE_NO_PRESET_PROVISION = origHook;
+      try { rmSync(fakeHome, { recursive: true, force: true }); } catch { /* ignore */ }
     }
   });
 

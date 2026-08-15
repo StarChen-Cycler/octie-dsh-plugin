@@ -1,0 +1,2 @@
+name: Octie 任务图模式
+description: 面向 Octie 任务图的工作模式：标准编码工具集 + 系统提示词直接注入 Octie 心智模型与工作流程，并要求 agent 在开始任务图工作前先调用 skill 工具读取 octie skill 的完整内容。以原子任务、派生状态、审批门与阻断孪生为默认工作方式。

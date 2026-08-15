@@ -12,7 +12,7 @@
  * owned JSON projection — no live graph objects ever cross the boundary.
  */
 
-import { readFileSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -495,6 +495,45 @@ function listProjects() {
   }
 }
 
+// ── agent-preset provisioning ───────────────────────────────────────────────
+// The bundle ships a ready-made "Octie 任务图模式" preset template
+// (preset/octie-mode/) and pre-provisions it into the user preset root when
+// the plugin loads — idempotently: a preset with this id that already exists
+// in ANY roster root (user edits included) is never overwritten, and a
+// deployment without a writable preset root is never guessed at. Uninstalling
+// the plugin deliberately leaves a provisioned preset behind: it is user data
+// from the moment it exists. `OCTIE_NO_PRESET_PROVISION=1` opts out (tests).
+const PRESET_ID = 'octie';
+const PROVISION_HOOK = 'OCTIE_NO_PRESET_PROVISION';
+
+function presetTemplateDir() {
+  return join(dirname(fileURLToPath(import.meta.url)), '..', 'preset', 'octie-mode');
+}
+
+async function ensureOctiePreset(ctx) {
+  if (process.env[PROVISION_HOOK] === '1') return;
+
+  const ap = ctx.get('agentPresets');
+  if (ap && typeof ap.list === 'function') {
+    try {
+      const presets = await ap.list();
+      if (presets.some((p) => p.id === PRESET_ID)) return; // already provisioned, any root
+      if (ap.authorable === false) return; // no writable root — never guess a path
+    } catch {
+      // Roster probe failed; fall through to the direct idempotent write.
+    }
+  }
+
+  const dshHome = process.env.DSH_HOME || join(homedir(), '.dsh');
+  const targetDir = join(dshHome, '.agent-presets', PRESET_ID);
+  if (existsSync(join(targetDir, 'agent.cordis.yml'))) return;
+
+  mkdirSync(targetDir, { recursive: true });
+  const template = presetTemplateDir();
+  copyFileSync(join(template, 'agent.cordis.yml'), join(targetDir, 'agent.cordis.yml'));
+  copyFileSync(join(template, 'preset.yml'), join(targetDir, 'preset.yml'));
+}
+
 async function resolveRouteProject(params, service) {
   const explicit = params.get('project');
   if (explicit) return explicit;
@@ -605,6 +644,11 @@ function registerWebRoutes(webServer, service, disposers) {
 export function apply(ctx) {
   const service = new OctieService(ctx);
   const disposers = [];
+
+  // Pre-provision the bundled "Octie 任务图模式" agent preset (idempotent,
+  // best-effort — a roster probe or file write failing must not break the
+  // plugin's own activation).
+  ensureOctiePreset(ctx).catch(() => { /* provisioning is best-effort */ });
 
   // Provide the `octie` service for other plugins (inject: ['octie']).
   if (typeof ctx.provide === 'function') {
