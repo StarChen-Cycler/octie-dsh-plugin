@@ -414,7 +414,7 @@ function buildTools(service) {
  * so that file stays the single source of truth.
  */
 const SKILL_NAME = 'octie';
-const SKILL_DESCRIPTION = 'Use the octie task-graph component (octie_* tools, the `octie` Cordis service, octie/* events) to plan, track, and maintain a durable DAG of atomic tasks. Covers the tool\'s invariants (derived status, approve gate, blocker twin), a pattern library of usage recipes, pitfalls, and how to contribute new usage patterns.';
+const SKILL_DESCRIPTION = 'Use the octie task-graph component (13 octie_* tools, the `octie` Cordis service, octie/* events, and the DSH client task panel) to plan, track, and maintain a durable DAG of atomic tasks. Covers the tool signatures and the absolute-project-path convention, the invariants (derived status, approve gate, blocker twin), a pattern library, pitfalls, and how to contribute new patterns.';
 const SKILL_WHEN_TO_USE = 'Working with Octie tasks, task graphs, atomic task planning, or combining Octie with CodeGraph, C7, interview specs, or subagents.';
 
 function stripFrontmatter(markdown) {
