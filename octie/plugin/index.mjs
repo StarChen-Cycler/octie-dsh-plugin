@@ -694,7 +694,12 @@ export function apply(ctx) {
   registerSkill(ctx, disposers);
 
   // Register the web panel read routes + SSE stream (headless-safe).
-  const webServer = ctx.get('webServer');
+  // Non-strict lookup: `webServer` is optional (absent in headless/CLI), and
+  // Cordis's strict `get()` only returns services whose providing fiber is
+  // already active. The webserver activates late in the composition, so a
+  // strict probe here silently skips the routes even when it is present —
+  // the panel then 404s on /api/octie/*. Non-strict reads the store directly.
+  const webServer = ctx.get('webServer', false);
   if (webServer !== undefined && typeof webServer.register === 'function') {
     registerWebRoutes(webServer, service, disposers);
   }

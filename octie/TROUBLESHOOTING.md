@@ -83,6 +83,64 @@ nvm use 20
 # Or install Node.js 20+ from nodejs.org
 ```
 
+### DSH plugin installs as a plain dependency ("declares no dsh.bundle")
+
+**Problem**: After `dsh plugin --profile web add octie-cli`, DSH prints:
+
+```
+dsh: warning: octie-cli declares no dsh.bundle — installed as a plain dependency, not a profile layer
+```
+
+and the Octie task panel / tools never activate. You may also see `404` on
+`/api/octie/*` (see [the Web UI section](#ds-panel-404s-on-apioctie)).
+
+**Cause**: A **stale global `octie-cli` (< 1.2.0)** shadows the profile-local
+install. DSH resolves bundles **installation-anchor first** (the global
+`node_modules`, then the profile directory). If an older `octie-cli` sits in the
+global tree — from before it declared `dsh.bundle` — DSH reads *that* manifest,
+finds no `dsh.bundle`, and treats the package as a plain library even though the
+correct 1.2.0 is installed in the profile.
+
+**Solution**:
+
+```bash
+# 1. Remove the stale global (and any global < 1.2.0)
+npm uninstall -g octie-cli
+
+# 2. Re-run the plugin add so DSH reconciles the bundle layer
+dsh plugin --profile web add octie-cli
+
+# 3. Confirm it is now a layer, not a plain dependency
+dsh --profile web --dump-config | grep -i octie
+#   should show:  - id: octie-dsh / name: octie-cli
+```
+
+### Correct way to install/update both the CLI and the DSH plugin
+
+Octie ships as **two parallel interfaces over the same task-graph store**: the
+standalone `octie` CLI and the `octie-cli` DSH bundle plugin. They share the npm
+package name but are installed differently — and **both must be ≥ 1.2.0**.
+
+```bash
+# ── Standalone CLI (terminal + octie serve web UI) ──────────────
+npm install -g octie-cli@1.2.0     # or: npm update -g octie-cli
+
+# ── DSH bundle plugin (agent drives the graph in-session) ──────
+dsh plugin --profile web add octie-cli
+dsh plugin --profile web update octie-cli    # to bump later
+
+# Restart DSH after install/update, then pick "Octie 任务图模式".
+```
+
+**Keep them version-aligned.** If the global CLI is ever *older* than the
+version that first declared `dsh.bundle` (1.2.0), it will shadow the DSH plugin
+and silently disable it (see the pitfall above). Update the global CLI whenever
+you update the plugin:
+
+```bash
+npm update -g octie-cli && dsh plugin --profile web update octie-cli
+```
+
 ## CLI Command Errors
 
 ### "Project not initialized"
@@ -449,6 +507,27 @@ taskkill /PID <PID> /F
    # Linux
    sudo ufw allow 3456
    ```
+
+### DSH panel 404s on `/api/octie/*`
+
+**Problem**: In the DSH web app, the Octie panel's XHR requests to
+`/api/octie/projects`, `/api/octie/events`, etc. return `404 Not Found`, and the
+panel fails to load (`client.js:59` — cannot reach the events stream).
+
+**Cause**: The Octie Node half probes the optional `webServer` service with a
+**strict** `ctx.get('webServer')`. Cordis's strict lookup only returns a service
+whose providing fiber is *already active*; the DSH webserver activates late in
+the composition, so the probe yields `undefined` even when the server is
+present. The `if (webServer !== undefined && …)` guard then silently skips all
+five `/api/octie/*` route registrations, and the SPA fallback answers `404`.
+
+**Solution**: Fixed in `plugin/index.mjs` (non-strict lookup,
+`ctx.get('webServer', false)`). Upgrade the plugin:
+
+```bash
+dsh plugin --profile web update octie-cli
+# then restart dsh web and refresh the panel
+```
 
 ## Data Recovery
 
