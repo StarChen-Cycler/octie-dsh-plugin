@@ -92,6 +92,34 @@ dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
 DSH 插件层的使用原则（13 个 `octie_*` 工具的用法规范）见
 [`docs/dsh-plugin-usage-principles.md`](docs/dsh-plugin-usage-principles.md)。
 
+## 更新（Update）
+
+两条接口各自更新，**先全局 CLI、再 DSH 插件**（顺序反了有旧全局包遮蔽问题，见下）：
+
+```sh
+# ① 独立 CLI（终端 + octie serve）
+npm update -g octie-cli
+octie --version                        # 确认 ≥ 1.2.1
+
+# ② DSH bundle 插件
+dsh plugin --profile <name> update octie-cli
+
+# ③ 验证挂载形态（应为 bundle 层，而非 plain dependency）
+dsh --profile <name> --dump-config | grep -i octie
+
+# ④ 重启 DSH 后刷新网页（Node 侧改动必须重启才生效）
+```
+
+两个已知坑：
+
+- **旧全局包遮蔽**：全局 `octie-cli` 若停留在 1.2.0 之前（尚无 `dsh.bundle` 声明的
+  版本），DSH 会读到旧 manifest 并把插件当普通依赖安装——面板与工具静默失效。先更新
+  全局 CLI，再 `dsh plugin ... update` 一次即可恢复；完整排查见
+  [`octie/TROUBLESHOOTING.md`](octie/TROUBLESHOOTING.md)。
+- **git URL 安装**：当初用什么来源 `add`，`update` 就带同一个来源（
+  `dsh plugin --profile <name> update github:StarChen-Cycler/octie-dsh-plugin`），
+  否则两条安装路径会并存。
+
 ## 客户端任务面板
 
 - **项目活跃度排序**：项目下拉按「最近任务更新时间」排序——最近动过的项目自动浮到
