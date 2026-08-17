@@ -437,7 +437,9 @@ function loadSkillContent() {
 }
 
 function registerSkill(ctx, disposers) {
-  const skills = ctx.get('skills');
+  // Non-strict probe: the skills provider's fiber may activate after this
+  // plugin's apply, and a strict get() would silently skip the bundled skill.
+  const skills = ctx.get('skills', false);
   if (skills === undefined || typeof skills.register !== 'function') return;
   const content = loadSkillContent();
   if (content === undefined) return;
@@ -513,7 +515,9 @@ function presetTemplateDir() {
 async function ensureOctiePreset(ctx) {
   if (process.env[PROVISION_HOOK] === '1') return;
 
-  const ap = ctx.get('agentPresets');
+  // Non-strict probe: roster methods are safe before fiber activation, and
+  // the authorable guard must actually run instead of being skipped with it.
+  const ap = ctx.get('agentPresets', false);
   if (ap && typeof ap.list === 'function') {
     try {
       const presets = await ap.list();
