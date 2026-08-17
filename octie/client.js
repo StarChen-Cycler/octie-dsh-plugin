@@ -784,6 +784,109 @@ window.__ModuleLoader__.load({
       document.head.appendChild(style);
     }
 
+    // --- preset maintenance settings section (consent-gated template updates) ---
+    const PRESET_STYLES = {
+      card: { padding: '4px 0 12px', fontSize: '13px', color: 'rgba(230,230,230,.85)', maxWidth: '560px' },
+      row: { display: 'flex', gap: '8px', alignItems: 'baseline', fontSize: '12px', color: 'rgba(230,230,230,.65)', margin: '2px 0' },
+      label: { color: 'rgba(230,230,230,.5)', minWidth: '92px', flexShrink: '0' },
+      notice: { background: 'rgba(255,159,28,.08)', border: '1px solid rgba(255,159,28,.3)', borderRadius: '6px', padding: '8px 10px', marginTop: '8px', fontSize: '12px', color: 'rgba(255,159,28,.95)' },
+      danger: { background: 'rgba(244,63,94,.08)', border: '1px solid rgba(244,63,94,.3)', borderRadius: '6px', padding: '8px 10px', marginTop: '8px', fontSize: '12px', color: 'rgba(244,63,94,.95)' },
+      btn: { marginRight: '8px', padding: '4px 12px', borderRadius: '6px', border: '1px solid rgba(128,128,128,.35)', background: 'rgba(255,255,255,.06)', color: 'inherit', cursor: 'pointer', fontSize: '12px' },
+      btnPrimary: { background: '#10b981', borderColor: '#10b981', color: '#04120b', fontWeight: 'bold' },
+      ok: { color: '#10b981' },
+    };
+
+    function safeLocalStorage() {
+      try { return window.localStorage; } catch { return null; }
+    }
+
+    function PresetMaintenanceSection() {
+      const [status, setStatus] = React.useState(null);
+      const [error, setError] = React.useState(null);
+      const [updating, setUpdating] = React.useState(false);
+      const [, setTick] = React.useState(0);
+      const rerender = () => setTick((x) => x + 1);
+
+      const load = React.useCallback(async () => {
+        try {
+          setError(null);
+          const res = await fetch('/api/octie/preset/status', { headers: { Accept: 'application/json' } });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          setStatus(await res.json());
+        } catch (err) {
+          setStatus(null);
+          setError(String((err && err.message) || err));
+        }
+      }, []);
+
+      React.useEffect(() => { load(); }, [load]);
+
+      const applyUpdate = async () => {
+        setUpdating(true);
+        try {
+          const res = await fetch('/api/octie/preset/update', { method: 'POST', headers: { Accept: 'application/json' } });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error((body && body.error) || ('HTTP ' + res.status));
+          setStatus(body);
+        } catch (err) {
+          setError(String((err && err.message) || err));
+        } finally {
+          setUpdating(false);
+        }
+      };
+
+      if (error !== null) {
+        return e('div', { style: PRESET_STYLES.card },
+          e('p', { style: PRESET_STYLES.danger }, '无法读取预设状态：' + error),
+          e('button', { type: 'button', style: PRESET_STYLES.btn, onClick: load }, '重试'),
+        );
+      }
+      if (status === null) {
+        return e('div', { style: PRESET_STYLES.card }, e('p', { style: { fontSize: '12px', color: 'rgba(230,230,230,.5)' } }, '读取中…'));
+      }
+
+      const s = status;
+      const versionLine = '本地 v' + s.installedVersion + ' / 内置 v' + s.bundledVersion;
+      const storage = safeLocalStorage();
+      const dismissedKey = 'octie-preset-dismissed:' + s.bundledVersion;
+      const dismissed = storage !== null && storage.getItem(dismissedKey) === '1';
+      const driftedWarn = s.drifted === true
+        ? e('p', { style: PRESET_STYLES.danger }, '本地副本已被修改——更新会用内置模板覆盖你的改动，且不可自动恢复。')
+        : s.drifted === null
+          ? e('p', { style: PRESET_STYLES.notice }, '本地副本来自早期版本（无法判断是否被改过）。可更新到内置模板，或保持现状。')
+          : null;
+
+      if (!s.provisioned) {
+        return e('div', { style: PRESET_STYLES.card },
+          e('p', { style: { fontSize: '12px', color: 'rgba(230,230,230,.65)' } }, '尚未预置：Octie 预设将在下次 DSH 启动时自动创建。'),
+          e('button', { type: 'button', style: PRESET_STYLES.btn, onClick: load }, '刷新'),
+        );
+      }
+
+      if (!s.updateAvailable) {
+        return e('div', { style: PRESET_STYLES.card },
+          e('div', { style: PRESET_STYLES.row }, e('span', { style: PRESET_STYLES.label }, '状态'), e('span', { style: PRESET_STYLES.ok }, '已是最新（' + versionLine + '）')),
+        );
+      }
+
+      if (dismissed) {
+        return e('div', { style: PRESET_STYLES.card },
+          e('div', { style: PRESET_STYLES.row }, e('span', { style: PRESET_STYLES.label }, '状态'), e('span', null, versionLine + '（保持当前）')),
+          e('button', { type: 'button', style: PRESET_STYLES.btn, onClick: () => { storage && storage.removeItem(dismissedKey); rerender(); } }, '再次显示更新提示'),
+        );
+      }
+
+      return e('div', { style: PRESET_STYLES.card },
+        e('div', { style: PRESET_STYLES.row }, e('span', { style: PRESET_STYLES.label }, '状态'), e('span', null, versionLine)),
+        e('p', { style: PRESET_STYLES.notice }, '内置模板有更新（v' + s.bundledVersion + '）。是否更新本地「Octie 任务图模式」预设？'),
+        driftedWarn,
+        e('div', { style: { marginTop: '10px' } },
+          e('button', { type: 'button', style: { ...PRESET_STYLES.btn, ...PRESET_STYLES.btnPrimary }, disabled: updating, onClick: applyUpdate }, updating ? '更新中…' : '更新到 v' + s.bundledVersion),
+          e('button', { type: 'button', style: PRESET_STYLES.btn, disabled: updating, onClick: () => { storage && storage.setItem(dismissedKey, '1'); rerender(); } }, '保持当前'),
+        ),
+      );
+    }
+
     return {
       name: 'octie-dsh-client',
       apply(ctx) {
@@ -798,6 +901,11 @@ window.__ModuleLoader__.load({
         slots.inject('shell.overlay', () => slots.register(
           { name: 'shell.overlay', id: 'octie-panel', order: 90 },
           () => e(Panel),
+        ));
+
+        slots.inject('settings.section', () => slots.register(
+          { name: 'settings.section', id: 'octie-preset-maintenance', order: 21, label: 'Octie 预设维护' },
+          () => e(PresetMaintenanceSection),
         ));
       },
     };
