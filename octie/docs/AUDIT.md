@@ -72,9 +72,9 @@
   - `octie/docs/USABILITY.md`：9 条发现（High 1/Medium 5/Low 3），3 条已修复
     （原子写重试加强、`registry prune`、缓存探测跳过——各有测试），6 条明确列为
     后续建议（F6 标记为破坏性 UX 变更，需单独评估）。
-  - `skills/octie/SKILL.md`：Part 0 心智模型 / Part 1 不变式（带后果）/ Part 2 模式库
+  - ~~`skills/octie/SKILL.md`~~（**已随 1.2.3 移除**，待重写）：Part 0 心智模型 / Part 1 不变式（带后果）/ Part 2 模式库
     （CodeGraph+C7+Interview 标为 one-of-many，含适用/依赖/取舍）/ Part 3 陷阱
-    （为什么不要）/ Part 4 沉淀入口（试金石）——符合设计文档 §10.3 四层结构。
+    （为什么不要）/ Part 4 沉淀入口（试金石）——当时符合设计文档 §10.3 四层结构。
   - `octie/README.md`：安装命令、13 工具表、3 种消费模式、`octie-cli/core` 架构说明齐全。
   - 已知环境性抖动（Windows AV 文件锁、遗留 `octie serve` 占用 3456、execSync 测试
     负载超时）已在 USABILITY.md F1/F3/F9 与 vitest 配置（超时 30s、fast-fail env、

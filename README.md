@@ -36,7 +36,6 @@ Octie 同时是**两条并行的一等接口**，共享同一份任务图存储�
   直接规划、执行、追踪任务图
 - **DSH 客户端任务面板**：列表 + 分层 DAG 图视图、项目活跃度排序、实时同步、图物理开关
 - **「Octie 任务图模式」agent preset**：随插件自动预置，开箱即用的任务图工作模式
-- **`octie` 使用技能**：按需加载的完整用法手册（心智模型 / 不变式 / 模式库 / 陷阱）
 
 ## CLI 独立使用
 
@@ -142,8 +141,7 @@ dsh --profile <name> --dump-config | grep -i octie
 
 ## 用法
 
-任务图组件的完整用法（工具签名、绝对路径约定、不变式、模式库、陷阱）见
-[`skills/octie/SKILL.md`](skills/octie/SKILL.md)。分接口的使用原则：
+任务图组件的使用原则（工具签名、绝对路径约定、不变式、模式库、陷阱）：
 
 - **CLI**：[`docs/cli-usage-principles.md`](docs/cli-usage-principles.md)
 - **DSH 插件工具**：[`docs/dsh-plugin-usage-principles.md`](docs/dsh-plugin-usage-principles.md)

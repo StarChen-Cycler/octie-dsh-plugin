@@ -2,15 +2,13 @@
 
 > 本文是 `docs/cli-usage-principles.md`（CLI 原则）在 DSH 插件工具层的对应版：
 > **同一套不变式，换成 13 个 `octie_*` 工具的表达**。CLI 命令 → 工具的完整映射另见
-> `octie/docs/CLI-COMMAND-COVERAGE.md`；不变式与心智模型的权威是 `octie/skills/octie/SKILL.md`。
+> `octie/docs/CLI-COMMAND-COVERAGE.md`；不变式与心智模型见本文与 CLI 原则。
 >
 > 注意：**CLI 是与插件并行的一等接口**（独立安装、终端驱动、同一份任务图存储），
 > 本文只是插件侧的原则视图，不是 CLI 的替代文档。
 
 ## 1. 会话内前置约定
 
-- **先读 skill**：「Octie 任务图模式」preset 的 persona 要求 agent 在第一次调用 `octie_*`
-  工具前，先用 `skill` 工具加载 `octie`（该 skill 由插件安装时自动注册进技能目录）。
 - **绝对路径铁律**：除 `octie_init` 外，**每个工具都带 `project` 参数**——一律传显式
   **绝对路径**，绝不依赖 cwd 自动探测（落错项目的第一根源）。
 - **`octie_init` 例外**：用 `path`（绝对路径）+ `name` 初始化新项目，没有 `project`。
@@ -99,12 +97,12 @@
 | `octie graph validate / cycles` | `octie_graph({ validate: true })` |
 | `octie find --without-blockers / --orphans / --leaves` | `octie_find({ withoutBlockers / orphans / leaves })` |
 | `--format md`（token 高效） | 工具返回即精简 JSON 投影，无需格式开关 |
-| `octie -h` 先查语法 | 工具 schema 即文档；细节以 `octie` skill 为准 |
+| `octie -h` 先查语法 | 工具 schema 即文档 |
 
 ## 8. 与其他文档的关系
 
-- **不变式权威**：`octie/skills/octie/SKILL.md`（Part 0 心智模型 / Part 0.5 工具速查 /
-  Part 1 不变式 / Part 3 陷阱）——冲突时以它为准。
+- **不变式权威**：本文与 CLI 原则（原 usage skill 已随 1.2.3 移除，待重写后再引入——
+  其心智模型与不变式条款已沉淀进本文）。
 - **CLI 版本**：`docs/cli-usage-principles.md`。
 - **命令覆盖对照**：`octie/docs/CLI-COMMAND-COVERAGE.md`。
 - **开发与维护**：`docs/development.md`、`docs/preset-skill-maintenance.md`。

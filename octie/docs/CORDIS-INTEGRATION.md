@@ -40,9 +40,9 @@ export function apply(ctx) {
   // ② 注册模型工具：13 个 octie_*，交给 ctx.tools.register
   for (const tool of buildTools(service)) disposers.push(ctx.tools.register(tool))
 
-  // ③ 注册 Web 路由：/api/octie/{projects,state,task,graph,events}（events 为 SSE 长连接）
-  // ④ 注册 skill：ctx.skills.register('octie')，正文读自包内 skills/octie/SKILL.md
-  // ⑤ 幂等预置 agent preset：ensureOctiePreset(ctx)（best-effort，见 §8.3）
+  // ③ 注册 Web 路由：/api/octie/{projects,state,task,graph,events,preset/*}（events 为 SSE 长连接）
+  // （usage skill 注册已随 1.2.3 移除，待重写后按 §9 模式重新引入）
+  // ④ 幂等预置 agent preset：ensureOctiePreset(ctx)（best-effort，见 §8.3）
 
   // 统一 teardown：stop/update/undefine 时全部反向执行
   ctx.effect(() => () => disposers.forEach(d => d()))
@@ -187,9 +187,9 @@ if (skills !== undefined) {
 }
 ```
 
-octie 的实现：正文放在包内 `octie/skills/octie/SKILL.md`（`package.json` 的 `files` 已含
-`skills`），`apply()` 里用 `readFileSync` + `import.meta.url` 读文件、`stripFrontmatter()`
-去掉 YAML frontmatter，再 `register()`。这样 SKILL.md 保持单一事实来源，且随 npm 包分发。
+octie 曾把正文放在包内 `octie/skills/octie/SKILL.md`（`package.json` 的 `files` 含
+`skills`），`apply()` 里 `readFileSync` + `stripFrontmatter()` 后 `register()`——该
+skill 已随 1.2.3 移除（限定了不合适的开发逻辑，待重写）；重写时按本节模式重新引入。
 
 三条通道别混：**工具 description（总是、短）｜ skill（按需、长心法）｜ prompt 段（总是、
 硬规则、有 token 成本）**。

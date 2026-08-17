@@ -176,31 +176,6 @@ describe('octie-dsh bundle Node half', () => {
     }
   });
 
-  it('registers the bundled octie usage skill when the skills service is present', () => {
-    const skillRegs: any[] = [];
-    const skillsMock = {
-      register: (def: any) => { skillRegs.push(def); return () => {}; },
-    };
-    const wrapper: any = {
-      tools: { register: () => () => {} },
-      provide: () => () => {},
-      emit: () => {},
-      on: () => () => {},
-      get: (name: string) => (name === 'skills' ? skillsMock : undefined),
-      effect: (cb: () => any) => { cb(); return () => {}; },
-    };
-    apply(wrapper);
-
-    expect(skillRegs).toHaveLength(1);
-    const skill = skillRegs[0];
-    expect(skill.name).toBe('octie');
-    expect(skill.source).toBe('bundled');
-    expect(typeof skill.content).toBe('string');
-    expect(skill.content.length).toBeGreaterThan(100);
-    expect(skill.content).toContain('# Octie');
-    expect(skill.description.length).toBeGreaterThan(0);
-  });
-
   it('registers the web panel routes when the webServer service is present', () => {
     const routes: any[] = [];
     const webServerMock = {
@@ -434,7 +409,7 @@ describe('octie-dsh bundle Node half', () => {
       expect(existsSync(join(presetDir, 'preset.yml'))).toBe(true);
       const composition = readFileSync(join(presetDir, 'agent.cordis.yml'), 'utf8');
       expect(composition).toContain('- id: persona');
-      expect(composition).toContain('Mandatory first step');
+      expect(composition).toContain('Core workflow');
       expect(readFileSync(join(presetDir, 'preset.yml'), 'utf8')).toContain('Octie 任务图模式');
 
       // Idempotent: a later load never overwrites user edits.

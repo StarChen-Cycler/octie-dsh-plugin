@@ -7,7 +7,7 @@
 
 | 路径 | 是什么 |
 |---|---|
-| `octie/` | 插件包本体：`plugin/index.mjs`（DSH Node half）、`client.js`（DSH 面板）、`src/`（octie-core + CLI + web 路由）、`skills/octie/SKILL.md`、`preset/octie-mode/`（预置 preset 模板）、`web-ui/`（独立前端） |
+| `octie/` | 插件包本体：`plugin/index.mjs`（DSH Node half）、`client.js`（DSH 面板）、`src/`（octie-core + CLI + web 路由）、`preset/octie-mode/`（预置 preset 模板）、`web-ui/`（独立前端） |
 | 根 `package.json` | **facade 包**：镜像 `octie/package.json` 的 exports / dsh.bundle / bin 契约并把路径指进 `octie/`，让 `dsh plugin add github:…` 能解析到插件；不含 workspaces，避免影响 `octie/` 内的 `npm ci` |
 | `docs/` | 开发文档（本文件 + `preset-skill-maintenance.md`；`docs/*` 默认 gitignore，逐个白名单放行） |
 | `.github/workflows/ci.yml` | CI：ubuntu / windows / macos 三平台矩阵 |
@@ -73,7 +73,7 @@ typecheck → build → test:smoke → `npm test` → **dist 漂移门禁**。
 
 - **npm**（推荐给最终用户，秒级安装）：`cd octie && npm publish`（`prepublishOnly`
   会先 build + 全量测试；tarball 已实测 991 KB / 133 文件，含 dist/plugin/client/
-  preset/skills）。已发布 v1.2.0：DSH 用户 `dsh plugin add octie-cli`；CLI 用户
+  preset）。已发布 v1.2.0：DSH 用户 `dsh plugin add octie-cli`；CLI 用户
   `npm install -g octie-cli`（同一包，两条接口共用）。
 - **GitHub Releases**（无 npm 账号时的备选）：把 `npm pack` 产物 tgz 挂到 Release，
   用户以 tarball URL 安装。

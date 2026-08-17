@@ -105,8 +105,8 @@ CLI 与 DSH 插件不是"CLI 超集"关系，而是**双向差异**：两条接�
 | 客户端任务面板（List + DAG 图、barycenter 布局、拖拽回稳、Physics 开关） | `client.js`（`exports["./client"]`，slot 注册） |
 | 项目活跃度排序（`.octie/project.json` mtime 信号，下拉 + Web API 同步） | 面板 + `/api/octie/projects` + web-ui |
 | 实时同步：会话内工具事件 SSE 秒级 + 外部写入 fs.watch（~100ms）+ 3s 轮询兜底 + 客户端自愈 | `/api/octie/events` + `client.js` |
-| 随插件预置的「Octie 任务图模式」agent preset（幂等、绝不覆盖） | `preset/octie-mode/` + `ensureOctiePreset()` |
-| `octie` 使用技能（按需加载，随包注册） | `ctx.skills.register` |
+| 随插件预置的「Octie 任务图模式」agent preset（幂等、绝不覆盖；1.2.2 起有 consent-gated 模板更新） | `preset/octie-mode/` + `ensureOctiePreset()` + `/api/octie/preset/*` |
+| ~~`octie` 使用技能~~（1.2.3 起已移除，待重写） | — |
 | `octie` Cordis 服务（17 方法 + `onChange`）与 `octie/*` 事件 | `plugin/index.mjs` |
 | `/api/octie/{projects,state,task,graph,events}` Web 路由 | Node half 注册于 DSH webServer |
 

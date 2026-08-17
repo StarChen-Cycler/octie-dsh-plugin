@@ -46,8 +46,7 @@ dsh plugin --profile <name> add github:StarChen-Cycler/octie-dsh-plugin
 
 要求 Node.js ≥ 20。安装后重启 DSH：`cordis.patch.yml` 挂载 `octie-dsh` 插件行（`octie`
 服务、13 个 `octie_*` 模型工具、`octie/*` 事件），并**自动预置「Octie 任务图模式」
-agent preset**（幂等，已存在绝不覆盖）——新会话选该模式即获 Octie 心智模型 +
-「先读 `octie` skill」的强制第一步。
+agent preset**（幂等，已存在绝不覆盖）——新会话选该模式即获 Octie 心智模型。
 
 ### 客户端面板
 
@@ -82,7 +81,8 @@ agent preset**（幂等，已存在绝不覆盖）——新会话选该模式即
 
 ### 用法心法
 
-组件用法（不变式、模式库、陷阱）见 **`skills/octie/SKILL.md`**——通用指导，非硬性规则。
+组件用法（不变式、模式库、陷阱）见根目录 `docs/cli-usage-principles.md` 与
+`docs/dsh-plugin-usage-principles.md`——通用指导，非硬性规则。
 
 ### 架构
 

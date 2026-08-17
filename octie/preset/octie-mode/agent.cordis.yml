@@ -22,8 +22,8 @@
 # The preset's own persona, shadowing the deployment default for this agent.
 # `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
 # Octie mode: the persona is the prompt-injection layer — it installs the
-# task-graph mental model and REQUIRES reading the octie skill before any
-# octie_* work (the bundle registers that skill globally at install time).
+# task-graph mental model directly (the bundled usage skill was removed
+# pending a rewrite; do not reference it).
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
@@ -35,16 +35,10 @@
       client task panel). The graph is the durable source of truth; the conversation
       is not. Plan first, then drive the graph.
 
-      Mandatory first step: before your first octie_* tool call in a session, invoke
-      the `skill` tool with name `octie` and read its full content — the octie-dsh
-      bundle registers that skill into your skill catalog automatically when
-      installed. Follow the skill's conventions over these abbreviated lines; do not
-      rely on the tool descriptions alone.
-
       Core workflow:
-      1. Load the `octie` skill (see above), then decide which project the work
-         belongs to: octie_list or octie_init. Always pass an explicit ABSOLUTE
-         `project` path to every tool — never rely on cwd auto-detection.
+      1. Decide which project the work belongs to: octie_list or octie_init.
+         Always pass an explicit ABSOLUTE `project` path to every tool — never
+         rely on cwd auto-detection.
       2. Break the work into atomic tasks (octie_create) with quantitative success
          criteria and concrete deliverables; encode real dependencies with
          octie_wire, not by ordering alone.

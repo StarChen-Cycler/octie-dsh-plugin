@@ -408,50 +408,7 @@ function buildTools(service) {
   ];
 }
 
-/**
- * The bundled `octie` usage skill. Registered through the optional `skills`
- * service so the model can load this playbook (invariants, patterns, pitfalls)
- * on demand via the `skill` tool — the user installs nothing extra. The body is
- * read from `octie/skills/octie/SKILL.md`, shipped in the npm package (`files`),
- * so that file stays the single source of truth.
- */
-const SKILL_NAME = 'octie';
-const SKILL_DESCRIPTION = 'Use the octie task-graph component (13 octie_* tools, the `octie` Cordis service, octie/* events, and the DSH client task panel) to plan, track, and maintain a durable DAG of atomic tasks. Covers the tool signatures and the absolute-project-path convention, the invariants (derived status, approve gate, blocker twin), a pattern library, pitfalls, and how to contribute new patterns.';
-const SKILL_WHEN_TO_USE = 'Working with Octie tasks, task graphs, atomic task planning, or combining Octie with CodeGraph, C7, interview specs, or subagents.';
 
-function stripFrontmatter(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  if (lines[0] === undefined || lines[0].trim() !== '---') return markdown;
-  const end = lines.findIndex((line, i) => i > 0 && line.trim() === '---');
-  if (end === -1) return markdown;
-  return lines.slice(end + 1).join('\n').replace(/^\n+/, '');
-}
-
-function loadSkillContent() {
-  try {
-    const dir = dirname(fileURLToPath(import.meta.url));
-    const raw = readFileSync(join(dir, '..', 'skills', 'octie', 'SKILL.md'), 'utf8');
-    return stripFrontmatter(raw);
-  } catch {
-    return undefined; // skill file unavailable (e.g. not packaged) — skip registration
-  }
-}
-
-function registerSkill(ctx, disposers) {
-  // Non-strict probe: the skills provider's fiber may activate after this
-  // plugin's apply, and a strict get() would silently skip the bundled skill.
-  const skills = ctx.get('skills', false);
-  if (skills === undefined || typeof skills.register !== 'function') return;
-  const content = loadSkillContent();
-  if (content === undefined) return;
-  disposers.push(skills.register({
-    name: SKILL_NAME,
-    description: SKILL_DESCRIPTION,
-    whenToUse: SKILL_WHEN_TO_USE,
-    source: 'bundled',
-    content,
-  }));
-}
 
 /**
  * Web panel routes for the DSH client half. Registered only when the
@@ -799,9 +756,6 @@ export function apply(ctx) {
     disposers.push(ctx.tools.register(tool));
   }
 
-  // Register the bundled usage skill so the model can load it on demand.
-  registerSkill(ctx, disposers);
-
   // Register the web panel read routes + SSE stream (headless-safe).
   // Non-strict lookup: `webServer` is optional (absent in headless/CLI), and
   // Cordis's strict `get()` only returns services whose providing fiber is
@@ -817,5 +771,5 @@ export function apply(ctx) {
     for (const dispose of disposers) {
       try { dispose(); } catch { /* best-effort teardown */ }
     }
-  }, 'octie-dsh: service + tools + skill + web routes');
+  }, 'octie-dsh: service + tools + web routes');
 }

@@ -2,8 +2,8 @@
 
 > 本文提炼自仓库内 5 个 CLI 工作流 skills（`.agents/skills/octie-{init,research,dev,fix,refine}/`）
 > 中关于「如何使用 Octie 项目」的硬性规则与惯例，整理成一份可直接查阅的原则清单。
-> 不变式（派生状态、approve 门、阻断孪生）以 `octie/skills/octie/SKILL.md`（usage skill）为权威；
-> 本文聚焦 CLI 使用层面，两者口径一致。
+> 不变式（派生状态、approve 门、阻断孪生）以本文与 `docs/dsh-plugin-usage-principles.md`
+> 为准（原 usage skill 已移除，待重写）。
 >
 > 定位说明：**CLI（`octie` 命令 + `octie serve`）是 Octie 的一等独立接口**——可全局安装、
 > 终端/脚本驱动，不依赖 DSH；DSH 插件是与之共享同一任务图存储的另一条接口，其工具层原则见
@@ -132,10 +132,10 @@ octie update <id> --unblock <id>（执行流程中）  # 用 octie approve 走�
 
 ## 10. 与其他文档的关系
 
-- **不变式与心智模型**（状态派生 / approve 门 / 孪生 / 原子校验）：`octie/skills/octie/SKILL.md`（usage skill，权威）。
+- **不变式与心智模型**（状态派生 / approve 门 / 孪生 / 原子校验）：本文与
+  `docs/dsh-plugin-usage-principles.md`。
 - **DSH 插件工具层版本**（同一套原则换成 13 个 `octie_*` 工具的表达）：`docs/dsh-plugin-usage-principles.md`。
 - **开发与维护**：`docs/development.md`、`docs/preset-skill-maintenance.md`。
-- 本文若与 usage skill 冲突，以 usage skill 为准——它是单一事实来源。
 
 ## 11. 实战沉淀（2026-08 · 面板实时修复）
 
