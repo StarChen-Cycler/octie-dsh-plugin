@@ -529,6 +529,33 @@ dsh plugin --profile web update octie-cli
 # then restart dsh web and refresh the panel
 ```
 
+### The bundled "Octie 任务图模式" preset is stale after an update
+
+**Problem**: After `dsh plugin --profile web update octie-cli`, the local copy of
+the bundled agent preset (`$DSH_HOME/.agent-presets/octie/`) still runs the OLD
+template. The plugin pre-provisions the preset on first install and **never
+overwrites it afterwards** (by design: a provisioned preset is user data).
+
+**Cause**: Preset templates are copy-once. The bundled skill and tools update
+with the package; the provisioned preset files do not.
+
+**Solution (recommended, v1.2.2+)**: Open **Settings → Octie 预设维护**. The
+card compares the local copy against the bundled template (`templateVersion`
+stamp + SHA-256 drift check) and offers two buttons when an update is
+available: **更新到 vN** (overwrite with the bundled template — your explicit
+consent is the only thing that ever overwrites) and **保持当前** (dismiss; the
+card stays quiet for that template version and re-prompts on the next bump).
+If you edited the local copy, the card warns that updating will overwrite your
+changes.
+
+**Manual fallback**: delete the provisioned copy and restart DSH — the plugin
+re-provisions the current template on load:
+
+```bash
+rm -rf "$DSH_HOME/.agent-presets/octie"   # Windows: rmdir /s /q %DSH_HOME%\.agent-presets\octie
+dsh --profile web                          # restart → re-provision
+```
+
 ## Data Recovery
 
 ### "Project file corrupted"
