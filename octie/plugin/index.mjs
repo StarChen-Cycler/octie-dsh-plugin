@@ -13,6 +13,7 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -507,9 +508,89 @@ function listProjects() {
 // from the moment it exists. `OCTIE_NO_PRESET_PROVISION=1` opts out (tests).
 const PRESET_ID = 'octie';
 const PROVISION_HOOK = 'OCTIE_NO_PRESET_PROVISION';
+/** Sidecar the plugin writes beside the provisioned copy: version + file hash. */
+const PRESET_STAMP = '.octie-template.json';
 
 function presetTemplateDir() {
   return join(dirname(fileURLToPath(import.meta.url)), '..', 'preset', 'octie-mode');
+}
+
+/** `templateVersion` field of a preset.yml; tolerant of any parse failure. */
+function presetTemplateVersion(dir) {
+  try {
+    const match = /^templateVersion:\s*(\d+)/m.exec(readFileSync(join(dir, 'preset.yml'), 'utf8'));
+    return match === null ? 0 : Number(match[1]);
+  } catch {
+    return 0;
+  }
+}
+
+/** SHA-256 over the bundled template's two files, plus its version. */
+function templateStamp(templateDir) {
+  const hash = createHash('sha256');
+  hash.update(readFileSync(join(templateDir, 'agent.cordis.yml')));
+  hash.update(readFileSync(join(templateDir, 'preset.yml')));
+  return { version: presetTemplateVersion(templateDir), sha256: hash.digest('hex') };
+}
+
+function readPresetStamp(dir) {
+  try {
+    return JSON.parse(readFileSync(join(dir, PRESET_STAMP), 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
+function writePresetStamp(dir, stamp) {
+  writeFileSync(join(dir, PRESET_STAMP), JSON.stringify(stamp, null, 2) + '\n');
+}
+
+function presetDirs() {
+  const dshHome = process.env.DSH_HOME || join(homedir(), '.dsh');
+  return { templateDir: presetTemplateDir(), targetDir: join(dshHome, '.agent-presets', PRESET_ID) };
+}
+
+/**
+ * Read-only snapshot of the provisioned preset against the bundled template:
+ * presence, both versions, drift (files differ from the stamp the plugin
+ * itself wrote — `null` for legacy copies predating stamps), and whether a
+ * consent-gated update is available. Never writes.
+ */
+function presetStatus() {
+  const { templateDir, targetDir } = presetDirs();
+  const bundled = templateStamp(templateDir);
+  const provisioned = existsSync(join(targetDir, 'agent.cordis.yml'));
+  const installedVersion = presetTemplateVersion(targetDir);
+  const stamp = readPresetStamp(targetDir);
+  let drifted = false;
+  if (provisioned && stamp === undefined) {
+    drifted = null; // legacy copy: never stamped, drift unknown
+  } else if (provisioned) {
+    const hash = createHash('sha256');
+    hash.update(readFileSync(join(targetDir, 'agent.cordis.yml')));
+    hash.update(readFileSync(join(targetDir, 'preset.yml')));
+    drifted = hash.digest('hex') !== stamp.sha256;
+  }
+  return {
+    provisioned,
+    bundledVersion: bundled.version,
+    installedVersion,
+    drifted,
+    updateAvailable: provisioned && (installedVersion < bundled.version || drifted !== false),
+    path: targetDir,
+  };
+}
+
+/** Consent-driven overwrite of the provisioned preset with the bundled template. */
+function updatePresetFromTemplate() {
+  const status = presetStatus();
+  if (!status.updateAvailable) return { status, applied: false };
+  const { templateDir, targetDir } = presetDirs();
+  mkdirSync(targetDir, { recursive: true });
+  copyFileSync(join(templateDir, 'agent.cordis.yml'), join(targetDir, 'agent.cordis.yml'));
+  copyFileSync(join(templateDir, 'preset.yml'), join(targetDir, 'preset.yml'));
+  writePresetStamp(targetDir, templateStamp(templateDir));
+  return { status: presetStatus(), applied: true };
 }
 
 async function ensureOctiePreset(ctx) {
@@ -536,6 +617,7 @@ async function ensureOctiePreset(ctx) {
   const template = presetTemplateDir();
   copyFileSync(join(template, 'agent.cordis.yml'), join(targetDir, 'agent.cordis.yml'));
   copyFileSync(join(template, 'preset.yml'), join(targetDir, 'preset.yml'));
+  writePresetStamp(targetDir, templateStamp(template));
 }
 
 async function resolveRouteProject(params, service) {
@@ -588,6 +670,29 @@ function registerWebRoutes(webServer, service, disposers) {
         const project = await resolveRouteProject(parseQuery(req), service);
         json(res, await graphStats(project));
       } catch (err) { json(res, { error: message(err) }, 400); }
+    },
+  }));
+
+  // Preset maintenance: read-only status probe + consent-driven template
+  // update. The overwrite happens ONLY when this endpoint is called (the
+  // settings card's explicit user action) — never during startup.
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/preset/status',
+    handler: (_req, res) => {
+      try { json(res, presetStatus()); } catch (err) { json(res, { error: message(err) }, 500); }
+    },
+  }));
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: '/api/octie/preset/update',
+    handler: (_req, res) => {
+      try {
+        const result = updatePresetFromTemplate();
+        if (result.applied) return json(res, result.status);
+        return json(res, { error: 'no update available', status: result.status }, 409);
+      } catch (err) { json(res, { error: message(err) }, 500); }
     },
   }));
 

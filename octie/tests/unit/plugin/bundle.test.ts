@@ -220,6 +220,8 @@ describe('octie-dsh bundle Node half', () => {
     expect(paths).toEqual([
       '/api/octie/events',
       '/api/octie/graph',
+      '/api/octie/preset/status',
+      '/api/octie/preset/update',
       '/api/octie/projects',
       '/api/octie/state',
       '/api/octie/task',
@@ -475,6 +477,132 @@ describe('octie-dsh bundle Node half', () => {
       if (origHook === undefined) delete process.env.OCTIE_NO_PRESET_PROVISION; else process.env.OCTIE_NO_PRESET_PROVISION = origHook;
       try { rmSync(fakeHome, { recursive: true, force: true }); } catch { /* ignore */ }
     }
+  });
+
+  describe('preset maintenance routes', () => {
+    let fakeHome: string;
+    let origHome: string | undefined;
+
+    beforeEach(() => {
+      origHome = process.env.DSH_HOME;
+      fakeHome = join(tmpdir(), `octie-preset-home-${uuidv4()}`);
+      mkdirSync(fakeHome, { recursive: true });
+      process.env.DSH_HOME = fakeHome;
+    });
+
+    afterEach(() => {
+      if (origHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = origHome;
+      try { rmSync(fakeHome, { recursive: true, force: true }); } catch { /* ignore */ }
+    });
+
+    function makeWrapper() {
+      const routes: any[] = [];
+      const webServerMock = {
+        register: (route: any) => { routes.push(route); return () => {}; },
+      };
+      const wrapper: any = {
+        tools: { register: () => () => {} },
+        provide: () => () => {},
+        emit: () => {},
+        on: () => () => {},
+        get: (name: string) => (name === 'webServer' ? webServerMock : undefined),
+        effect: (cb: () => any) => { cb(); return () => {}; },
+      };
+      return { routes, wrapper };
+    }
+
+    function findRoute(routes: any[], path: string) {
+      const r = routes.find((x) => x.path === path);
+      expect(r, `route ${path} registered`).toBeDefined();
+      return r;
+    }
+
+    async function call(handler: any): Promise<{ status?: number; body: any }> {
+      let status: number | undefined;
+      let body: any;
+      await handler({ url: '/' }, {
+        writeHead: (code: number) => { status = code; },
+        end: (payload: string) => { body = JSON.parse(payload); },
+      });
+      return { status, body };
+    }
+
+    function provision(): any[] {
+      const { routes, wrapper } = makeWrapper();
+      const origHook = process.env.OCTIE_NO_PRESET_PROVISION;
+      delete process.env.OCTIE_NO_PRESET_PROVISION;
+      try {
+        apply(wrapper);
+      } finally {
+        if (origHook === undefined) delete process.env.OCTIE_NO_PRESET_PROVISION;
+        else process.env.OCTIE_NO_PRESET_PROVISION = origHook;
+      }
+      return routes;
+    }
+
+    it('status reports not-provisioned before any provisioning', async () => {
+      const { routes, wrapper } = makeWrapper();
+      apply(wrapper); // suite-wide hook keeps provisioning off
+
+      const { body } = await call(findRoute(routes, '/api/octie/preset/status').handler);
+      expect(body.provisioned).toBe(false);
+      expect(body.updateAvailable).toBe(false);
+      expect(body.bundledVersion).toBeGreaterThanOrEqual(1);
+      expect(body.drifted).toBe(false);
+    });
+
+    it('provisioning stamps the copy and status then reports up-to-date', async () => {
+      const routes = provision();
+      const targetDir = join(fakeHome, '.agent-presets', 'octie');
+      expect(existsSync(join(targetDir, '.octie-template.json'))).toBe(true);
+
+      const { body } = await call(findRoute(routes, '/api/octie/preset/status').handler);
+      expect(body.provisioned).toBe(true);
+      expect(body.installedVersion).toBe(body.bundledVersion);
+      expect(body.drifted).toBe(false);
+      expect(body.updateAvailable).toBe(false);
+      expect(body.path).toBe(targetDir);
+    });
+
+    it('flags drift after user edits, and update resets it', async () => {
+      const routes = provision();
+      const targetDir = join(fakeHome, '.agent-presets', 'octie');
+      appendFileSync(join(targetDir, 'agent.cordis.yml'), '\n# user marker\n');
+
+      const drifted = await call(findRoute(routes, '/api/octie/preset/status').handler);
+      expect(drifted.body.drifted).toBe(true);
+      expect(drifted.body.updateAvailable).toBe(true);
+
+      const updated = await call(findRoute(routes, '/api/octie/preset/update').handler);
+      expect(updated.status).toBe(200);
+      expect(updated.body.provisioned).toBe(true);
+      expect(updated.body.drifted).toBe(false);
+      expect(updated.body.updateAvailable).toBe(false);
+      expect(readFileSync(join(targetDir, 'agent.cordis.yml'), 'utf8')).not.toContain('user marker');
+
+      // No update left: a second POST must refuse with an explicit error.
+      const refused = await call(findRoute(routes, '/api/octie/preset/update').handler);
+      expect(refused.status).toBe(409);
+      expect(refused.body.error).toContain('no update available');
+    });
+
+    it('treats a legacy unversioned copy as updateable and restamps it', async () => {
+      const routes = provision();
+      const targetDir = join(fakeHome, '.agent-presets', 'octie');
+      // Legacy copy: no stamp sidecar, no templateVersion field.
+      rmSync(join(targetDir, '.octie-template.json'), { force: true });
+      writeFileSync(join(targetDir, 'preset.yml'), 'name: Octie 任务图模式\n');
+
+      const legacy = await call(findRoute(routes, '/api/octie/preset/status').handler);
+      expect(legacy.body.drifted).toBe(null);
+      expect(legacy.body.installedVersion).toBe(0);
+      expect(legacy.body.updateAvailable).toBe(true);
+
+      const updated = await call(findRoute(routes, '/api/octie/preset/update').handler);
+      expect(updated.body.installedVersion).toBe(updated.body.bundledVersion);
+      expect(updated.body.drifted).toBe(false);
+      expect(existsSync(join(targetDir, '.octie-template.json'))).toBe(true);
+    });
   });
 
   it('GET /api/octie/events pushes instantly when the .octie directory changes (fs.watch)', async () => {
