@@ -637,7 +637,7 @@ octie init
 
 If your issue isn't covered here:
 
-1. **Check existing issues**: https://github.com/anthropics/octie/issues
+1. **Check existing issues**: https://github.com/StarChen-Cycler/octie/issues
 2. **Create a new issue** with:
    - Octie version (`octie --version`)
    - Node.js version (`node --version`)

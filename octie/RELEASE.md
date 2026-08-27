@@ -14,11 +14,17 @@ git pull
 npm test
 ```
 
-### 2. 更新版本号
+### 2. 更新版本号（三处必须同步）
 
-编辑 `package.json`，修改 version:
-```json
-"version": "1.0.5"
+发布的是根 package.json（`files: ["octie"]`），但运行时版本来自 `octie/package.json`，
+openapi.yaml 的 `info.version` 也要同步，否则会漂移（历史上曾停在 1.2.0）。
+
+```bash
+# 在仓库根目录执行
+V=1.2.4
+npm pkg set version=$V                       # 根 package.json
+npm --prefix octie pkg set version=$V        # octie/package.json
+sed -i "s/^  version: .*/  version: $V/" octie/openapi.yaml   # 只匹配 info.version（两空格缩进）
 ```
 
 ### 3. 发布到 NPM
@@ -55,7 +61,7 @@ git push
 
 ## 下次发布
 
-下次发布版本号: 1.0.5
+下次发布版本号: 1.2.4
 
 ---
 

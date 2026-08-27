@@ -31,7 +31,7 @@ Be respectful and inclusive. We welcome contributions from everyone.
 
 ```bash
 # Clone the repository
-git clone https://github.com/anthropics/octie.git
+git clone https://github.com/StarChen-Cycler/octie.git
 cd octie
 
 # Install dependencies
