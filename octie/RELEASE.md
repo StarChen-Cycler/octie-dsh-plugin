@@ -10,8 +10,7 @@ cd octie
 # 确保代码是最新的
 git pull
 
-# 构建并测试
-npm run build
+# 测试（构建会在发布时由根目录 prepack 自动执行）
 npm test
 ```
 
@@ -24,9 +23,17 @@ npm test
 
 ### 3. 发布到 NPM
 
+**从仓库根目录执行**（不是 `octie/` — 发布的是根 package.json，`files: ["octie"]`）:
+
 ```bash
-npm publish --access public --ignore-scripts
+cd ..   # 回到仓库根目录
+npm publish --access public
 ```
+
+注意：不要加 `--ignore-scripts`。根 package.json 的 `prepack` 会在打包前自动执行
+`npm --prefix octie run build`（含 web-ui 的 vite 构建），保证 `octie/dist/web-ui`
+一定进入 tarball。加 `--ignore-scripts` 会跳过这一步，导致 `octie serve` 没有
+网页界面可服务（见仓库根目录 octie-serve-webui-bug-report.md）。
 
 ### 4. 推送到 GitHub
 

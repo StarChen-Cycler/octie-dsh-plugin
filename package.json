@@ -25,6 +25,9 @@
     "octie": "./octie/bin/octie.cjs"
   },
   "type": "module",
+  "scripts": {
+    "prepack": "npm --prefix octie run build"
+  },
   "dependencies": {
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.3",

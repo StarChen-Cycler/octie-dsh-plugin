@@ -1,0 +1,27 @@
+# npm packing rules for octie/.
+# When this file exists, npm ignores .gitignore for packing.
+# Mirrors .gitignore EXCEPT dist/web-ui/: the built web UI bundle MUST
+# ship in the tarball because `octie serve` serves it from dist/web-ui,
+# and releases are packed from the repo root (files: ["octie"]) where
+# .gitignore's `dist/web-ui/` exclusion would otherwise drop it.
+# See octie-serve-webui-bug-report.md.
+node_modules/
+dist/**/*.map
+build/
+*.log
+.octie/
+*.octie
+tasks.json
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+coverage/
+.nyc_output/
+html/
+tmp/
+temp/
+*.tmp
