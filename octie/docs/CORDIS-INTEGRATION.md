@@ -145,6 +145,7 @@ DSH 对工具返回值有硬约束：**lossless JSON = 对象、数组、字符�
 | 4 | 传了 `project` 参数却总是读“当前项目”，甚至报 `No Octie project open` | `resolveProject()` 对显式 path 只 `return` 字符串、不 `openProject` 也不设 `service.current`；且 execute 回调忽略第二个参数 | `resolveProject()` 对显式 path 也 `openProject().then(handle => service.current = handle)`，并把 `project` 参数注入所有非 init 工具 |
 | 5 | 第一次调工具就误入 `openProject()` 自动探测 | `octie_init` 的参数字段是 `path` 不是 `project`，但旧 wrapper 对**所有**工具都先 `resolveProject` | `octie_init` 标记 `resolveProject:false`，跳过项目解析 |
 | 6 | 本地改完代码，`dist` 没进 git | `octie/dist/` 在 `.gitignore` 里，`prepack` 时才 `build` 重建 | **已反转（2026-08）**：npm git 依赖只打包 git 已跟踪文件，`prepare` 建的 dist 会被丢弃，GitHub 直装因此装完即坏。现改为 `octie/dist`（除 `.map` 与 `dist/web-ui/`）**提交进仓库**，根 facade 镜像运行时依赖，CI 加 `git diff --exit-code -- octie/dist` 漂移门禁。细节见 `docs/development.md` §3 |
+| 7 | DSH 升到 **0.1.5** 后，左下角图标与面板**无声消失**，界面正常、控制台无报错 | shell 改为**并发创建所有 client entry**（`Promise.all` + `loader.create({name})`，不传依赖边），而 client 半边写的是**一次性** `ctx.get('slots')` + `undefined 就 return` → 撞上竞态即静默放弃，一个槽都不注册；`assertEntriesActive()` 只检查 entry **自身**的 `inject`，未声明依赖故仍判 active，因此**不报错** | client 插件声明硬依赖 **`inject: ['slots']`**（服务名，让 fiber 等服务到位）；`package.json` 的 `dsh.client.inject` 一并补齐（它是可选字段，只为与生态一致）。详见 §8.5 |
 
 ---
 
@@ -200,6 +201,7 @@ skill 已随 1.2.3 移除（限定了不合适的开发逻辑，待重写）；�
 
 > **动态插件 = `defineTool`（裸映射，自动转 schema）；bundle 插件 = `ctx.tools.register`（完整 JSON Schema，原样透传）。**
 > **工具返回值永远是 lossless JSON——不许有 `undefined`。**
+> **client 半边里"读一次 + `undefined` 就 return"的服务，必须改成插件级 `inject: ['<服务名>']`。**
 
 ---
 
@@ -243,3 +245,70 @@ skill 已随 1.2.3 移除（限定了不合适的开发逻辑，待重写）；�
 - `octie/dist`（tsc 产物）提交进仓库：npm git 依赖只打包已跟踪文件（坑 #6 的反转）。
 - `dist/web-ui/`（vite 产物）不进仓库：html 输出跨平台/跨 Node 版本不逐字节确定，
   进提交会让漂移门禁必红；仅 `octie serve` 需要，npm tarball 仍会带。
+
+### 8.5 client 半边的服务依赖必须声明 `inject`（DSH 0.1.5 起）
+
+**现象**：升级到 0.1.5 后，`sidebar.footer.action`（左下角图标）与 `shell.overlay`（面板本体）
+一起消失。**界面正常渲染、控制台没有任何报错**，槽位本身也还在（查询显示 `available: true`，
+只是 `occupants` 为空）。
+
+**机制**：0.1.5 的 web shell（`@deepseek-ai/dsh-client-web`）把 client 引导改成**并发创建所有 entry**：
+
+```js
+const rows = [MODULES_ID, ...this.manifest.plugins.map(r => r.id), APP_SHELL_ID]
+await Promise.all(rows.map(async (name) => { /* … */ await loader.create({ name }) }))
+```
+
+注意 `loader.create({ name })` **只传 name**：`dsh.client.inject` 并不会变成 entry 的依赖边。
+所以"哪个 client 插件先激活"是竞态。
+
+而 `client.js` 的写法是**一次性读取 + 放弃**：
+
+```js
+apply(ctx) {
+  const slots = ctx.get('slots')
+  if (slots === undefined) return      // ← 拿不到就永久放弃
+}
+```
+
+`slots` 由 DSH 自带的 `@deepseek-ai/dsh-client-ui-slots` 提供。若它此刻尚未激活，插件一次读取失败即
+放弃，一个槽都不注册。**为什么连报错都没有**：shell 的 `assertEntriesActive()` 只扫
+`entry.fiber.inject`——未声明依赖的 entry 仍被判为 `active`，于是启动成功、界面正常、静默失效。
+
+**修法**：把"可能缺席的服务"改成**硬依赖**，由 fiber 等服务到位再跑 `apply`：
+
+```js
+return {
+  name: 'octie-dsh-client',
+  inject: ['slots'],            // ← 关键：服务名（`slots`），不是包名
+  apply(ctx) {
+    const slots = ctx.get('slots')
+    // …
+  },
+}
+```
+
+`package.json` 同步补齐（`inject` 是**可选字段**——DSH 的 `parseDshClient()` 只在它存在时才校验
+"必须是字符串数组"，所以它**不是**修复点；补上只为与生态里其它 client-half 插件一致）：
+
+```json
+"dsh": {
+  "bundle": { "patch": "./cordis.patch.yml" },
+  "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-slots"] }
+}
+```
+
+**通用规则**：client 半边里**任何**"读一次 + `undefined` 就放弃"的服务，都必须改成插件级
+`inject: ['<服务名>']`。`ctx.get` + 判空的写法只在"缺了也能正常工作"时才成立。
+
+**热加载**：client bundle 的改动会被 HMR 接收器**直接重载，不需要重启 `dsh web`**。
+已实测：改完 `client.js` 后，`sidebar.footer.action` 立即出现 `octie-panel` 占用者
+（`registrant: octie-dsh-client`）。host 半边不同——仍要重启才生效。
+
+**排障入口**：用 Cordis Inspect 查槽位实际占用者，而不是只看槽在不在：
+
+```
+cordis_inspect_query(platform=client, provider=Slots, method=listSubTree,
+                     input={"root":"sidebar.footer.action"})
+→ selected.occupants 里应能看到 { registrant: "octie-dsh-client", id: "octie-panel", active: true }
+```
