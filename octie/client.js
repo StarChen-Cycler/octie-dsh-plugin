@@ -889,6 +889,11 @@ window.__ModuleLoader__.load({
 
     return {
       name: 'octie-dsh-client',
+      // The web shell creates every client entry concurrently (Promise.all over
+      // the boot graph), so a one-shot `ctx.get('slots')` at apply time races the
+      // slots provider and silently registers nothing. Declaring the hard
+      // dependency makes the fiber wait for the service instead.
+      inject: ['slots'],
       apply(ctx) {
         const slots = ctx.get('slots');
         if (slots === undefined) return;
