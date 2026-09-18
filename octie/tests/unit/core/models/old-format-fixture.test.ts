@@ -82,4 +82,18 @@ describe('old-format fixtures (pre-withdrawn need_fix era)', () => {
       expect(after).toEqual(before);
     }
   });
+
+  it('fromJSON migrates fixture need_fix booleans to three-state (true→done, false→open)', () => {
+    // A1 migration contract: old fixtures load unmodified and derive states
+    const fixture = loadFixture('old-format-project.json');
+    for (const data of Object.values(fixture.tasks)) {
+      const node = TaskNode.fromJSON(data);
+      for (const item of node.need_fix) {
+        const raw = (data.need_fix ?? []).find((r) => r.id === item.id)!;
+        const expected = (raw as { completed: boolean }).completed ? 'done' : 'open';
+        expect(item.state).toBe(expected);
+        expect(item.completed).toBe(expected === 'done');
+      }
+    }
+  });
 });

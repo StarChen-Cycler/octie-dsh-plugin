@@ -63,6 +63,14 @@ export interface Deliverable {
 }
 
 /**
+ * Three-state of a fix item:
+ * - open: pending, blocks review
+ * - done: fix applied, does not block
+ * - withdrawn: voided by review, no longer required to execute, does not block
+ */
+export type FixItemState = 'open' | 'done' | 'withdrawn';
+
+/**
  * Fix item for blocking issues that must be resolved before review
  * Has equal importance to success_criteria and deliverables
  * All three must be complete before task can enter in_review status
@@ -72,14 +80,31 @@ export interface FixItem {
   id: string;
   /** Description of what needs to be fixed */
   text: string;
-  /** Whether the fix has been applied */
+  /**
+   * Legacy boolean mirror of state (true ⇔ done, false ⇔ open/withdrawn).
+   * Kept in sync on every write so old readers keep working; new logic must
+   * use resolveFixItemState() instead of reading this field directly.
+   */
   completed: boolean;
+  /**
+   * Canonical three-state. Absent in pre-withdrawn-era data — derive it from
+   * `completed` on read (true → done, false → open).
+   */
+  state?: FixItemState;
   /** Optional file path indicating which file needs fixing */
   file_path?: string;
   /** ISO 8601 timestamp when item was added */
   added_at: string;
   /** Source of the fix item */
   source?: 'review' | 'runtime' | 'regression';
+}
+
+/**
+ * Resolve the canonical state of a fix item, migrating legacy data on read:
+ * items without `state` derive it from `completed` (true → done, false → open).
+ */
+export function resolveFixItemState(item: Pick<FixItem, 'completed'> & { state?: FixItemState }): FixItemState {
+  return item.state ?? (item.completed ? 'done' : 'open');
 }
 
 /**
@@ -483,7 +508,8 @@ export class StorageError extends OctieError {
  * Per the status refactor spec:
  * - success_criteria items: Cannot be unchecked or deleted once completed
  * - deliverables items: Cannot be unchecked or deleted once completed
- * - need_fix items: Cannot be deleted or unmarked once completed
+ * - need_fix items: Cannot be deleted or unmarked once completed; withdrawn
+ *   items are terminal (cannot be completed or re-opened)
  */
 export class ImmutabilityViolationError extends ValidationError {
   /** ID of the item that cannot be modified */

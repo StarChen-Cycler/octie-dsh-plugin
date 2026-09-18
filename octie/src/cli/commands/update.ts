@@ -78,6 +78,7 @@ export const updateCommand = new Command('update')
   )
   .option('--need-fix-file <path>', 'Optional file path for need_fix item')
   .option('--complete-need-fix <id>', 'Mark need_fix item as resolved (supports short UUID)')
+  .option('--withdraw-need-fix <id>', 'Withdraw need_fix item: no longer required, must NOT be executed (supports short UUID)')
   .addOption(
     new Option(
       '--notes <text>',
@@ -118,6 +119,7 @@ export const updateCommand = new Command('update')
           file: options.needFixFile,
         })),
         completeNeedFix: options.completeNeedFix ? [options.completeNeedFix] : undefined,
+        withdrawNeedFix: options.withdrawNeedFix ? [options.withdrawNeedFix] : undefined,
         blockers: blockerIds.length === 1
           ? { id: blockerIds[0]!, explanation: dependenciesText ?? '' }
           : undefined,
@@ -185,6 +187,9 @@ updateCommand.on('--help', () => {
   console.log('');
   console.log(chalk.cyan('  --complete-need-fix <id>') + ': Mark issue as resolved.');
   console.log('    Supports short UUID (first 7-8 chars).');
+  console.log('');
+  console.log(chalk.cyan('  --withdraw-need-fix <id>') + ': Withdraw issue (作废) — no longer required, must NOT be executed.');
+  console.log('    Withdrawn items never block review and are terminal. Supports short UUID.');
   console.log('');
   console.log(chalk.bold('Criterion Evidence (Optional):'));
   console.log(chalk.cyan('  --evidence <text>') + ': Record evidence when completing success criteria.');

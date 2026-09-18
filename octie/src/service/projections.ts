@@ -4,6 +4,7 @@
  */
 
 import type { TaskNode } from '../core/models/task-node.js';
+import { resolveFixItemState } from '../types/index.js';
 import type {
   TaskSummary,
   TaskProjection,
@@ -48,12 +49,14 @@ function projectNeedFix(f: {
   source?: 'review' | 'runtime' | 'regression';
   file_path?: string;
   completed: boolean;
+  state?: 'open' | 'done' | 'withdrawn';
 }): NeedFixProjection {
   return {
     id: f.id,
     text: f.text,
     ...(f.source ? { source: f.source } : {}),
     ...(f.file_path ? { file_path: f.file_path } : {}),
+    state: resolveFixItemState(f),
     completed: f.completed,
   };
 }

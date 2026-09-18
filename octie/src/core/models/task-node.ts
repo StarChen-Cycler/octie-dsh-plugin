@@ -25,6 +25,7 @@ import {
   ValidationError,
   AtomicTaskViolationError,
   ImmutabilityViolationError,
+  resolveFixItemState,
 } from '../../types/index.js';
 
 /**
@@ -891,6 +892,7 @@ export class TaskNode implements TaskNodeType {
       id: uuidv4(),
       text: text.trim(),
       completed: false,
+      state: 'open',
       file_path: options?.file_path,
       added_at: new Date().toISOString(),
       source: options?.source,
@@ -903,6 +905,7 @@ export class TaskNode implements TaskNodeType {
 
   /**
    * Mark a need_fix item as complete
+   * Only open items can be completed; withdrawn items are terminal.
    * @param fixId - ID of the need_fix item to mark complete
    */
   completeNeedFix(fixId: string): void {
@@ -910,7 +913,44 @@ export class TaskNode implements TaskNodeType {
     if (!fixItem) {
       throw new ValidationError(`Need_fix item with ID '${fixId}' not found.`, 'need_fix');
     }
-    fixItem.completed = true;
+    if (resolveFixItemState(fixItem) === 'withdrawn') {
+      throw new ImmutabilityViolationError(
+        `Need_fix item '${fixId}' is withdrawn and cannot be completed. Withdrawn items are terminal.`,
+        fixId,
+        'need_fix'
+      );
+    }
+    fixItem.state = 'done';
+    fixItem.completed = true; // Legacy mirror, kept in sync for old readers
+    this._touch();
+    this._checkCompletion();
+    this.recalculateStatus(); // Auto-transition status based on state
+  }
+
+  /**
+   * Withdraw a need_fix item — the review voided it; it must NOT be executed.
+   * Symmetric to completeNeedFix. Withdrawn items never block review and are
+   * terminal (cannot be completed or re-opened). Already-withdrawn is a no-op.
+   * @param fixId - ID of the need_fix item to withdraw
+   */
+  withdrawNeedFix(fixId: string): void {
+    const fixItem = this.need_fix.find(f => f.id === fixId);
+    if (!fixItem) {
+      throw new ValidationError(`Need_fix item with ID '${fixId}' not found.`, 'need_fix');
+    }
+    const state = resolveFixItemState(fixItem);
+    if (state === 'withdrawn') {
+      return; // Idempotent, symmetric to re-completing a done item
+    }
+    if (state === 'done') {
+      throw new ImmutabilityViolationError(
+        `Need_fix item '${fixId}' is already completed and cannot be withdrawn. Completed items are immutable.`,
+        fixId,
+        'need_fix'
+      );
+    }
+    fixItem.state = 'withdrawn';
+    fixItem.completed = false; // Legacy mirror, kept in sync for old readers
     this._touch();
     this._checkCompletion();
     this.recalculateStatus(); // Auto-transition status based on state
@@ -1144,7 +1184,8 @@ export class TaskNode implements TaskNodeType {
   private _isComplete(): boolean {
     const allCriteriaComplete = this.success_criteria.every(c => c.completed);
     const allDeliverablesComplete = this.deliverables.every(d => d.completed);
-    const allNeedFixComplete = this.need_fix.every(f => f.completed);
+    // Only open need_fix items block completion; done and withdrawn do not
+    const allNeedFixComplete = this.need_fix.every(f => resolveFixItemState(f) !== 'open');
     return allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete;
   }
 
@@ -1206,7 +1247,8 @@ export class TaskNode implements TaskNodeType {
     // Blockers prevent starting work, not completing it
     const allCriteriaComplete = this.success_criteria.every(c => c.completed);
     const allDeliverablesComplete = this.deliverables.every(d => d.completed);
-    const allNeedFixComplete = this.need_fix.every(f => f.completed);
+    // Only open need_fix items block the review gate (spec A1: withdrawn never blocks)
+    const allNeedFixComplete = this.need_fix.every(f => resolveFixItemState(f) !== 'open');
     const allComplete = allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete;
 
     if (allComplete) {
@@ -1221,9 +1263,10 @@ export class TaskNode implements TaskNodeType {
     }
 
     // Rule 3: Check if work has started
+    // Spec A1: only OPEN need_fix items count — withdrawn items are not work
     const anyCriteriaChecked = this.success_criteria.some(c => c.completed);
     const anyDeliverableChecked = this.deliverables.some(d => d.completed);
-    const hasNeedFix = this.need_fix.length > 0;
+    const hasNeedFix = this.need_fix.some(f => resolveFixItemState(f) === 'open');
 
     if (anyCriteriaChecked || anyDeliverableChecked || hasNeedFix) {
       return 'in_progress';
@@ -1325,6 +1368,14 @@ export class TaskNode implements TaskNodeType {
       migratedStatus = 'ready';
     }
 
+    // Migrate pre-withdrawn-era need_fix items on read (spec A1):
+    // state absent → completed:true becomes done, completed:false becomes open.
+    // The legacy `completed` mirror is rewritten so old readers keep working.
+    const migratedNeedFix = (data.need_fix || []).map(item => {
+      const state = resolveFixItemState(item);
+      return { ...item, state, completed: state === 'done' };
+    });
+
     const node = new TaskNode({
       id: data.id,
       title: data.title,
@@ -1333,7 +1384,7 @@ export class TaskNode implements TaskNodeType {
       priority: data.priority,
       success_criteria: data.success_criteria,
       deliverables: data.deliverables,
-      need_fix: data.need_fix || [], // Default to empty array for legacy data
+      need_fix: migratedNeedFix,
       assignee: data.assignee ?? null, // Default to null for legacy data
       blockers: data.blockers,
       dependencies: data.dependencies,

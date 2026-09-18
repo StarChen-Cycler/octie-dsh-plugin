@@ -256,6 +256,12 @@ export async function updateTaskWithPropagation(
     }
     updated = true;
   }
+  if ((patch.withdrawNeedFix ?? []).length > 0) {
+    for (const idp of patch.withdrawNeedFix!) {
+      task.withdrawNeedFix(resolveWithin(task.need_fix, idp, 'Need_fix item', 'need_fix'));
+    }
+    updated = true;
+  }
 
   const dependenciesText = patch.blockers ? patch.blockers.explanation : patch.dependencies;
 

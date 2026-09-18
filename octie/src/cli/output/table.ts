@@ -73,7 +73,12 @@ export function formatTaskDetailTable(task: TaskProjection, fields?: string[] | 
   if (show('need_fix') && task.need_fix.length > 0) {
     lines.push(chalk.bold('Need Fix:'));
     for (const nf of task.need_fix) {
-      const symbol = nf.completed ? chalk.green('✓') : chalk.red('!');
+      const nfState = nf.state ?? (nf.completed ? 'done' : 'open');
+      const symbol = nfState === 'done'
+        ? chalk.green('✓')
+        : nfState === 'withdrawn'
+          ? chalk.gray('⊘ withdrawn')
+          : chalk.red('!');
       const sourceDisplay = nf.source ? chalk.yellow(` [${nf.source}]`) : '';
       const fileRef = nf.file_path ? chalk.gray(` (${nf.file_path})`) : '';
       const idDisplay = chalk.gray(`(${nf.id.substring(0, 8)})`);

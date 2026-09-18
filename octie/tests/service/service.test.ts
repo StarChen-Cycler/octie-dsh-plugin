@@ -244,6 +244,35 @@ describe('octie-core service layer', () => {
       expect(resolved.need_fix[0]!.completed).toBe(true);
     });
 
+    it('withdraws need_fix items: projection shows withdrawn and review gate opens (A1)', async () => {
+      const t = await svc.createTask(dir, { title: 'Implement withdraw', description: DESC, successCriteria: [CRIT], deliverables: [DELIV] });
+      const withFix = await svc.updateTask(dir, t.id, { addNeedFix: [{ text: 'delete the three test accounts', source: 'review' }] });
+      expect(withFix.need_fix[0]!.state).toBe('open');
+      // Finish all other work — the open need_fix still gates the review transition
+      await svc.updateTask(dir, t.id, {
+        completeCriteria: [t.success_criteria[0]!.id],
+        completeDeliverables: [t.deliverables[0]!.id],
+      });
+      const withdrawn = await svc.updateTask(dir, t.id, { withdrawNeedFix: [withFix.need_fix[0]!.id] });
+      // octie_get consumers see withdrawn, not unfinished
+      expect(withdrawn.need_fix[0]!.state).toBe('withdrawn');
+      expect(withdrawn.need_fix[0]!.completed).toBe(false);
+      expect(withdrawn.status).toBe('in_review');
+      const fetched = await svc.getTask(dir, t.id);
+      expect(fetched.need_fix[0]!.state).toBe('withdrawn');
+    });
+
+    it('rejects withdrawing a completed need_fix item and completing a withdrawn one (A1)', async () => {
+      const t = await svc.createTask(dir, { title: 'Implement withdraw rules', description: DESC, successCriteria: [CRIT], deliverables: [DELIV] });
+      const withFix = await svc.updateTask(dir, t.id, { addNeedFix: [{ text: 'fix a', source: 'review' }, { text: 'fix b', source: 'review' }] });
+      const done = await svc.updateTask(dir, t.id, { completeNeedFix: [withFix.need_fix[0]!.id] });
+      await expect(svc.updateTask(dir, t.id, { withdrawNeedFix: [done.need_fix[0]!.id] }))
+        .rejects.toThrow(/already completed.*cannot be withdrawn/i);
+      const withdrawn = await svc.updateTask(dir, t.id, { withdrawNeedFix: [withFix.need_fix[1]!.id] });
+      await expect(svc.updateTask(dir, t.id, { completeNeedFix: [withdrawn.need_fix[1]!.id] }))
+        .rejects.toThrow(/withdrawn.*terminal/i);
+    });
+
     it('adds a blocker, prevents self-block and cycles, unblocks', async () => {
       const storage = new TaskStorage({ projectDir: dir });
       const g = await storage.load();

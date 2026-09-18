@@ -48,10 +48,10 @@ function makeTask(overrides: Partial<{
       'src/core/models/task-node.ts'
     );
     if (overrides.needFixDone) {
-      // Mark latest need_fix as completed
+      // Mark latest need_fix as completed via the public API so the
+      // three-state field and its legacy `completed` mirror stay in sync
       const last = node.need_fix[node.need_fix.length - 1];
-      last.completed = true;
-      last.completed_at = new Date().toISOString();
+      node.completeNeedFix(last.id);
     }
   }
 
