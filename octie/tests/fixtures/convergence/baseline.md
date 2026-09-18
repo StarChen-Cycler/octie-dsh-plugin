@@ -88,3 +88,22 @@ Round-relevant observations (recorded, not actioned here):
 - `octie_get` has **no** `fields` parameter today — C1 adds it.
 - `octie_update` has **no** delete-criterion/deliverable parameters — C2 adds them; it already has `blockers` as a **single** `stringParam` ("One blocker task ID to add") — B2's type-error fix targets this path.
 - need_fix completion exists (`completeNeedFix`) but no withdraw action — A1 adds it (≤3 new tool actions budget: withdraw, fields, delete ×2-in-1).
+
+---
+
+## Addendum 2026-09-18 (post-B1): enriched atomic error output
+
+B1 intentionally changed the violation text (per-entry location). New CLI output for the same probe command:
+
+```
+✗ Task "Create thing" violates atomic task requirements.
+
+Specific issues found:
+  ✗ Deliverable[0] "实现一个功能" is not specific. Include a file path (e.g., "src/auth/login.ts") or a specific output (e.g., "POST /auth/login endpoint"). Avoid vague terms like "code", "implementation", "feature".
+
+ℹ Run 'octie create -h' to see the full atomic task policy.
+```
+
+Structure preserved (error line → "Specific issues found:" → full list → policy hint); each violation now carries field + entry index + excerpt. The DSH tool path surfaces the same list in `err.message` (plugin/index.mjs `rethrowWithViolationDetails`).
+
+Post-A1 tool-surface additions (within the ≤3 new actions budget): `octie_update` gained `withdrawNeedFix` (A1), `removeCriteria` + `removeDeliverables` (C2); `octie_get` gained `fields` (C1).
