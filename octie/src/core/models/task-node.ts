@@ -408,53 +408,50 @@ export function validateAtomicTask(taskData: {
   // measurable anchor (digit, file path, verifiable verb) — e.g. "validator
   // prints a clear warning for empty input" is checkable and passes, while
   // "make it fast and good" is rejected.
-  for (const criterion of taskData.success_criteria) {
+  // B1: every per-entry violation names the field, the entry index, and an
+  // excerpt so the rejected call is actionable without guessing.
+  taskData.success_criteria.forEach((criterion, i) => {
     const textLower = criterion.text.toLowerCase();
     // Split into word tokens (sequences of letters)
     const tokens = textLower.match(/[a-z]+/g) || [];
     const subjectiveWord = findSubjectiveWord(tokens);
     if (subjectiveWord && !hasQuantitativeAnchor(textLower)) {
       violations.push(
-        `Success criterion "${criterion.text.substring(0, 80)}" contains the subjective word "${subjectiveWord}" and has no measurable anchor. Add a metric (number, unit, status code, file path) or a verifiable verb (passes, returns, exits, lists, includes, matches, emits, displays, shows, prints, responds, throws, fails).`
+        `Success criterion[${i}] "${criterion.text.substring(0, 80)}" contains the subjective word "${subjectiveWord}" and has no measurable anchor. Add a metric (number, unit, status code, file path) or a verifiable verb (passes, returns, exits, lists, includes, matches, emits, displays, shows, prints, responds, throws, fails).`
       );
     }
-  }
-
-  // Check criteria aren't empty or just whitespace
-  const hasEmptyCriterion = taskData.success_criteria.some(
-    c => c.text.trim().length === 0
-  );
-
-  if (hasEmptyCriterion) {
-    violations.push('Success criteria cannot be empty or whitespace.');
-  }
-
-  // Check deliverables aren't empty or just whitespace
-  const hasEmptyDeliverable = taskData.deliverables.some(
-    d => d.text.trim().length === 0
-  );
-
-  if (hasEmptyDeliverable) {
-    violations.push('Deliverables cannot be empty or whitespace.');
-  }
-
-  // Check that all criteria and deliverables start with a verb or are specific
-  const hasVagueCriterion = taskData.success_criteria.some(c => {
-    const textLower = c.text.toLowerCase().trim();
-    return VAGUE_PATTERNS.some(pattern => textLower.startsWith(pattern));
   });
 
-  if (hasVagueCriterion) {
-    violations.push(
-      'Success criteria must be specific. Avoid vague phrases like "works properly", "is correct", "functions as expected". Use specific outcomes: "endpoint returns 200 with valid JWT", "password is hashed with bcrypt", "test coverage is 100%".'
-    );
-  }
+  // Check criteria aren't empty or just whitespace (per-entry, with location)
+  taskData.success_criteria.forEach((c, i) => {
+    if (c.text.trim().length === 0) {
+      violations.push(`Success criterion[${i}] is empty or whitespace.`);
+    }
+  });
 
-  // Check that deliverables are specific files or outputs
-  const hasVagueDeliverable = taskData.deliverables.some(d => {
+  // Check deliverables aren't empty or just whitespace (per-entry, with location)
+  taskData.deliverables.forEach((d, i) => {
+    if (d.text.trim().length === 0) {
+      violations.push(`Deliverable[${i}] is empty or whitespace.`);
+    }
+  });
+
+  // Check that all criteria and deliverables start with a verb or are specific
+  taskData.success_criteria.forEach((c, i) => {
+    const textLower = c.text.toLowerCase().trim();
+    if (VAGUE_PATTERNS.some(pattern => textLower.startsWith(pattern))) {
+      violations.push(
+        `Success criterion[${i}] "${c.text.substring(0, 80)}" starts with a vague phrase. Avoid vague phrases like "works properly", "is correct", "functions as expected". Use specific outcomes: "endpoint returns 200 with valid JWT", "password is hashed with bcrypt", "test coverage is 100%".`
+      );
+    }
+  });
+
+  // Check that deliverables are specific files or outputs (per-entry, with location)
+  taskData.deliverables.forEach((d, i) => {
     const textLower = d.text.toLowerCase().trim();
+    if (textLower.length === 0) return; // already reported by the empty check above
     // Allow file paths or specific outputs
-    return (
+    const isVagueDeliverable =
       !textLower.includes('.') &&
       !textLower.includes('file') &&
       !textLower.includes('test') &&
@@ -465,15 +462,13 @@ export function validateAtomicTask(taskData: {
       !textLower.includes('endpoint') &&
       !textLower.includes('api') &&
       !textLower.includes('service') &&
-      textLower.split(' ').length < 3
-    );
+      textLower.split(' ').length < 3;
+    if (isVagueDeliverable) {
+      violations.push(
+        `Deliverable[${i}] "${d.text.substring(0, 80)}" is not specific. Include a file path (e.g., "src/auth/login.ts") or a specific output (e.g., "POST /auth/login endpoint"). Avoid vague terms like "code", "implementation", "feature".`
+      );
+    }
   });
-
-  if (hasVagueDeliverable) {
-    violations.push(
-      'Deliverables must be specific. Include file paths (e.g., "src/auth/login.ts") or specific outputs (e.g., "POST /auth/login endpoint"). Avoid vague terms like "code", "implementation", "feature".'
-    );
-  }
 
   if (violations.length > 0) {
     throw new AtomicTaskViolationError(

@@ -678,6 +678,33 @@ describe('octie-dsh bundle Node half', () => {
     expect(ctx.emitted.some(([event]) => event === 'octie/task-created')).toBe(true);
   });
 
+  it('octie_create rejection surfaces the full violation list with entry locations (B1)', async () => {
+    // The tools runtime propagates only err.message — the DSH path used to
+    // drop err.violations, showing just "violates atomic task requirements".
+    const { ctx, wrapper } = makeMockCtx();
+    apply(wrapper);
+    const tools: Record<string, any> = {};
+    for (const tool of ctx.registered as any[]) tools[tool.name] = tool;
+
+    await tools.octie_init.execute({ name: `violations-${uuidv4().slice(0, 8)}`, path: tempDir });
+    const err = await tools.octie_create.execute({
+      title: 'Create thing',
+      description: 'Deliberately non-atomic task to prove the DSH tool error path carries the full violation list with locations.',
+      successCriteria: ['it works'],
+      deliverables: ['实现一个功能', 'fix stuff'],
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    const msg = (err as Error).message;
+    // Full list surfaced (not only the generic first line)
+    expect(msg).toContain('Specific issues found:');
+    // Location: field + entry index + excerpt, one per offending deliverable
+    expect(msg).toContain('Deliverable[0] "实现一个功能" is not specific');
+    expect(msg).toContain('Deliverable[1] "fix stuff" is not specific');
+    // Reason included
+    expect(msg).toContain('file path');
+  });
+
   it('service onChange fires for consumers', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

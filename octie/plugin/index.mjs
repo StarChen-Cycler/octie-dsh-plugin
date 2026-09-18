@@ -252,6 +252,15 @@ function makeTool(service, name, description, parameters, execute, options = {})
 }
 
 function buildTools(service) {
+  // B1: the tools runtime propagates only err.message to the model, which
+  // silently dropped the collected atomic-violation list. Embed it (each
+  // violation already names the field, the entry index, and the reason).
+  const rethrowWithViolationDetails = (err) => {
+    const violations = err && Array.isArray(err.violations) ? err.violations : null;
+    if (!violations || violations.length === 0) throw err;
+    const detail = violations.map(v => `  ✗ ${v}`).join('\n');
+    throw new Error(`${err.message}\n\nSpecific issues found:\n${detail}`);
+  };
   return [
     makeTool(service, 'octie_init',
       'Initialize a new Octie project at a path and open it as the current project.',
@@ -271,17 +280,23 @@ function buildTools(service) {
         relatedFiles: { type: 'array', items: { type: 'string' }, required: false },
         notes: stringParam(false, 'Context or comments'),
       },
-      async (args) => service.createTask({
-        title: args.title,
-        description: args.description,
-        successCriteria: asArray(args.successCriteria) || [],
-        deliverables: asArray(args.deliverables) || [],
-        priority: args.priority,
-        blockers: asArray(args.blockers),
-        dependencyExplanation: args.dependencyExplanation,
-        relatedFiles: asArray(args.relatedFiles),
-        notes: args.notes,
-      })),
+      async (args) => {
+        try {
+          return await service.createTask({
+            title: args.title,
+            description: args.description,
+            successCriteria: asArray(args.successCriteria) || [],
+            deliverables: asArray(args.deliverables) || [],
+            priority: args.priority,
+            blockers: asArray(args.blockers),
+            dependencyExplanation: args.dependencyExplanation,
+            relatedFiles: asArray(args.relatedFiles),
+            notes: args.notes,
+          });
+        } catch (err) {
+          rethrowWithViolationDetails(err);
+        }
+      }),
     makeTool(service, 'octie_list',
       'List tasks in the Octie graph, optionally filtered by status or priority.',
       {
