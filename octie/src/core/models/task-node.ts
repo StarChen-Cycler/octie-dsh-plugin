@@ -1319,6 +1319,11 @@ export class TaskNode implements TaskNodeType {
       );
     }
     this.status = 'completed';
+    // A2: completed_at is a single field meaning "when this round finished /
+    // was last touched" — written when all items are checked (_checkCompletion)
+    // and refreshed again on every successful approve, so a re-approval after
+    // further changes moves the timestamp to the latest approval.
+    this._completed_at = new Date().toISOString();
     this._touch();
   }
 
