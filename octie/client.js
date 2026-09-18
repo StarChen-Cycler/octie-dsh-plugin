@@ -547,14 +547,23 @@ window.__ModuleLoader__.load({
         )));
       const delDone = (t.deliverables || []).filter((d) => d.completed).length;
 
-      const needFix = (t.need_fix || []).map((f) => e('li', { key: f.id, className: 'octie-li' },
-        check(f.completed, SEC_COLORS.rose),
-        e('div', { className: 'octie-li-body' },
-          e('span', { className: f.completed ? 'octie-done' : '' }, f.text),
-          f.file_path ? e('code', { className: 'octie-chip' }, f.file_path) : null,
-          f.source ? e('span', { className: 'octie-source-chip' }, f.source) : null,
-        )));
-      const fixDone = (t.need_fix || []).filter((f) => f.completed).length;
+      const needFix = (t.need_fix || []).map((f) => {
+        // A1: three-state — open / done / withdrawn; old payloads carry only
+        // the completed boolean, so fall back to it when state is absent
+        const fState = f.state || (f.completed ? 'done' : 'open');
+        return e('li', { key: f.id, className: 'octie-li' },
+          fState === 'withdrawn'
+            ? e('span', { className: 'octie-check octie-check-withdrawn' }, '−')
+            : check(fState === 'done', SEC_COLORS.rose),
+          e('div', { className: 'octie-li-body' },
+            e('span', { className: fState !== 'open' ? 'octie-done' : '' }, f.text),
+            fState === 'withdrawn' ? e('span', { className: 'octie-withdrawn-chip' }, 'withdrawn') : null,
+            f.file_path ? e('code', { className: 'octie-chip' }, f.file_path) : null,
+            f.source ? e('span', { className: 'octie-source-chip' }, f.source) : null,
+          ));
+      });
+      // A1 derivation: only open items need action; done/withdrawn are terminal
+      const fixOpen = (t.need_fix || []).filter((f) => (f.state || (f.completed ? 'done' : 'open')) === 'open').length;
 
       const related = (t.related_files || []).map((f, i) => e('li', { key: 'rf' + i }, e('code', { className: 'octie-chip' }, f)));
       const blockers = (t.blockers || []).map((b, i) => e('li', { key: 'bl' + i }, e('code', { className: 'octie-chip octie-chip-rose' }, b)));
@@ -588,7 +597,7 @@ window.__ModuleLoader__.load({
             sectionTitle('Deliverables', '(' + delDone + '/' + deliverables.length + ')', SEC_COLORS.amber),
             e('ul', { className: 'octie-ul' }, deliverables)) : null,
           needFix.length > 0 ? e('div', { className: 'octie-section' },
-            sectionTitle('Need Fix', '(' + fixDone + '/' + needFix.length + ')', SEC_COLORS.rose),
+            sectionTitle('Need Fix', '(' + fixOpen + ' open)', SEC_COLORS.rose),
             e('ul', { className: 'octie-ul' }, needFix)) : null,
           blockers.length > 0 ? e('div', { className: 'octie-section' },
             sectionTitle('Blocked By', '(' + blockers.length + ')', SEC_COLORS.rose),
@@ -759,6 +768,7 @@ window.__ModuleLoader__.load({
         '.octie-li{display:flex;align-items:flex-start;gap:8px;padding:3px 0;font-size:13px;color:rgba(230,230,230,.85)}',
         '.octie-check{width:15px;height:15px;border-radius:4px;border:1px solid rgba(128,128,128,.5);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-size:10px}',
         '.octie-check-on{background:#10b981;border-color:#10b981;color:#04120b;font-weight:bold}',
+        '.octie-check-withdrawn{border-color:rgba(128,128,128,.5);background:transparent;color:rgba(230,230,230,.5)}',
         '.octie-li-body{flex:1;min-width:0}',
         '.octie-done{text-decoration:line-through;color:rgba(230,230,230,.4)}',
         '.octie-mono-muted{font-size:11px;color:rgba(230,230,230,.55);font-family:ui-monospace,Consolas,monospace;margin-top:2px;display:block}',
@@ -766,6 +776,7 @@ window.__ModuleLoader__.load({
         '.octie-chip{font-size:11px;font-family:ui-monospace,Consolas,monospace;background:rgba(255,255,255,.05);border:1px solid rgba(128,128,128,.25);border-radius:5px;padding:2px 6px;color:rgba(230,230,230,.85);word-break:break-all;display:inline-block;margin:2px 0}',
         '.octie-chip-rose{color:#f43f5e;border-color:rgba(244,63,94,.35);background:rgba(244,63,94,.08)}',
         '.octie-source-chip{font-size:10px;text-transform:uppercase;color:#f43f5e;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);border-radius:4px;padding:0 5px;margin-top:4px;display:inline-block;font-family:ui-monospace,Consolas,monospace}',
+        '.octie-withdrawn-chip{font-size:10px;text-transform:uppercase;color:rgba(230,230,230,.5);background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.3);border-radius:4px;padding:0 5px;margin-left:6px;display:inline-block;font-family:ui-monospace,Consolas,monospace}',
         '.octie-c7-box{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:6px;padding:6px 8px;margin:4px 0}',
         '.octie-muted{font-size:12px;color:rgba(230,230,230,.65);margin:4px 0 0}',
         '.octie-box{background:rgba(255,255,255,.04);border-left:3px solid transparent;border-radius:6px;padding:8px 10px;font-size:12px;color:rgba(230,230,230,.8);white-space:pre-wrap}',
