@@ -266,6 +266,18 @@ export async function updateTaskWithPropagation(
   const dependenciesText = patch.blockers ? patch.blockers.explanation : patch.dependencies;
 
   if (patch.blockers) {
+    // B2: single-value semantics — reject non-string IDs (e.g. a stringified
+    // array) with a type error instead of a misleading "not found"
+    const blockerId: unknown = patch.blockers.id;
+    if (typeof blockerId !== 'string' || blockerId.length === 0) {
+      const received = Array.isArray(blockerId)
+        ? `a list of ${blockerId.length} items`
+        : `type ${typeof blockerId}`;
+      throw new CliPreparationError(
+        `blockers accepts only ONE task ID string; received ${received}. To add multiple blockers, call once per blocker.`,
+        ['Example: octie update abc123 --blockers def456 --dependency-explanation "Needs the API spec from def456"']
+      );
+    }
     if (!patch.blockers.explanation) {
       throw new CliPreparationError('When using --blockers, --dependency-explanation is required (twin feature).', [
         `Current dependencies: "${task.dependencies || '(none)'}"`,

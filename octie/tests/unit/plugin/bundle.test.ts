@@ -705,6 +705,31 @@ describe('octie-dsh bundle Node half', () => {
     expect(msg).toContain('file path');
   });
 
+  it('octie_update rejects array-typed blockers with a single-value type error (B2)', async () => {
+    const { ctx, wrapper } = makeMockCtx();
+    apply(wrapper);
+    const tools: Record<string, any> = {};
+    for (const tool of ctx.registered as any[]) tools[tool.name] = tool;
+
+    await tools.octie_init.execute({ name: `blockers-${uuidv4().slice(0, 8)}`, path: tempDir });
+    const created = await tools.octie_create.execute({
+      title: 'Implement blocker param probe',
+      description: 'Probe task for the octie_update blockers single-value type check through the DSH tool path.',
+      successCriteria: ['array blockers rejected with count, not with not-found wording'],
+      deliverables: ['bundle.test.ts B2 case'],
+    });
+    const err = await tools.octie_update.execute({
+      id: created.id,
+      blockers: ['id1', 'id2'],
+      dependencyExplanation: 'x',
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    const msg = (err as Error).message;
+    expect(msg).toContain('only ONE task ID string');
+    expect(msg).toContain('list of 2 items');
+    expect(msg).not.toContain('not found');
+  });
+
   it('service onChange fires for consumers', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

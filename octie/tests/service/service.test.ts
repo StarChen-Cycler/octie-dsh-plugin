@@ -273,6 +273,18 @@ describe('octie-core service layer', () => {
         .rejects.toThrow(/withdrawn.*terminal/i);
     });
 
+    it('rejects array-typed blockers with a single-value type error, not a not-found error (B2)', async () => {
+      const t = await svc.createTask(dir, { title: 'Implement blocker type check', description: DESC, successCriteria: [CRIT], deliverables: [DELIV] });
+      const err = await svc.updateTask(dir, t.id, { blockers: { id: ['id1', 'id2'] as never, explanation: 'x' } }).catch(e => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err.message).toContain('only ONE task ID string');
+      expect(err.message).toContain('list of 2 items');
+      expect(err.message).not.toContain('not found');
+      // A single unknown string id still yields the existing not-found error
+      await expect(svc.updateTask(dir, t.id, { blockers: { id: '00000000-0000-0000-0000-000000000000', explanation: 'x' } }))
+        .rejects.toThrow(/not found/);
+    });
+
     it('adds a blocker, prevents self-block and cycles, unblocks', async () => {
       const storage = new TaskStorage({ projectDir: dir });
       const g = await storage.load();

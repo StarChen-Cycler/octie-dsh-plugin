@@ -343,7 +343,16 @@ function buildTools(service) {
         dependencyExplanation: stringParam(false, 'Why this task depends on the new blocker'),
         unblock: stringParam(false, 'Blocker task ID to remove'),
       },
-      async (args) => service.updateTask(args.id, {
+      async (args) => {
+        // B2: blockers is a single-ID parameter; an array would otherwise be
+        // stringified into a misleading "task not found" error downstream
+        if (args.blockers !== undefined && typeof args.blockers !== 'string') {
+          const received = Array.isArray(args.blockers)
+            ? `a list of ${args.blockers.length} items`
+            : `type ${typeof args.blockers}`;
+          throw new Error(`octie_update "blockers" accepts only ONE task ID string; received ${received}. To add multiple blockers, call octie_update once per blocker, each with its own dependencyExplanation.`);
+        }
+        return service.updateTask(args.id, {
         priority: args.priority,
         completeCriteria: asArray(args.completeCriteria),
         completeDeliverables: asArray(args.completeDeliverables),
@@ -355,7 +364,8 @@ function buildTools(service) {
         notes: args.notes,
         blockers: args.blockers ? { id: args.blockers, explanation: args.dependencyExplanation || '' } : undefined,
         unblock: args.unblock,
-      })),
+        });
+      }),
     makeTool(service, 'octie_approve',
       'Approve an in_review task (the only manual status transition: in_review -> completed). Unblocks dependents via BFS propagation.',
       { id: stringParam(true, 'Task ID') },
