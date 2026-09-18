@@ -1,0 +1,156 @@
+{
+  "$schema": "https://octie.dev/schemas/project-v1.json",
+  "version": "1.0.0",
+  "format": "octie-project",
+  "metadata": {
+    "name": "convergence-old-format-fixture",
+    "created_at": "2026-08-01T00:00:00.000Z",
+    "updated_at": "2026-08-03T00:00:00.000Z",
+    "description": "Old-format project fixture: need_fix items use completed:boolean (pre-withdrawn-state era)"
+  },
+  "tasks": {
+    "395ccff9-7be3-45d7-aeed-baf7e7b61af3": {
+      "id": "395ccff9-7be3-45d7-aeed-baf7e7b61af3",
+      "title": "Extract octie-core service layer from CLI commands",
+      "description": "Move business logic from src/cli/commands into a new src/service layer: initProject, createTask, listTasks, getTask, updateTask, approveTask, findTasks, wireTasks, mergeTasks, deleteTasks, graphStats, createHandoff. Reuse shared-helpers preflight and execute logic. CLI commands become thin shells over the service layer. Service stays DSH-agnostic and returns JSON projections only.",
+      "status": "in_progress",
+      "priority": "top",
+      "success_criteria": [
+        {
+          "id": "d132336a-1174-4bef-af1e-dfb9d3f88e4e",
+          "text": "src/service exports at least 12 service functions matching the CLI command surface",
+          "completed": true,
+          "completed_at": "2026-08-14T19:17:39.260Z",
+          "evidence": "16/16 service functions importable from dist/index.js; vitest 739/739 passed; tsc --noEmit clean"
+        },
+        {
+          "id": "cfe169e3-fdef-4399-938d-31e5190a9733",
+          "text": "npm test exits with code 0 with all existing tests passing",
+          "completed": true,
+          "completed_at": "2026-08-14T19:17:39.260Z",
+          "evidence": "16/16 service functions importable from dist/index.js; vitest 739/739 passed; tsc --noEmit clean"
+        },
+        {
+          "id": "7ba1c81b-eb02-4c3d-878d-7530bc9c5dc5",
+          "text": "npm run typecheck exits with code 0",
+          "completed": true,
+          "completed_at": "2026-08-14T19:17:39.260Z",
+          "evidence": "16/16 service functions importable from dist/index.js; vitest 739/739 passed; tsc --noEmit clean"
+        }
+      ],
+      "deliverables": [
+        {
+          "id": "e9108c26-7553-4d5c-99c7-5e88be0299fa",
+          "text": "octie/src/service service modules",
+          "completed": true
+        },
+        {
+          "id": "d0464bdd-e40f-4831-8e10-71dc1b968e8c",
+          "text": "octie/src/index.ts exporting the service API",
+          "completed": true
+        }
+      ],
+      "need_fix": [
+        {
+          "id": "nf-old-0001-done",
+          "text": "Old-format fix item already applied (completed: true)",
+          "completed": true,
+          "file_path": "octie/src/core/models/task-node.ts",
+          "added_at": "2026-08-01T00:00:00.000Z",
+          "source": "review"
+        },
+        {
+          "id": "nf-old-0002-open",
+          "text": "Old-format fix item still pending (completed: false)",
+          "completed": false,
+          "added_at": "2026-08-02T00:00:00.000Z",
+          "source": "runtime"
+        }
+      ],
+      "assignee": null,
+      "blockers": [],
+      "dependencies": "",
+      "sub_items": [],
+      "related_files": [],
+      "notes": "",
+      "c7_verified": [],
+      "created_at": "2026-08-14T19:00:08.393Z",
+      "updated_at": "2026-08-14T19:18:31.950Z",
+      "completed_at": null,
+      "edges": [
+        "60a0b7da-6815-414b-a070-9e2c007a5645",
+        "f6f764dc-2c40-4672-be69-0b59e6389899",
+        "8ad66c28-8a14-4b3a-adef-906c2bd02d88",
+        "b06e5f18-6785-4dd9-a668-54f3f34b0c9a",
+        "a85c8c75-ce80-4d03-a5fd-5973efbfbca4"
+      ]
+    },
+    "8ad66c28-8a14-4b3a-adef-906c2bd02d88": {
+      "id": "8ad66c28-8a14-4b3a-adef-906c2bd02d88",
+      "title": "Write tests for octie-core service layer",
+      "description": "Add vitest unit and integration tests for the service layer: validation errors, blocker and dependency twin requirement, status derivation through approve, graph operations, and JSON projection shapes. Keep existing CLI and storage tests passing.",
+      "status": "in_progress",
+      "priority": "second",
+      "success_criteria": [
+        {
+          "id": "1d1836b8-ba8c-4bb7-95ea-f78fac7df6c0",
+          "text": "npm test exits with code 0 including the new service tests",
+          "completed": true,
+          "completed_at": "2026-08-14T19:59:38.745Z",
+          "evidence": "vitest 770/770 exit 0 including 26 service tests; focused v8 coverage: src/service statements 90.4% (>=80)"
+        },
+        {
+          "id": "e5af08f6-361b-47f1-8e7c-eac4c5243486",
+          "text": "service layer statement coverage is at least 80 percent in npm run test:coverage",
+          "completed": true,
+          "completed_at": "2026-08-14T19:59:38.746Z",
+          "evidence": "vitest 770/770 exit 0 including 26 service tests; focused v8 coverage: src/service statements 90.4% (>=80)"
+        }
+      ],
+      "deliverables": [
+        {
+          "id": "cd83622e-92af-4839-a5e8-e66b214052d1",
+          "text": "octie/tests/service test files",
+          "completed": true
+        }
+      ],
+      "need_fix": [
+        {
+          "id": "nf-old-0003-open",
+          "text": "Minimal legacy fix item without file_path/source",
+          "completed": false,
+          "added_at": "2026-08-03T00:00:00.000Z"
+        }
+      ],
+      "assignee": null,
+      "blockers": [
+        "395ccff9-7be3-45d7-aeed-baf7e7b61af3"
+      ],
+      "dependencies": "Tests import the service layer from task 1",
+      "sub_items": [],
+      "related_files": [
+        "octie/tests",
+        "octie/src/service"
+      ],
+      "notes": "",
+      "c7_verified": [],
+      "created_at": "2026-08-14T19:00:55.820Z",
+      "updated_at": "2026-08-14T19:59:41.877Z",
+      "completed_at": null,
+      "edges": [
+        "e252f235-1a0c-4714-abdb-8a999c69c992",
+        "6ff0a4aa-72f2-4e8c-8545-9cb89e772cb4",
+        "b06e5f18-6785-4dd9-a668-54f3f34b0c9a",
+        "a85c8c75-ce80-4d03-a5fd-5973efbfbca4"
+      ]
+    }
+  },
+  "indexes": {
+    "byStatus": {},
+    "byPriority": {},
+    "rootTasks": [],
+    "orphanTasks": [],
+    "searchText": {},
+    "files": {}
+  }
+}
