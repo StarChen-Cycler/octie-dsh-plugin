@@ -57,6 +57,19 @@ git push dsh-plugin v1.3.0
 gh release create v1.3.0 -R StarChen-Cycler/octie-dsh-plugin --title "v1.3.0" --notes "..."
 ```
 
+### 6. 清理测试残留（每次发版/大跑测试后都做）
+
+测试套件和探针项目会在全局注册表（`~/.octie/projects.json`）里留下大量指向
+Temp 目录的条目，写操作还会留下 `.octie/project.bak.*` 备份。发版收尾时清理：
+
+```bash
+octie registry prune        # 删除路径已不存在的注册表条目（真实项目不受影响）
+```
+
+- 探针/scratch 目录若还在磁盘上，先删目录再 prune，否则条目不"过期"不会被清。
+- `project.bak.*` 属本地灾难恢复设施，不进版本库（见 docs/HISTORY-SNAPSHOTS.md）；
+  要清理时**移到归档目录**而不是直接删除。
+
 ---
 
 ## 下次发布
