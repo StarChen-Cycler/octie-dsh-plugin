@@ -61,7 +61,7 @@ gh release create v1.3.0 -R StarChen-Cycler/octie-dsh-plugin --title "v1.3.0" --
 
 ## 下次发布
 
-下次发布版本号: 1.3.1（patch）/ 1.4.0（有新功能时）
+下次发布版本号: 1.3.2（patch）/ 1.4.0（有新功能时）
 
 ---
 
@@ -101,3 +101,4 @@ Token 需要在 https://www.npmjs.com/settings/tokens 创建，需启用 "Publis
 | 1.2.3 | 2026-08-17 | 修复 npm tarball 缺 dist/web-ui 导致 octie serve 302（.npmignore + prepack） |
 | 1.2.4 | 2026-08-27 | 预设 persona 行迁移到 0.1.5 契约 |
 | 1.3.0 | 2026-09-18 | 收敛轮：need_fix 三态（open/done/withdrawn，旧数据读时迁移）、approve 刷新 completed_at、原子校验报错带条目位置并透出 DSH 工具、blockers 单值类型报错、octie_get 字段过滤、octie_update 删除验收标准/交付物、快照恢复文档 |
+| 1.3.1 | 2026-09-19 | 两个前端的 withdrawn 渲染：serve web-ui 与 DSH panel(client.js)都以灰框+删除线+withdrawn 标签区分作废返工项，Need Fix 计数改为只数 open |
