@@ -54,11 +54,13 @@ export function formatTaskMarkdown(task) {
     if (task.need_fix.length > 0) {
         lines.push('### Need Fix');
         for (const nf of task.need_fix) {
-            const nfCheckbox = nf.completed ? '[x]' : '[ ]';
+            const nfState = nf.state ?? (nf.completed ? 'done' : 'open');
+            const nfCheckbox = nfState === 'done' ? '[x]' : nfState === 'withdrawn' ? '[~]' : '[ ]';
+            const withdrawnTag = nfState === 'withdrawn' ? ' (withdrawn — do not execute)' : '';
             const idDisplay = `\`${nf.id}\``;
             const sourceDisplay = nf.source ? ` [${nf.source}]` : '';
             const fileRef = nf.file_path ? ` → \`${nf.file_path}\`` : '';
-            lines.push(`- ${nfCheckbox} ${nf.text}${sourceDisplay}${fileRef} ${idDisplay}`);
+            lines.push(`- ${nfCheckbox} ${nf.text}${sourceDisplay}${fileRef}${withdrawnTag} ${idDisplay}`);
         }
         lines.push('');
     }

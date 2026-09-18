@@ -758,6 +758,53 @@ describe('octie-dsh bundle Node half', () => {
     expect(explicitAll).toHaveProperty('success_criteria');
   });
 
+  it('octie_update removes criteria/deliverables and enforces the immutable/last-item rules (C2)', async () => {
+    const { ctx, wrapper } = makeMockCtx();
+    apply(wrapper);
+    const tools: Record<string, any> = {};
+    for (const tool of ctx.registered as any[]) tools[tool.name] = tool;
+
+    await tools.octie_init.execute({ name: `remove-${uuidv4().slice(0, 8)}`, path: tempDir });
+    const created = await tools.octie_create.execute({
+      title: 'Implement remove-entry probe',
+      description: 'Probe task for exposing removeSuccessCriterion/removeDeliverable through octie_update (C2).',
+      successCriteria: ['first criterion returns 200', 'second criterion returns 200'],
+      deliverables: ['src/probe/a.ts', 'src/probe/b.ts'],
+    });
+
+    // Delete one criterion and one deliverable in a single call
+    const removed = await tools.octie_update.execute({
+      id: created.id,
+      removeCriteria: [created.success_criteria[0].id],
+      removeDeliverables: [created.deliverables[0].id],
+    });
+    expect(removed.success_criteria.map((c: any) => c.text)).toEqual(['second criterion returns 200']);
+    expect(removed.deliverables.map((d: any) => d.text)).toEqual(['src/probe/b.ts']);
+
+    // octie_get confirms no stale/contradictory entries remain
+    const fetched = await tools.octie_get.execute({ id: created.id, fields: ['success_criteria', 'deliverables'] });
+    expect(fetched.success_criteria.length).toBe(1);
+    expect(fetched.deliverables.length).toBe(1);
+
+    // Last remaining criterion cannot be removed
+    const lastErr = await tools.octie_update.execute({
+      id: created.id,
+      removeCriteria: [created.success_criteria[1].id],
+    }).catch((e: unknown) => e);
+    expect((lastErr as Error).message).toMatch(/last success criterion/i);
+
+    // Completed items are immutable
+    const completed = await tools.octie_update.execute({
+      id: created.id,
+      completeCriteria: [created.success_criteria[1].id],
+    });
+    const immErr = await tools.octie_update.execute({
+      id: created.id,
+      removeCriteria: [created.success_criteria[1].id],
+    }).catch((e: unknown) => e);
+    expect((immErr as Error).message).toMatch(/completed.*immutable/i);
+  });
+
   it('service onChange fires for consumers', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

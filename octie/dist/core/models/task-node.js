@@ -11,7 +11,7 @@
  * @module core/models/task-node
  */
 import { v4 as uuidv4 } from 'uuid';
-import { ValidationError, AtomicTaskViolationError, ImmutabilityViolationError, } from '../../types/index.js';
+import { ValidationError, AtomicTaskViolationError, ImmutabilityViolationError, resolveFixItemState, } from '../../types/index.js';
 /**
  * Action verbs that indicate specific, executable tasks
  * Exported so CLI surfaces (rejection errors, policy help) can print the full list.
@@ -356,38 +356,43 @@ export function validateAtomicTask(taskData) {
     // measurable anchor (digit, file path, verifiable verb) — e.g. "validator
     // prints a clear warning for empty input" is checkable and passes, while
     // "make it fast and good" is rejected.
-    for (const criterion of taskData.success_criteria) {
+    // B1: every per-entry violation names the field, the entry index, and an
+    // excerpt so the rejected call is actionable without guessing.
+    taskData.success_criteria.forEach((criterion, i) => {
         const textLower = criterion.text.toLowerCase();
         // Split into word tokens (sequences of letters)
         const tokens = textLower.match(/[a-z]+/g) || [];
         const subjectiveWord = findSubjectiveWord(tokens);
         if (subjectiveWord && !hasQuantitativeAnchor(textLower)) {
-            violations.push(`Success criterion "${criterion.text.substring(0, 80)}" contains the subjective word "${subjectiveWord}" and has no measurable anchor. Add a metric (number, unit, status code, file path) or a verifiable verb (passes, returns, exits, lists, includes, matches, emits, displays, shows, prints, responds, throws, fails).`);
+            violations.push(`Success criterion[${i}] "${criterion.text.substring(0, 80)}" contains the subjective word "${subjectiveWord}" and has no measurable anchor. Add a metric (number, unit, status code, file path) or a verifiable verb (passes, returns, exits, lists, includes, matches, emits, displays, shows, prints, responds, throws, fails).`);
         }
-    }
-    // Check criteria aren't empty or just whitespace
-    const hasEmptyCriterion = taskData.success_criteria.some(c => c.text.trim().length === 0);
-    if (hasEmptyCriterion) {
-        violations.push('Success criteria cannot be empty or whitespace.');
-    }
-    // Check deliverables aren't empty or just whitespace
-    const hasEmptyDeliverable = taskData.deliverables.some(d => d.text.trim().length === 0);
-    if (hasEmptyDeliverable) {
-        violations.push('Deliverables cannot be empty or whitespace.');
-    }
-    // Check that all criteria and deliverables start with a verb or are specific
-    const hasVagueCriterion = taskData.success_criteria.some(c => {
-        const textLower = c.text.toLowerCase().trim();
-        return VAGUE_PATTERNS.some(pattern => textLower.startsWith(pattern));
     });
-    if (hasVagueCriterion) {
-        violations.push('Success criteria must be specific. Avoid vague phrases like "works properly", "is correct", "functions as expected". Use specific outcomes: "endpoint returns 200 with valid JWT", "password is hashed with bcrypt", "test coverage is 100%".');
-    }
-    // Check that deliverables are specific files or outputs
-    const hasVagueDeliverable = taskData.deliverables.some(d => {
+    // Check criteria aren't empty or just whitespace (per-entry, with location)
+    taskData.success_criteria.forEach((c, i) => {
+        if (c.text.trim().length === 0) {
+            violations.push(`Success criterion[${i}] is empty or whitespace.`);
+        }
+    });
+    // Check deliverables aren't empty or just whitespace (per-entry, with location)
+    taskData.deliverables.forEach((d, i) => {
+        if (d.text.trim().length === 0) {
+            violations.push(`Deliverable[${i}] is empty or whitespace.`);
+        }
+    });
+    // Check that all criteria and deliverables start with a verb or are specific
+    taskData.success_criteria.forEach((c, i) => {
+        const textLower = c.text.toLowerCase().trim();
+        if (VAGUE_PATTERNS.some(pattern => textLower.startsWith(pattern))) {
+            violations.push(`Success criterion[${i}] "${c.text.substring(0, 80)}" starts with a vague phrase. Avoid vague phrases like "works properly", "is correct", "functions as expected". Use specific outcomes: "endpoint returns 200 with valid JWT", "password is hashed with bcrypt", "test coverage is 100%".`);
+        }
+    });
+    // Check that deliverables are specific files or outputs (per-entry, with location)
+    taskData.deliverables.forEach((d, i) => {
         const textLower = d.text.toLowerCase().trim();
+        if (textLower.length === 0)
+            return; // already reported by the empty check above
         // Allow file paths or specific outputs
-        return (!textLower.includes('.') &&
+        const isVagueDeliverable = !textLower.includes('.') &&
             !textLower.includes('file') &&
             !textLower.includes('test') &&
             !textLower.includes('component') &&
@@ -397,11 +402,11 @@ export function validateAtomicTask(taskData) {
             !textLower.includes('endpoint') &&
             !textLower.includes('api') &&
             !textLower.includes('service') &&
-            textLower.split(' ').length < 3);
+            textLower.split(' ').length < 3;
+        if (isVagueDeliverable) {
+            violations.push(`Deliverable[${i}] "${d.text.substring(0, 80)}" is not specific. Include a file path (e.g., "src/auth/login.ts") or a specific output (e.g., "POST /auth/login endpoint"). Avoid vague terms like "code", "implementation", "feature".`);
+        }
     });
-    if (hasVagueDeliverable) {
-        violations.push('Deliverables must be specific. Include file paths (e.g., "src/auth/login.ts") or specific outputs (e.g., "POST /auth/login endpoint"). Avoid vague terms like "code", "implementation", "feature".');
-    }
     if (violations.length > 0) {
         throw new AtomicTaskViolationError(`Task "${taskData.title}" violates atomic task requirements.`, violations);
     }
@@ -719,6 +724,7 @@ export class TaskNode {
             id: uuidv4(),
             text: text.trim(),
             completed: false,
+            state: 'open',
             file_path: options?.file_path,
             added_at: new Date().toISOString(),
             source: options?.source,
@@ -730,6 +736,7 @@ export class TaskNode {
     }
     /**
      * Mark a need_fix item as complete
+     * Only open items can be completed; withdrawn items are terminal.
      * @param fixId - ID of the need_fix item to mark complete
      */
     completeNeedFix(fixId) {
@@ -737,7 +744,35 @@ export class TaskNode {
         if (!fixItem) {
             throw new ValidationError(`Need_fix item with ID '${fixId}' not found.`, 'need_fix');
         }
-        fixItem.completed = true;
+        if (resolveFixItemState(fixItem) === 'withdrawn') {
+            throw new ImmutabilityViolationError(`Need_fix item '${fixId}' is withdrawn and cannot be completed. Withdrawn items are terminal.`, fixId, 'need_fix');
+        }
+        fixItem.state = 'done';
+        fixItem.completed = true; // Legacy mirror, kept in sync for old readers
+        this._touch();
+        this._checkCompletion();
+        this.recalculateStatus(); // Auto-transition status based on state
+    }
+    /**
+     * Withdraw a need_fix item — the review voided it; it must NOT be executed.
+     * Symmetric to completeNeedFix. Withdrawn items never block review and are
+     * terminal (cannot be completed or re-opened). Already-withdrawn is a no-op.
+     * @param fixId - ID of the need_fix item to withdraw
+     */
+    withdrawNeedFix(fixId) {
+        const fixItem = this.need_fix.find(f => f.id === fixId);
+        if (!fixItem) {
+            throw new ValidationError(`Need_fix item with ID '${fixId}' not found.`, 'need_fix');
+        }
+        const state = resolveFixItemState(fixItem);
+        if (state === 'withdrawn') {
+            return; // Idempotent, symmetric to re-completing a done item
+        }
+        if (state === 'done') {
+            throw new ImmutabilityViolationError(`Need_fix item '${fixId}' is already completed and cannot be withdrawn. Completed items are immutable.`, fixId, 'need_fix');
+        }
+        fixItem.state = 'withdrawn';
+        fixItem.completed = false; // Legacy mirror, kept in sync for old readers
         this._touch();
         this._checkCompletion();
         this.recalculateStatus(); // Auto-transition status based on state
@@ -940,7 +975,8 @@ export class TaskNode {
     _isComplete() {
         const allCriteriaComplete = this.success_criteria.every(c => c.completed);
         const allDeliverablesComplete = this.deliverables.every(d => d.completed);
-        const allNeedFixComplete = this.need_fix.every(f => f.completed);
+        // Only open need_fix items block completion; done and withdrawn do not
+        const allNeedFixComplete = this.need_fix.every(f => resolveFixItemState(f) !== 'open');
         return allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete;
     }
     /**
@@ -998,7 +1034,8 @@ export class TaskNode {
         // Blockers prevent starting work, not completing it
         const allCriteriaComplete = this.success_criteria.every(c => c.completed);
         const allDeliverablesComplete = this.deliverables.every(d => d.completed);
-        const allNeedFixComplete = this.need_fix.every(f => f.completed);
+        // Only open need_fix items block the review gate (spec A1: withdrawn never blocks)
+        const allNeedFixComplete = this.need_fix.every(f => resolveFixItemState(f) !== 'open');
         const allComplete = allCriteriaComplete && allDeliverablesComplete && allNeedFixComplete;
         if (allComplete) {
             return 'in_review';
@@ -1010,9 +1047,10 @@ export class TaskNode {
             return 'blocked';
         }
         // Rule 3: Check if work has started
+        // Spec A1: only OPEN need_fix items count — withdrawn items are not work
         const anyCriteriaChecked = this.success_criteria.some(c => c.completed);
         const anyDeliverableChecked = this.deliverables.some(d => d.completed);
-        const hasNeedFix = this.need_fix.length > 0;
+        const hasNeedFix = this.need_fix.some(f => resolveFixItemState(f) === 'open');
         if (anyCriteriaChecked || anyDeliverableChecked || hasNeedFix) {
             return 'in_progress';
         }
@@ -1060,6 +1098,11 @@ export class TaskNode {
             throw new ValidationError(`Cannot approve task in '${this.status}' status. Task must be in 'in_review' status.`, 'status');
         }
         this.status = 'completed';
+        // A2: completed_at is a single field meaning "when this round finished /
+        // was last touched" — written when all items are checked (_checkCompletion)
+        // and refreshed again on every successful approve, so a re-approval after
+        // further changes moves the timestamp to the latest approval.
+        this._completed_at = new Date().toISOString();
         this._touch();
     }
     /**
@@ -1101,6 +1144,13 @@ export class TaskNode {
         if (statusStr === 'not_started' || statusStr === 'pending') {
             migratedStatus = 'ready';
         }
+        // Migrate pre-withdrawn-era need_fix items on read (spec A1):
+        // state absent → completed:true becomes done, completed:false becomes open.
+        // The legacy `completed` mirror is rewritten so old readers keep working.
+        const migratedNeedFix = (data.need_fix || []).map(item => {
+            const state = resolveFixItemState(item);
+            return { ...item, state, completed: state === 'done' };
+        });
         const node = new TaskNode({
             id: data.id,
             title: data.title,
@@ -1109,7 +1159,7 @@ export class TaskNode {
             priority: data.priority,
             success_criteria: data.success_criteria,
             deliverables: data.deliverables,
-            need_fix: data.need_fix || [], // Default to empty array for legacy data
+            need_fix: migratedNeedFix,
             assignee: data.assignee ?? null, // Default to null for legacy data
             blockers: data.blockers,
             dependencies: data.dependencies,

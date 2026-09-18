@@ -5,6 +5,13 @@
  * @module types
  */
 /**
+ * Resolve the canonical state of a fix item, migrating legacy data on read:
+ * items without `state` derive it from `completed` (true → done, false → open).
+ */
+export function resolveFixItemState(item) {
+    return item.state ?? (item.completed ? 'done' : 'open');
+}
+/**
  * Error code to HTTP status code mapping
  * Used by API error handler to return appropriate status codes
  */
@@ -179,7 +186,8 @@ export class StorageError extends OctieError {
  * Per the status refactor spec:
  * - success_criteria items: Cannot be unchecked or deleted once completed
  * - deliverables items: Cannot be unchecked or deleted once completed
- * - need_fix items: Cannot be deleted or unmarked once completed
+ * - need_fix items: Cannot be deleted or unmarked once completed; withdrawn
+ *   items are terminal (cannot be completed or re-opened)
  */
 export class ImmutabilityViolationError extends ValidationError {
     /** ID of the item that cannot be modified */

@@ -1,5 +1,8 @@
 /**
  * JSON output formatters for tasks and projects
+ *
+ * Field filtering is implemented once in src/service/fields.ts (spec C1) and
+ * shared with the DSH octie_get tool; this module only adds the CLI warning UX.
  */
 import type { TaskGraphStore } from '../../core/graph/index.js';
 import type { TaskProjection } from '../../service/types.js';

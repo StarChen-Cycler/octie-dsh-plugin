@@ -6,6 +6,7 @@
  */
 export * from './types.js';
 export * from './engine.js';
+export * from './fields.js';
 export * from './projections.js';
 export * from './tasks.js';
 export * from './graph.js';

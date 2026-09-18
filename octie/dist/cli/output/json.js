@@ -1,56 +1,32 @@
 /**
  * JSON output formatters for tasks and projects
+ *
+ * Field filtering is implemented once in src/service/fields.ts (spec C1) and
+ * shared with the DSH octie_get tool; this module only adds the CLI warning UX.
  */
+import { TASK_FIELDS, parseFieldList, filterTaskFields } from '../../service/fields.js';
 /**
  * Schema reference for Octie project files
  */
 const OCTIE_SCHEMA = 'https://octie.dev/schemas/project-v1.json';
 /**
- * All valid field names from TaskNode.toJSON()
- */
-const TASK_FIELDS = new Set([
-    'id', 'title', 'description', 'status', 'priority',
-    'success_criteria', 'deliverables', 'need_fix', 'assignee',
-    'blockers', 'dependencies', 'sub_items', 'related_files',
-    'notes', 'c7_verified', 'created_at', 'updated_at', 'completed_at', 'edges',
-]);
-/**
  * Parse and validate --fields argument
  * Returns array of valid field names, warns about unknowns
  */
 export function parseFields(fieldsArg) {
-    if (!fieldsArg)
-        return null;
-    const requested = fieldsArg.split(',').map(f => f.trim()).filter(Boolean);
-    if (requested.length === 0)
-        return null;
-    const invalid = [];
-    for (const f of requested) {
-        if (!TASK_FIELDS.has(f))
-            invalid.push(f);
-    }
+    const { fields, invalid } = parseFieldList(fieldsArg);
     if (invalid.length > 0) {
         console.warn(`Warning: unknown field(s): ${invalid.join(', ')}`);
         console.warn(`Valid fields: ${[...TASK_FIELDS].sort().join(', ')}`);
     }
-    return requested.filter(f => TASK_FIELDS.has(f));
+    return fields;
 }
 /**
  * Format a single task as JSON
  * Pretty-printed with 2-space indentation
  */
 export function formatTaskJSON(task, fields) {
-    const data = task;
-    if (!fields || fields.length === 0) {
-        return JSON.stringify(data, null, 2);
-    }
-    const filtered = {};
-    // ponytail: double-cast needed — TaskNode lacks index signature
-    const raw = data;
-    for (const key of fields) {
-        filtered[key] = raw[key];
-    }
-    return JSON.stringify(filtered, null, 2);
+    return JSON.stringify(filterTaskFields(task, fields), null, 2);
 }
 /**
  * Format entire project as JSON for storage

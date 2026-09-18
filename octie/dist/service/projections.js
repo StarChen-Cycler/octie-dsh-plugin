@@ -2,6 +2,7 @@
  * Service-layer projections: convert live core objects into owned JSON-safe data.
  * Only leaf fields are read; no live TaskNode/TaskGraphStore instances escape.
  */
+import { resolveFixItemState } from '../types/index.js';
 function projectCriterion(c) {
     return {
         id: c.id,
@@ -25,6 +26,7 @@ function projectNeedFix(f) {
         text: f.text,
         ...(f.source ? { source: f.source } : {}),
         ...(f.file_path ? { file_path: f.file_path } : {}),
+        state: resolveFixItemState(f),
         completed: f.completed,
     };
 }

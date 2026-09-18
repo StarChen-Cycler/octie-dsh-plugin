@@ -175,9 +175,17 @@ export declare class TaskNode implements TaskNodeType {
     }): void;
     /**
      * Mark a need_fix item as complete
+     * Only open items can be completed; withdrawn items are terminal.
      * @param fixId - ID of the need_fix item to mark complete
      */
     completeNeedFix(fixId: string): void;
+    /**
+     * Withdraw a need_fix item — the review voided it; it must NOT be executed.
+     * Symmetric to completeNeedFix. Withdrawn items never block review and are
+     * terminal (cannot be completed or re-opened). Already-withdrawn is a no-op.
+     * @param fixId - ID of the need_fix item to withdraw
+     */
+    withdrawNeedFix(fixId: string): void;
     /**
      * Set the assignee for this task
      * Assignee is decoupled from status - just a placeholder for future team management

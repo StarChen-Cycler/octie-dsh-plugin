@@ -22,6 +22,9 @@ export interface NeedFixProjection {
     text: string;
     source?: 'review' | 'runtime' | 'regression';
     file_path?: string;
+    /** Canonical three-state: open blocks review; done/withdrawn do not */
+    state: 'open' | 'done' | 'withdrawn';
+    /** Legacy mirror of state (true ⇔ done), kept for old consumers */
     completed: boolean;
 }
 export interface TaskSummary {
@@ -96,6 +99,8 @@ export interface UpdateTaskPatch {
         file?: string;
     }>;
     completeNeedFix?: string[];
+    /** Withdraw (作废) need_fix items — they no longer block review and must not be executed */
+    withdrawNeedFix?: string[];
     blockers?: {
         id: string;
         explanation: string;
