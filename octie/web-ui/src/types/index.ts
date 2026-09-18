@@ -22,6 +22,8 @@ export interface FixItem {
   id: string;
   text: string;
   completed: boolean;
+  /** Canonical three-state from the API (A1); absent in pre-1.3.0 payloads — derive from completed */
+  state?: 'open' | 'done' | 'withdrawn';
   file_path?: string;
   added_at: string;
   source?: 'review' | 'runtime' | 'regression';

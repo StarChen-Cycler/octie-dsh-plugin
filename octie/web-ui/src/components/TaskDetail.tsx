@@ -223,41 +223,72 @@ function TaskDetail({ task }: TaskDetailProps) {
         <div>
           <SectionTitle>
             Need Fix
-            <span style={{ color: 'var(--status-blocked)' }}>
-              {' '}
-              ({task.need_fix.filter((f) => f.completed).length}/{task.need_fix.length})
-            </span>
+            {(() => {
+              // A1: only OPEN items need action; done/withdrawn are terminal
+              const openCount = task.need_fix.filter(
+                (f) => (f.state ?? (f.completed ? 'done' : 'open')) === 'open'
+              ).length;
+              return (
+                <span style={{ color: openCount > 0 ? 'var(--status-blocked)' : 'var(--status-completed)' }}>
+                  {' '}
+                  ({openCount} open)
+                </span>
+              );
+            })()}
           </SectionTitle>
           <ul className="space-y-2">
-            {task.need_fix.map((fix) => (
+            {task.need_fix.map((fix) => {
+              const fixState = fix.state ?? (fix.completed ? 'done' : 'open');
+              return (
               <li
                 key={fix.id}
                 className="flex items-start gap-3 text-sm"
               >
                 <div
                   className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{
-                    background: fix.completed
-                      ? 'var(--status-completed)'
-                      : 'rgba(244, 63, 94, 0.3)',
-                    border: fix.completed
-                      ? 'none'
-                      : '1px solid rgba(244, 63, 94, 0.5)',
-                  }}
+                  style={
+                    fixState === 'done'
+                      ? { background: 'var(--status-completed)', border: 'none' }
+                      : fixState === 'withdrawn'
+                        ? { background: 'var(--surface-elevated)', border: '1px solid var(--text-muted)' }
+                        : { background: 'rgba(244, 63, 94, 0.3)', border: '1px solid rgba(244, 63, 94, 0.5)' }
+                  }
                 >
-                  {fix.completed && (
+                  {fixState === 'done' && (
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                       <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                  {fixState === 'withdrawn' && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="3">
+                      <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <span
-                    className={fix.completed ? 'line-through' : ''}
-                    style={{ color: fix.completed ? 'var(--text-muted)' : 'var(--text-secondary)' }}
+                    className={fixState !== 'open' ? 'line-through' : ''}
+                    style={{
+                      color: fixState === 'open'
+                        ? 'var(--text-secondary)'
+                        : 'var(--text-muted)',
+                      opacity: fixState === 'withdrawn' ? 0.7 : 1,
+                    }}
                   >
                     {fix.text}
                   </span>
+                  {fixState === 'withdrawn' && (
+                    <span
+                      className="inline-block ml-2 text-[10px] px-1.5 py-0.5 rounded uppercase"
+                      style={{
+                        background: 'var(--surface-elevated)',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                    >
+                      withdrawn
+                    </span>
+                  )}
                   {fix.file_path && (
                     <code
                       className="block mt-1 text-xs px-2 py-1 rounded"
@@ -284,7 +315,8 @@ function TaskDetail({ task }: TaskDetailProps) {
                   )}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       )}
