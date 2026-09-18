@@ -730,6 +730,34 @@ describe('octie-dsh bundle Node half', () => {
     expect(msg).not.toContain('not found');
   });
 
+  it('octie_get with fields narrows the payload via the shared filter (C1)', async () => {
+    const { ctx, wrapper } = makeMockCtx();
+    apply(wrapper);
+    const tools: Record<string, any> = {};
+    for (const tool of ctx.registered as any[]) tools[tool.name] = tool;
+
+    await tools.octie_init.execute({ name: `fields-${uuidv4().slice(0, 8)}`, path: tempDir });
+    const created = await tools.octie_create.execute({
+      title: 'Implement field filter probe',
+      description: 'Probe task for the octie_get fields parameter backed by the shared service-layer filter.',
+      successCriteria: ['octie_get fields [status,title] returns exactly 2 keys'],
+      deliverables: ['bundle.test.ts C1 case'],
+    });
+
+    const narrow = await tools.octie_get.execute({ id: created.id, fields: ['status', 'title'] });
+    expect(Object.keys(narrow).sort()).toEqual(['status', 'title']);
+    expect(narrow.status).toBe('ready');
+
+    const full = await tools.octie_get.execute({ id: created.id });
+    expect(full).toHaveProperty('success_criteria');
+    expect(full).toHaveProperty('deliverables');
+    expect(full).toHaveProperty('need_fix');
+    expect(full).toHaveProperty('notes');
+
+    const explicitAll = await tools.octie_get.execute({ id: created.id, fields: ['all'] });
+    expect(explicitAll).toHaveProperty('success_criteria');
+  });
+
   it('service onChange fires for consumers', async () => {
     const { ctx, wrapper } = makeMockCtx();
     apply(wrapper);

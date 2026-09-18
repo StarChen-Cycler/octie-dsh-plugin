@@ -36,6 +36,8 @@ import {
   createHandoff,
   initProjectAt,
   getProjectLastUpdated,
+  parseFieldList,
+  filterTaskFields,
 } from '../dist/index.js';
 
 export const name = 'octie-dsh';
@@ -305,9 +307,17 @@ function buildTools(service) {
       },
       async (args) => service.listTasks({ status: args.status, priority: args.priority })),
     makeTool(service, 'octie_get',
-      'Get one task with full details (supports full UUID or 7-8 char prefix).',
-      { id: stringParam(true, 'Task ID (full UUID or short prefix)') },
-      async (args) => service.getTask(args.id)),
+      'Get one task with full details (supports full UUID or 7-8 char prefix). Pass fields to narrow the payload (token saver).',
+      {
+        id: stringParam(true, 'Task ID (full UUID or short prefix)'),
+        fields: { type: 'array', items: { type: 'string' }, required: false, description: "Field names to return, e.g. ['status','title']. Omit or pass ['all'] for the full task. Valid fields: id, title, description, status, priority, success_criteria, deliverables, need_fix, assignee, blockers, dependencies, sub_items, related_files, notes, c7_verified, created_at, updated_at, completed_at, edges" },
+      },
+      async (args) => {
+        const task = await service.getTask(args.id);
+        // C1: same shared filtering implementation as the CLI --fields flag
+        const { fields } = parseFieldList(args.fields ?? undefined);
+        return filterTaskFields(task, fields);
+      }),
     makeTool(service, 'octie_find',
       'Search tasks. withoutBlockers finds tasks with no blockers; orphans finds disconnected tasks; leaves finds end tasks.',
       {
